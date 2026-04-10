@@ -16,7 +16,7 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
     <!-- Supabase JS client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
     <!-- Pretendard Font -->
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
@@ -44,7 +44,8 @@
 
         const SUPABASE_URL = 'https://jjwsnwnfhqcszwmjdcac.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impqd3Nud25maHFjc3p3bWpkY2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NTk3NjgsImV4cCI6MjA4NTMzNTc2OH0.8sH1l1fVKEc48qzT6u4qFyUDPZGaLndcYi8si21dtoc';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { createClient } = window.supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         function toDbRow(c) {
           return {
@@ -329,7 +330,7 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const { data, error } = await supabase.from('accident_rentals').select('*').order('start_date', { ascending: false });
+        const { data, error } = await supabaseClient.from('accident_rentals').select('*').order('start_date', { ascending: false });
         if (error) throw error;
         setContracts(data.map(fromDbRow));
       } catch(e) {
@@ -358,7 +359,7 @@ function App() {
       const inc = parseIMSExcel(wb);
       if (!inc.length) { setToast({msg:"파싱할 수 있는 데이터가 없습니다. IMS 엑셀 형식을 확인해주세요.",type:"error"}); return; }
       const {merged,added,updated} = mergeContracts(contracts, inc);
-      const { error } = await supabase.from('accident_rentals').upsert(merged.map(toDbRow));
+      const { error } = await supabaseClient.from('accident_rentals').upsert(merged.map(toDbRow));
       if (error) throw error;
       setContracts(merged);
       setToast({msg:`완료: 신규 ${added}건, 업데이트 ${updated}건 (총 ${merged.length}건)`, type:"success"});
@@ -422,7 +423,7 @@ function App() {
 
   const doSave = useCallback(async d => {
     try {
-      const { error } = await supabase.from('accident_rentals').upsert(toDbRow(d));
+      const { error } = await supabaseClient.from('accident_rentals').upsert(toDbRow(d));
       if (error) throw error;
       const updated = contracts.filter(c=>c.id!==d.id).concat(d);
       setContracts(updated);
@@ -435,7 +436,7 @@ function App() {
   const doDelete = useCallback(async id => {
     if(!confirm("삭제하시겠습니까?")) return;
     try {
-      const { error } = await supabase.from('accident_rentals').delete().eq('id', id);
+      const { error } = await supabaseClient.from('accident_rentals').delete().eq('id', id);
       if (error) throw error;
       setContracts(contracts.filter(c=>c.id!==id));
       setSelected(null);
@@ -447,8 +448,8 @@ function App() {
   const doReset = useCallback(async () => {
     if(!confirm("초기 데이터로 리셋합니다. (DB 전체 교체)")) return;
     try {
-      await supabase.from('accident_rentals').delete().neq('id', '');
-      const { error } = await supabase.from('accident_rentals').insert(INITIAL_DATA.map(toDbRow));
+      await supabaseClient.from('accident_rentals').delete().neq('id', '');
+      const { error } = await supabaseClient.from('accident_rentals').insert(INITIAL_DATA.map(toDbRow));
       if (error) throw error;
       setContracts(INITIAL_DATA);
       setToast({msg:"리셋 완료",type:"success"});
@@ -709,55 +710,54 @@ function App() {
             {(() => {
               const gapMonths = [...new Set(contracts.filter(c=>c.startDate&&(c.billingAmount||0)>(c.rentalFee||0)).map(c=>c.startDate.slice(0,7)))].sort();
               const gapBase = gapMonth==="all" ? contracts : contracts.filter(c=>c.startDate&&c.startDate.startsWith(gapMonth));
-              const unpaidList = gapBase.filter(c=>(c.billingAmount||0)>(c.rentalFee||0)).sort((a,b)=>(a.vehicleNumber||"").localeCompare(b.vehicleNumber||"")||(b.endDate||"9999").localeCompare(a.endDate||"9999"));
-              return <>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <h4 style={{margin:0,fontSize:14,fontWeight:600,color:"#ef4444"}}>청구/입금 차액 내역</h4>
-              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                <button onClick={()=>setGapMonth("all")} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth==="all"?700:400,background:gapMonth==="all"?"#ef4444":"#1e1e3f",color:gapMonth==="all"?"#fff":"#888"}}>전체</button>
-                {gapMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setGapMonth(m)} style={{padding:"5px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth===m?700:400,background:gapMonth===m?"#ef4444":"#1e1e3f",color:gapMonth===m?"#fff":"#888"}}>{parseInt(mm)}월</button>;})}
-              </div>
-            </div>
-              if(!unpaidList.length) return <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>차액 없음</div>;
+              const unpaidList = gapBase.filter(c=>(c.billingAmount||0)>(c.rentalFee||0));
               const grouped = {};
               unpaidList.forEach(c => { const k=c.vehicleNumber||"기타"; if(!grouped[k]) grouped[k]={model:c.vehicleModel,items:[],total:0}; grouped[k].items.push(c); grouped[k].total+=(c.billingAmount||0)-(c.rentalFee||0); });
-              return Object.entries(grouped).map(([vnum,g]) => {
-                g.items.sort((a,b)=>(b.endDate||"9999").localeCompare(a.endDate||"9999"));
-                return (
-                <div key={vnum} style={{marginBottom:16}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#0f0f23",borderRadius:8,marginBottom:4}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10}}>
-                      <span style={{width:10,height:10,borderRadius:"50%",background:vehicles.find(v=>v.number===vnum)?.color||"#888"}}/>
-                      <span style={{fontSize:15,fontWeight:800}}>{g.model}</span>
-                      <span style={{fontSize:13,fontWeight:600,color:"#aaa",background:"#1e1e3f",padding:"2px 8px",borderRadius:4}}>{vnum}</span>
-                      <span style={{fontSize:11,color:"#666"}}>({g.items.length}건)</span>
-                    </div>
-                  </div>
-                  <div style={{overflowX:"auto"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                      <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
-                        {["상태","고객명","고객차량","보험사","접수번호","담당","연락처","기간","청구금","대여료","차액"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:["청구금","대여료","차액"].includes(h)?"right":"left",fontWeight:500,color:"#666",fontSize:10,whiteSpace:"nowrap"}}>{h}</th>)}
-                      </tr></thead>
-                      <tbody>{g.items.map((c,idx)=>{const gap=(c.billingAmount||0)-(c.rentalFee||0); return (
-                        <tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #1a1a35",cursor:"pointer",background:idx%2===1?"#13132a":"transparent"}} onMouseEnter={e=>e.currentTarget.style.background="#1a1a3a"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===1?"#13132a":"transparent"}>
-                          <td style={{padding:"8px 10px"}}><Badge status={c.status}/></td>
-                          <td style={{padding:"8px 10px",fontWeight:600}}>{c.customerName}</td>
-                          <td style={{padding:"8px 10px"}}><span style={{fontSize:11}}>{c.customerVehicle}</span> <span style={{fontSize:10,color:"#888"}}>{c.customerNumber}</span></td>
-                          <td style={{padding:"8px 10px"}}>{c.insurer}</td>
-                          <td style={{padding:"8px 10px",fontSize:10,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.receiptNo}</td>
-                          <td style={{padding:"8px 10px",fontSize:11}}>{c.dispatcher}</td>
-                          <td style={{padding:"8px 10px",fontSize:11,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.customerPhone}</td>
-                          <td style={{padding:"8px 10px",fontSize:10,color:"#888",whiteSpace:"nowrap"}}>{c.startDate}~{c.endDate||"진행중"}</td>
-                          <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:600}}>{fmt(c.billingAmount)}</td>
-                          <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{c.rentalFee?fmt(c.rentalFee):"-"}</td>
-                          <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:700,color:"#ef4444"}}>{fmt(gap)}</td>
-                        </tr>
-                      );})}</tbody>
-                    </table>
+              Object.values(grouped).forEach(g => g.items.sort((a,b)=>(b.endDate||"9999").localeCompare(a.endDate||"9999")));
+              return (<div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <h4 style={{margin:0,fontSize:14,fontWeight:600,color:"#ef4444"}}>청구/입금 차액 내역</h4>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    <button onClick={()=>setGapMonth("all")} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth==="all"?700:400,background:gapMonth==="all"?"#ef4444":"#1e1e3f",color:gapMonth==="all"?"#fff":"#888"}}>전체</button>
+                    {gapMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setGapMonth(m)} style={{padding:"5px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth===m?700:400,background:gapMonth===m?"#ef4444":"#1e1e3f",color:gapMonth===m?"#fff":"#888"}}>{parseInt(mm)}월</button>;})}
                   </div>
                 </div>
-              );});
-              </>;
+                {!unpaidList.length ? <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>차액 없음</div> :
+                Object.entries(grouped).map(([vnum,g]) => (
+                  <div key={vnum} style={{marginBottom:16}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#0f0f23",borderRadius:8,marginBottom:4}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <span style={{width:10,height:10,borderRadius:"50%",background:vehicles.find(v=>v.number===vnum)?.color||"#888"}}/>
+                        <span style={{fontSize:15,fontWeight:800}}>{g.model}</span>
+                        <span style={{fontSize:13,fontWeight:600,color:"#aaa",background:"#1e1e3f",padding:"2px 8px",borderRadius:4}}>{vnum}</span>
+                        <span style={{fontSize:11,color:"#666"}}>({g.items.length}건)</span>
+                      </div>
+                    </div>
+                    <div style={{overflowX:"auto"}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                        <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
+                          {["상태","고객명","고객차량","보험사","접수번호","담당","연락처","기간","청구금","대여료","차액"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:["청구금","대여료","차액"].includes(h)?"right":"left",fontWeight:500,color:"#666",fontSize:10,whiteSpace:"nowrap"}}>{h}</th>)}
+                        </tr></thead>
+                        <tbody>{g.items.map((c,idx)=>{const gap=(c.billingAmount||0)-(c.rentalFee||0); return (
+                          <tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #1a1a35",cursor:"pointer",background:idx%2===1?"#13132a":"transparent"}} onMouseEnter={e=>e.currentTarget.style.background="#1a1a3a"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===1?"#13132a":"transparent"}>
+                            <td style={{padding:"8px 10px"}}><Badge status={c.status}/></td>
+                            <td style={{padding:"8px 10px",fontWeight:600}}>{c.customerName}</td>
+                            <td style={{padding:"8px 10px"}}><span style={{fontSize:11}}>{c.customerVehicle}</span> <span style={{fontSize:10,color:"#888"}}>{c.customerNumber}</span></td>
+                            <td style={{padding:"8px 10px"}}>{c.insurer}</td>
+                            <td style={{padding:"8px 10px",fontSize:10,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.receiptNo}</td>
+                            <td style={{padding:"8px 10px",fontSize:11}}>{c.dispatcher}</td>
+                            <td style={{padding:"8px 10px",fontSize:11,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.customerPhone}</td>
+                            <td style={{padding:"8px 10px",fontSize:10,color:"#888",whiteSpace:"nowrap"}}>{c.startDate}~{c.endDate||"진행중"}</td>
+                            <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:600}}>{fmt(c.billingAmount)}</td>
+                            <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{c.rentalFee?fmt(c.rentalFee):"-"}</td>
+                            <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:700,color:"#ef4444"}}>{fmt(gap)}</td>
+                          </tr>
+                        );})}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>);
             })()}
           </div>
         </div>}
