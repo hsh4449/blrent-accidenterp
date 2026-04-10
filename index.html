@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BL 사고대차 관리</title>
+
+    <!-- React and ReactDOM from CDN -->
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+
+    <!-- Babel Standalone for JSX transformation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+    <!-- SheetJS (xlsx) for Excel functionality -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Supabase JS client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <!-- Pretendard Font -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            background: #0f0f23;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        const React = window.React;
+        const ReactDOM = window.ReactDOM;
+        const { useState, useEffect, useCallback, useMemo, useRef } = React;
+
+        const SUPABASE_URL = 'https://jjwsnwnfhqcszwmjdcac.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impqd3Nud25maHFjc3p3bWpkY2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NTk3NjgsImV4cCI6MjA4NTMzNTc2OH0.8sH1l1fVKEc48qzT6u4qFyUDPZGaLndcYi8si21dtoc';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        function toDbRow(c) {
+          return {
+            id: c.id, status: c.status, dispatcher: c.dispatcher,
+            start_date: c.startDate, start_time: c.startTime,
+            end_date: c.endDate, end_time: c.endTime,
+            billing_date: c.billingDate, billing_time: c.billingTime,
+            deposit_date: c.depositDate,
+            vehicle_model: c.vehicleModel, vehicle_number: c.vehicleNumber,
+            customer_name: c.customerName, customer_vehicle: c.customerVehicle,
+            customer_number: c.customerNumber, customer_phone: c.customerPhone,
+            fault: c.fault, insurer: c.insurer, billing_to: c.billingTo,
+            receipt_no: c.receiptNo, sales_rep: c.salesRep,
+            retriever: c.retriever, referrer: c.referrer,
+            repair_shop: c.repairShop,
+            billing_amount: c.billingAmount || 0, rental_fee: c.rentalFee || 0,
+          };
+        }
+
+        function fromDbRow(r) {
+          return {
+            id: r.id, status: r.status, dispatcher: r.dispatcher,
+            startDate: r.start_date, startTime: r.start_time,
+            endDate: r.end_date, endTime: r.end_time,
+            billingDate: r.billing_date, billingTime: r.billing_time,
+            depositDate: r.deposit_date,
+            vehicleModel: r.vehicle_model, vehicleNumber: r.vehicle_number,
+            customerName: r.customer_name, customerVehicle: r.customer_vehicle,
+            customerNumber: r.customer_number, customerPhone: r.customer_phone,
+            fault: r.fault, insurer: r.insurer, billingTo: r.billing_to,
+            receiptNo: r.receipt_no, salesRep: r.sales_rep,
+            retriever: r.retriever, referrer: r.referrer,
+            repairShop: r.repair_shop,
+            billingAmount: r.billing_amount || 0, rentalFee: r.rental_fee || 0,
+          };
+        }
+
+        // XLSX is already available from CDN as window.XLSX
+
+const INITIAL_DATA = [
+  // ── 카이엔 106호9579 (11건) ──
+  {id:"2904493",status:"청구완료",dispatcher:"조윤호",startDate:"2026-03-16",startTime:"10:00",endDate:"2026-03-26",endTime:"10:31",billingDate:"2026-03-27",billingTime:"11:03",depositDate:null,vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"이재환",customerVehicle:"8시리즈",customerNumber:"196어9635",customerPhone:"010-3464-2120",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2026031302289",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:4536000,rentalFee:0},
+  {id:"2897039",status:"계약종결",dispatcher:"조윤호",startDate:"2026-02-17",startTime:"15:00",endDate:"2026-03-12",endTime:"18:00",billingDate:"2026-03-16",billingTime:"16:46",depositDate:"2026-03-24",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"김대한",customerVehicle:"g90 3.5",customerNumber:"236머1551",customerPhone:"010-8574-3095",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202601679140",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:6954100,rentalFee:4799012},
+  {id:"2806829",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-19",startTime:"12:30",endDate:"2026-02-07",endTime:"16:00",billingDate:"2026-02-25",billingTime:"14:48",depositDate:"2026-02-13",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"김형승",customerVehicle:"파나메라",customerNumber:"255수5695",customerPhone:"010-8056-0500",fault:"-",insurer:"캐롯",billingTo:"캐롯",receiptNo:"20260256439",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:5649500,rentalFee:3000000},
+  {id:"2763246",status:"청구완료",dispatcher:"신동석",startDate:"2025-12-23",startTime:"22:08",endDate:"2026-01-08",endTime:"14:50",billingDate:"2026-01-12",billingTime:"14:51",depositDate:"2026-01-15",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"김대한",customerVehicle:"제네시스 g90",customerNumber:"236머1551",customerPhone:"010-8574-3095",fault:"무과실",insurer:"KB",billingTo:"KB",receiptNo:"20251223002681",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:3928740,rentalFee:3075691},
+  {id:"2763125",status:"청구완료",dispatcher:"신동석",startDate:"2025-12-11",startTime:"20:38",endDate:"2025-12-22",endTime:"20:40",billingDate:"2026-02-25",billingTime:"14:33",depositDate:null,vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"최혁빈",customerVehicle:"G90",customerNumber:"253버7919",customerPhone:"010-6669-6962",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202510913416",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2102100,rentalFee:0},
+  {id:"2690845",status:"청구완료",dispatcher:"신동석",startDate:"2025-11-16",startTime:"18:42",endDate:"2025-11-24",endTime:"21:06",billingDate:"2025-11-25",billingTime:"14:26",depositDate:"2025-11-26",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"송은종",customerVehicle:"K9",customerNumber:"246부5184",customerPhone:"010-8518-5590",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2511049880",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2272300,rentalFee:1884800},
+  {id:"2644537",status:"청구완료",dispatcher:"장명재",startDate:"2025-10-22",startTime:"18:51",endDate:"2025-10-31",endTime:"20:00",billingDate:"2025-11-13",billingTime:"13:25",depositDate:"2026-02-10",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"이민수",customerVehicle:"G70",customerNumber:"111너2914",customerPhone:"010-2436-4600",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202509374418",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2101280,rentalFee:850816},
+  {id:"2630022",status:"청구완료",dispatcher:"장명재",startDate:"2025-10-15",startTime:"18:17",endDate:"2025-10-18",endTime:"18:39",billingDate:"2025-10-28",billingTime:"17:40",depositDate:"2025-10-29",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"윤여성",customerVehicle:"EV9",customerNumber:"05하8985",customerPhone:"010-5728-7088",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2025100201589",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:886410,rentalFee:502170},
+  {id:"2570897",status:"청구완료",dispatcher:"박민",startDate:"2025-09-09",startTime:"11:04",endDate:"2025-09-17",endTime:"18:21",billingDate:"2025-09-21",billingTime:"18:53",depositDate:"2025-10-21",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"김승주",customerVehicle:"벤츠 s450",customerNumber:"333버6929",customerPhone:"010-5817-5366",fault:"무과실",insurer:"KB",billingTo:"KB",receiptNo:"20250908047661",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1764460,rentalFee:1336616},
+  {id:"2545278",status:"청구완료",dispatcher:"박민",startDate:"2025-08-27",startTime:"17:23",endDate:"2025-09-05",endTime:"19:38",billingDate:"2025-09-09",billingTime:"23:48",depositDate:"2025-09-11",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"김규석",customerVehicle:"BMW x7 40i",customerNumber:"249무7005",customerPhone:"010-4477-5682",fault:"-",insurer:"AXA",billingTo:"AXA",receiptNo:"2500111812",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2385640,rentalFee:1653160},
+  {id:"2528661",status:"청구완료",dispatcher:"박민",startDate:"2025-08-19",startTime:"10:22",endDate:"2025-08-27",endTime:"17:07",billingDate:"2025-09-26",billingTime:"12:48",depositDate:"2025-10-24",vehicleModel:"카이엔",vehicleNumber:"106호9579",customerName:"유정완",customerVehicle:"Gv80쿠페 3.5",customerNumber:"241누7599",customerPhone:"010-8900-9488",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2508013627",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2443980,rentalFee:1738000},
+
+  // ── 5시리즈 106호8089 (2건) ──
+  {id:"2928723",status:"청구완료",dispatcher:"조윤호",startDate:"2026-03-30",startTime:"16:19",endDate:"2026-04-09",endTime:"18:00",billingDate:"2026-04-10",billingTime:"11:13",depositDate:null,vehicleModel:"5시리즈",vehicleNumber:"106호8089",customerName:"강선희",customerVehicle:"싼타페",customerNumber:"39라3881",customerPhone:"010-5430-7455",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2026032902096",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1647600,rentalFee:0},
+  {id:"2878559",status:"계약종결",dispatcher:"조윤호",startDate:"2026-02-27",startTime:"15:30",endDate:"2026-03-24",endTime:"18:54",billingDate:"2026-04-06",billingTime:"11:52",depositDate:"2026-04-09",vehicleModel:"5시리즈",vehicleNumber:"106호8089",customerName:"정인봉",customerVehicle:"쿠가",customerNumber:"21저0983",customerPhone:"010-4772-0077",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202602009120",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:3125200,rentalFee:2535000},
+
+  // ── GLE 클래스 106호9470 (10건) ──
+  {id:"2942829",status:"청구완료",dispatcher:"조윤호",startDate:"2026-04-02",startTime:"11:00",endDate:"2026-04-08",endTime:"14:37",billingDate:"2026-04-08",billingTime:"14:42",depositDate:null,vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"이후상",customerVehicle:"Bmw 630i",customerNumber:"160라5436",customerPhone:"010-5618-9263",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2026032800605",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1243300,rentalFee:0},
+  {id:"2891362",status:"계약종결",dispatcher:"장명재",startDate:"2026-03-07",startTime:"18:00",endDate:"2026-03-15",endTime:"18:00",billingDate:"2026-03-16",billingTime:"16:53",depositDate:"2026-03-25",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"방정규",customerVehicle:"카니발",customerNumber:"384다6516",customerPhone:"010-9004-1311",fault:"무과실",insurer:"KB",billingTo:"KB",receiptNo:"20260227001890",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1435200,rentalFee:829000},
+  {id:"2855751",status:"계약종결",dispatcher:"조윤호",startDate:"2026-02-11",startTime:"20:00",endDate:"2026-03-05",endTime:"20:00",billingDate:"2026-03-10",billingTime:"12:20",depositDate:"2026-03-20",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"김정현",customerVehicle:"A6",customerNumber:"60조0729",customerPhone:"010-6222-4479",fault:"-",insurer:"배달서비스공제",billingTo:"배달서비스공제",receiptNo:"2602090117",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:4204200,rentalFee:3231910},
+  {id:"2829511",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-30",startTime:"12:30",endDate:"2026-02-03",endTime:"21:01",billingDate:"2026-02-13",billingTime:"10:07",depositDate:"2026-02-20",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"이주오",customerVehicle:"g80",customerNumber:"210조4649",customerPhone:"010-7138-3496",fault:"-",insurer:"택시공제",billingTo:"택시공제",receiptNo:"202603487",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1225770,rentalFee:600000},
+  {id:"2825660",status:"청구완료",dispatcher:"신동석",startDate:"2026-01-21",startTime:"15:30",endDate:"2026-01-23",endTime:"17:26",billingDate:"2026-01-28",billingTime:"16:00",depositDate:"2026-01-29",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"김태효",customerVehicle:"스팅어",customerNumber:"262러1902",customerPhone:"010-4650-8496",fault:"무과실",insurer:"KB",billingTo:"KB",receiptNo:"20240217001139",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:463050,rentalFee:378218},
+  {id:"2804204",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-17",startTime:"15:30",endDate:"2026-01-21",endTime:"15:00",billingDate:"2026-01-23",billingTime:"10:35",depositDate:"2026-02-11",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"박승민",customerVehicle:"카니발",customerNumber:"135루9116",customerPhone:"010-9757-7224",fault:"-",insurer:"메리츠",billingTo:"메리츠",receiptNo:"202600626715",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:947620,rentalFee:936180},
+  {id:"2798269",status:"청구완료",dispatcher:"신동석",startDate:"2026-01-13",startTime:"12:50",endDate:"2026-01-26",endTime:"12:12",billingDate:"2026-01-26",billingTime:"11:31",depositDate:"2026-01-29",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"김광수",customerVehicle:"GV70",customerNumber:"345저8143",customerPhone:"010-3054-7494",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2601000333",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:3838770,rentalFee:2901600},
+  {id:"2746527",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-15",startTime:"13:49",endDate:"2025-12-17",endTime:"19:00",billingDate:"2025-12-30",billingTime:"15:26",depositDate:null,vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"오진하",customerVehicle:"G80",customerNumber:"161허1330",customerPhone:"010-5753-1403",fault:"-",insurer:"개인택시공제",billingTo:"개인택시공제",receiptNo:"202506003184",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:694000,rentalFee:0},
+  {id:"2732060",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-06",startTime:"10:00",endDate:"2025-12-12",endTime:"13:30",billingDate:"2025-12-15",billingTime:"10:58",depositDate:"2025-12-17",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"김영진",customerVehicle:"제네시스 eGV70",customerNumber:"04주5982",customerPhone:"010-3913-5426",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2025120406207",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1051050,rentalFee:985360},
+  {id:"2701728",status:"청구완료",dispatcher:"조윤호",startDate:"2025-11-21",startTime:"14:36",endDate:"2025-11-28",endTime:"17:00",billingDate:"2025-12-01",billingTime:"10:00",depositDate:"2026-01-06",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"안영범",customerVehicle:"모하비",customerNumber:"382다7349",customerPhone:"010-4491-0933",fault:"-",insurer:"한화",billingTo:"한화",receiptNo:"20251110797",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1289160,rentalFee:1388300},
+  {id:"2685862",status:"청구완료",dispatcher:"조윤호",startDate:"2025-10-16",startTime:"17:00",endDate:"2025-10-30",endTime:"17:00",billingDate:"2025-11-14",billingTime:"10:51",depositDate:"2026-01-02",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"석일국",customerVehicle:"g80",customerNumber:"140호9952",customerPhone:"010-4050-0437",fault:"-",insurer:"AXA",billingTo:"AXA",receiptNo:"2500135870",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:3520100,rentalFee:1834560},
+  {id:"2685680",status:"청구완료",dispatcher:"조윤호",startDate:"2025-11-13",startTime:"11:30",endDate:"2025-11-20",endTime:"13:00",billingDate:"2025-11-21",billingTime:"13:28",depositDate:"2025-12-16",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"정세윤",customerVehicle:"그랜저",customerNumber:"186수7364",customerPhone:"010-7709-2445",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2511036943",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1340700,rentalFee:902980},
+  {id:"2667563",status:"청구완료",dispatcher:"조윤호",startDate:"2025-11-03",startTime:"15:00",endDate:"2025-11-10",endTime:"20:00",billingDate:"2025-11-13",billingTime:"11:16",depositDate:"2025-11-26",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"김수연",customerVehicle:"gv70",customerNumber:"106호9060",customerPhone:"010-4111-1588",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2510031840",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1453200,rentalFee:1000350},
+  {id:"2630066",status:"청구완료",dispatcher:"조윤호",startDate:"2025-09-29",startTime:"12:00",endDate:"2025-10-16",endTime:"10:30",billingDate:"2025-10-16",billingTime:"11:58",depositDate:"2025-10-16",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"김민식",customerVehicle:"그랜저",customerNumber:"106호6929",customerPhone:"010-7521-6764",fault:"-",insurer:"렌트카공제",billingTo:"렌트카공제",receiptNo:"2509280163",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:3220900,rentalFee:2489946},
+  {id:"2546932",status:"청구완료",dispatcher:"박민",startDate:"2025-08-28",startTime:"10:51",endDate:"2025-09-04",endTime:"20:35",billingDate:"2025-09-22",billingTime:"12:28",depositDate:"2025-10-02",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"함상희",customerVehicle:"람보르기니 우루스",customerNumber:"268조1005",customerPhone:"010-7529-0067",fault:"-",insurer:"메리츠",billingTo:"메리츠",receiptNo:"202506901248",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2932300,rentalFee:2065000},
+  {id:"2526013",status:"청구완료",dispatcher:"조윤호",startDate:"2025-08-18",startTime:"12:02",endDate:"2025-08-21",endTime:"18:00",billingDate:"2025-08-22",billingTime:"15:21",depositDate:"2025-08-22",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"서태용",customerVehicle:"그랜져하이브리드",customerNumber:"174호6117",customerPhone:"010-2212-3338",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"2507421937",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:687220,rentalFee:523803},
+  {id:"2507515",status:"계약종결",dispatcher:"조윤호",startDate:"2025-07-28",startTime:"17:00",endDate:"2025-08-04",endTime:"17:00",billingDate:"2025-08-06",billingTime:"14:16",depositDate:"2025-11-21",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"나윤환",customerVehicle:"k9",customerNumber:"343우6988",customerPhone:"010-8620-1141",fault:"-",insurer:"버스공제",billingTo:"버스공제",receiptNo:"0520250700444001",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1967800,rentalFee:1792700},
+  {id:"2432417",status:"계약종결",dispatcher:"박민",startDate:"2025-06-25",startTime:"19:01",endDate:"2025-07-07",endTime:"17:49",billingDate:"2025-07-07",billingTime:"17:51",depositDate:"2025-11-21",vehicleModel:"GLE 클래스",vehicleNumber:"106호9470",customerName:"조정상",customerVehicle:"G80",customerNumber:"138소8229",customerPhone:"010-5861-9907",fault:"-",insurer:"택시공제",billingTo:"택시공제",receiptNo:"202518660",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2268930,rentalFee:1806000},
+
+  // ── X6 106호7725 (12건) ──
+  {id:"2939984",status:"청구대기",dispatcher:"김민규",startDate:"2026-04-06",startTime:"14:44",endDate:"2026-04-09",endTime:"17:30",billingDate:null,billingTime:null,depositDate:null,vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"남영호",customerVehicle:"팰리세이드",customerNumber:"224머4831",customerPhone:"010-6485-5589",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202603191867",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:0,rentalFee:0},
+  {id:"2924679",status:"청구완료",dispatcher:"김민규",startDate:"2026-03-25",startTime:"20:15",endDate:"2026-04-01",endTime:"19:31",billingDate:"2026-04-01",billingTime:"19:33",depositDate:null,vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"진기갑",customerVehicle:"IS",customerNumber:"26무0183",customerPhone:"010-5340-9177",fault:"무과실",insurer:"KB",billingTo:"KB",receiptNo:"20260323033967",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1341420,rentalFee:0},
+  {id:"2896269",status:"청구완료",dispatcher:"김민규",startDate:"2026-03-10",startTime:"16:55",endDate:"2026-03-25",endTime:"18:00",billingDate:"2026-03-25",billingTime:"15:37",depositDate:"2026-03-30",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"이종빈",customerVehicle:"에비에이터",customerNumber:"175노4569",customerPhone:"010-2633-6983",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2603021769",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:3950540,rentalFee:2732770},
+  {id:"2892982",status:"청구완료",dispatcher:"김민규",startDate:"2026-03-06",startTime:"10:00",endDate:"2026-03-10",endTime:"15:40",billingDate:"2026-03-10",billingTime:"13:47",depositDate:"2026-03-10",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"김상준",customerVehicle:"k7프리미어",customerNumber:"262러1179",customerPhone:"010-5259-0944",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2602076876",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:901420,rentalFee:681500},
+  {id:"2877776",status:"청구완료",dispatcher:"김민규",startDate:"2026-02-27",startTime:"13:13",endDate:"2026-03-06",endTime:"01:32",billingDate:"2026-03-09",billingTime:"13:59",depositDate:"2026-03-17",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"곽태영",customerVehicle:"K8 하이브리드",customerNumber:"260거1753",customerPhone:"010-4469-2556",fault:"무과실",insurer:"KB",billingTo:"KB",receiptNo:"20260215003591",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1314950,rentalFee:1026675},
+  {id:"2850310",status:"청구완료",dispatcher:"조윤호",startDate:"2026-02-10",startTime:"14:09",endDate:"2026-02-20",endTime:"12:30",billingDate:"2026-02-20",billingTime:"15:14",depositDate:"2026-03-03",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"김현숙",customerVehicle:"gv70",customerNumber:"172하1045",customerPhone:"010-4756-1801",fault:"-",insurer:"메리츠",billingTo:"메리츠",receiptNo:"202601412135",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2604500,rentalFee:885500},
+  {id:"2847000",status:"청구완료",dispatcher:"신동석",startDate:"2026-02-05",startTime:"17:20",endDate:"2026-02-09",endTime:"15:51",billingDate:"2026-02-11",billingTime:"18:11",depositDate:"2026-02-12",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"조정상",customerVehicle:"g80",customerNumber:"138소8229",customerPhone:"010-5861-9907",fault:"-",insurer:"AXA",billingTo:"AXA",receiptNo:"2620260204",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:799470,rentalFee:653520},
+  {id:"2824201",status:"청구완료",dispatcher:"박민",startDate:"2026-01-27",startTime:"22:08",endDate:"2026-02-06",endTime:"20:09",billingDate:"2026-02-12",billingTime:"11:06",depositDate:"2026-02-13",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"이태영",customerVehicle:"3시리즈",customerNumber:"228조9123",customerPhone:"010-3912-7764",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2026012705062",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2493440,rentalFee:1559990},
+  {id:"2818364",status:"청구대기",dispatcher:"조윤호",startDate:"2026-01-25",startTime:"18:12",endDate:"2026-01-27",endTime:"22:07",billingDate:null,billingTime:null,depositDate:null,vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"강현석",customerVehicle:"gv80",customerNumber:"183머3233",customerPhone:"010-3992-4610",fault:"-",insurer:"하나",billingTo:"하나",receiptNo:"20260011845",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:0,rentalFee:0},
+  {id:"2802754",status:"계약종결",dispatcher:"조윤호",startDate:"2026-01-16",startTime:"15:02",endDate:"2026-01-21",endTime:"17:00",billingDate:"2026-01-22",billingTime:"09:42",depositDate:"2026-01-29",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"한만철",customerVehicle:"GV80",customerNumber:"132어8904",customerPhone:"010-5631-0960",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2512083318",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1587060,rentalFee:796080},
+  {id:"2755671",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-19",startTime:"14:39",endDate:"2025-12-31",endTime:"15:00",billingDate:"2026-01-05",billingTime:"17:45",depositDate:"2026-01-12",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"정혁",customerVehicle:"카니발",customerNumber:"182하2095",customerPhone:"010-2223-7248",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202511530777",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2152900,rentalFee:1564134},
+  {id:"2746467",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-15",startTime:"13:31",endDate:"2025-12-17",endTime:"17:27",billingDate:"2026-03-09",billingTime:"09:42",depositDate:"2026-03-24",vehicleModel:"X6",vehicleNumber:"106호7725",customerName:"이원태",customerVehicle:"G80",customerNumber:"169허4930",customerPhone:"010-5249-1342",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202511328609",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:693380,rentalFee:560196},
+
+  // ── GLC 클래스 106호9879 (9건) ──
+  {id:"2934566",status:"청구완료",dispatcher:"조윤호",startDate:"2026-04-02",startTime:"15:43",endDate:"2026-04-09",endTime:"17:00",billingDate:"2026-04-10",billingTime:"11:41",depositDate:null,vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"전유나",customerVehicle:"스포티지",customerNumber:"48다0945",customerPhone:"010-2629-6934",fault:"-",insurer:"개인택시공제",billingTo:"개인택시공제",receiptNo:"202607003667401",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1033150,rentalFee:0},
+  {id:"2899175",status:"청구완료",dispatcher:"조윤호",startDate:"2026-03-08",startTime:"22:00",endDate:"2026-03-26",endTime:"18:14",billingDate:"2026-03-27",billingTime:"10:30",depositDate:null,vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"김형렬",customerVehicle:"코란도스포츠",customerNumber:"81거2879",customerPhone:"010-4749-5810",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202602280547",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2167100,rentalFee:0},
+  {id:"2873474",status:"청구완료",dispatcher:"조윤호",startDate:"2026-02-24",startTime:"18:00",endDate:"2026-03-07",endTime:"15:00",billingDate:"2026-03-27",billingTime:"15:30",depositDate:null,vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"김인석",customerVehicle:"소나타 DN8",customerNumber:"132사6093",customerPhone:"010-9899-2655",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2602060604",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1352700,rentalFee:0},
+  {id:"2855749",status:"청구완료",dispatcher:"조윤호",startDate:"2026-02-13",startTime:"15:12",endDate:"2026-02-24",endTime:"12:00",billingDate:"2026-02-27",billingTime:"12:33",depositDate:"2026-02-27",vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"강승호",customerVehicle:"푸조 508",customerNumber:"34수5198",customerPhone:"010-3812-2978",fault:"무과실",insurer:"캐롯",billingTo:"캐롯",receiptNo:"20260253853",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1589460,rentalFee:975000},
+  {id:"2843384",status:"계약종결",dispatcher:"조윤호",startDate:"2026-02-06",startTime:"14:00",endDate:"2026-02-11",endTime:"16:00",billingDate:"2026-02-12",billingTime:"15:19",depositDate:"2026-02-13",vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"권준용",customerVehicle:"벤츠 e300",customerNumber:"134주5950",customerPhone:"010-4995-9606",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202601341542",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:515950,rentalFee:463093},
+  {id:"2816146",status:"계약종결",dispatcher:"조윤호",startDate:"2026-01-23",startTime:"17:46",endDate:"2026-02-06",endTime:"08:30",billingDate:"2026-02-12",billingTime:"15:17",depositDate:"2026-04-09",vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"전정규",customerVehicle:"아테온",customerNumber:"253라9315",customerPhone:"010-9156-2835",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20260123000649",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:4974760,rentalFee:1200766},
+  {id:"2797998",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-13",startTime:"22:00",endDate:"2026-01-21",endTime:"16:00",billingDate:"2026-01-22",billingTime:"17:08",depositDate:"2026-01-23",vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"김지수",customerVehicle:"ev6",customerNumber:"37머0331",customerPhone:"010-9556-6542",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202600000446",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1406160,rentalFee:1406160},
+  {id:"2731899",status:"계약종결",dispatcher:"조윤호",startDate:"2025-12-06",startTime:"18:00",endDate:"2025-12-22",endTime:"11:00",billingDate:"2025-12-31",billingTime:"12:23",depositDate:"2025-12-31",vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"이문규",customerVehicle:"벤츠e 220d",customerNumber:"183어7273",customerPhone:"010-7183-0377",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2025120505885",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1429450,rentalFee:1350020},
+  {id:"2719668",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-01",startTime:"16:55",endDate:"2025-12-06",endTime:"09:00",billingDate:"2025-12-11",billingTime:"09:28",depositDate:"2025-12-11",vehicleModel:"GLC 클래스",vehicleNumber:"106호9879",customerName:"강준표",customerVehicle:"알페온",customerNumber:"26노0676",customerPhone:"010-9639-3467",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202510802527",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:952500,rentalFee:602132},
+
+  // ── E 클래스 106호9894 (12건) ──
+  {id:"2943516",status:"청구완료",dispatcher:"조윤호",startDate:"2026-04-03",startTime:"10:00",endDate:"2026-04-08",endTime:"14:26",billingDate:"2026-04-08",billingTime:"14:36",depositDate:null,vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"박정완",customerVehicle:"e클래스",customerNumber:"138주9128",customerPhone:"010-6623-0345",fault:"-",insurer:"하나",billingTo:"하나",receiptNo:"20260052325",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:700910,rentalFee:0},
+  {id:"2922377",status:"계약종결",dispatcher:"조윤호",startDate:"2026-03-26",startTime:"12:00",endDate:"2026-03-31",endTime:"14:40",billingDate:"2026-03-31",billingTime:"15:45",depositDate:"2026-04-03",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"임장현",customerVehicle:"3시리즈",customerNumber:"272버7775",customerPhone:"010-8949-8296",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2026032200600",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1028350,rentalFee:485680},
+  {id:"2911759",status:"청구완료",dispatcher:"조윤호",startDate:"2026-03-19",startTime:"17:00",endDate:"2026-03-24",endTime:"16:00",billingDate:"2026-03-24",billingTime:"15:44",depositDate:"2026-03-25",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"김정균",customerVehicle:"트렉스 크로스오버",customerNumber:"148보8568",customerPhone:"010-2409-2610",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20260319049759",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:727800,rentalFee:522112},
+  {id:"2896542",status:"계약종결",dispatcher:"조윤호",startDate:"2026-03-10",startTime:"18:45",endDate:"2026-03-18",endTime:"16:00",billingDate:"2026-03-27",billingTime:"09:48",depositDate:"2026-03-27",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"김양순",customerVehicle:"디엣지 HEV",customerNumber:"224호9440",customerPhone:"010-3959-6202",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2603023285",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:868770,rentalFee:685910},
+  {id:"2890029",status:"계약종결",dispatcher:"조윤호",startDate:"2026-03-03",startTime:"16:00",endDate:"2026-03-07",endTime:"15:00",billingDate:"2026-03-11",billingTime:"16:17",depositDate:"2026-03-12",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"한승완",customerVehicle:"카니발",customerNumber:"162하6490",customerPhone:"010-9473-4340",fault:"100%",insurer:"KB",billingTo:"KB",receiptNo:"20260228000995",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1196600,rentalFee:568380},
+  {id:"2873454",status:"청구완료",dispatcher:"조윤호",startDate:"2026-02-25",startTime:"14:17",endDate:"2026-03-03",endTime:"15:41",billingDate:"2026-03-05",billingTime:"15:37",depositDate:"2026-03-13",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"윤도혁",customerVehicle:"스포티지 하이브리드",customerNumber:"175고4041",customerPhone:"010-5474-8740",fault:"-",insurer:"화물공제",billingTo:"화물공제",receiptNo:"226014011",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:941800,rentalFee:935000},
+  {id:"2824058",status:"청구완료",dispatcher:"신동석",startDate:"2026-01-26",startTime:"15:33",endDate:"2026-02-22",endTime:"15:08",billingDate:"2026-02-25",billingTime:"15:02",depositDate:"2026-03-09",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"이승민",customerVehicle:"3시리즈",customerNumber:"328조5998",customerPhone:"010-8327-9798",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202600905064",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:5434800,rentalFee:1716000},
+  {id:"2807835",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-19",startTime:"16:00",endDate:"2026-01-26",endTime:"15:25",billingDate:"2026-02-25",billingTime:"14:54",depositDate:"2026-02-26",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"이고호",customerVehicle:"그랜저",customerNumber:"259보6802",customerPhone:"010-2687-8319",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2026011902369",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1412540,rentalFee:1028340},
+  {id:"2789999",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-09",startTime:"16:13",endDate:"2026-01-16",endTime:"16:00",billingDate:"2026-01-23",billingTime:"10:08",depositDate:"2026-01-27",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"정혁",customerVehicle:"카니발",customerNumber:"182하2095",customerPhone:"010-2223-7248",fault:"10%",insurer:"KB",billingTo:"KB",receiptNo:"20260107031908",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1120290,rentalFee:884520},
+  {id:"2780880",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-05",startTime:"12:08",endDate:"2026-01-07",endTime:"18:00",billingDate:"2026-01-08",billingTime:"10:41",depositDate:"2026-01-09",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"조아람",customerVehicle:"E 클래스",customerNumber:"181너4678",customerPhone:"010-8874-4723",fault:"-",insurer:"현대",billingTo:"현대",receiptNo:"2601008048",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:830110,rentalFee:240710},
+  {id:"2771637",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-29",startTime:"18:02",endDate:"2026-01-02",endTime:"09:00",billingDate:"2026-01-02",billingTime:"18:01",depositDate:"2026-01-15",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"이원봉",customerVehicle:"제네시스",customerNumber:"38가9243",customerPhone:"010-8262-3284",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20251229038504",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1133200,rentalFee:483503},
+  {id:"2760646",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-22",startTime:"17:00",endDate:"2025-12-28",endTime:"18:01",billingDate:"2026-01-02",billingTime:"16:45",depositDate:"2026-01-05",vehicleModel:"E 클래스",vehicleNumber:"106호9894",customerName:"김서원",customerVehicle:"5시리즈",customerNumber:"106버6998",customerPhone:"010-4498-1776",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20251217039447",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:708380,rentalFee:566000},
+
+  // ── E 클래스 106호7950 (2건) ──
+  {id:"2931361",status:"계약종결",dispatcher:"신동석",startDate:"2026-03-31",startTime:"19:31",endDate:"2026-04-04",endTime:"16:00",billingDate:"2026-04-06",billingTime:"11:48",depositDate:"2026-04-10",vehicleModel:"E 클래스",vehicleNumber:"106호7950",customerName:"김재후",customerVehicle:"K7",customerNumber:"157나1408",customerPhone:"010-2295-9202",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202603039022",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:821100,rentalFee:620505},
+  {id:"2919506",status:"청구완료",dispatcher:"조윤호",startDate:"2026-03-24",startTime:"17:42",endDate:"2026-03-28",endTime:"14:40",billingDate:"2026-03-31",billingTime:"15:47",depositDate:null,vehicleModel:"E 클래스",vehicleNumber:"106호7950",customerName:"김미강",customerVehicle:"소나타dn8",customerNumber:"13모3168",customerPhone:"010-8824-2002",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2026032003564",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:562690,rentalFee:0},
+
+  // ── GLE 클래스 106호7940 (1건) ──
+  {id:"2929206",status:"청구완료",dispatcher:"신동석",startDate:"2026-03-30",startTime:"19:21",endDate:"2026-04-02",endTime:"16:00",billingDate:"2026-04-08",billingTime:"15:38",depositDate:"2026-04-09",vehicleModel:"GLE 클래스",vehicleNumber:"106호7940",customerName:"박종관",customerVehicle:"벤츠 s클래스",customerNumber:"117가9128",customerPhone:"010-7630-0433",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20260329007675",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1045210,rentalFee:579310},
+
+  // ── E 클래스 106호4926 (6건) ──
+  {id:"2895095",status:"청구완료",dispatcher:"조윤호",startDate:"2026-02-25",startTime:"19:00",endDate:"2026-03-14",endTime:"19:00",billingDate:"2026-03-16",billingTime:"16:57",depositDate:null,vehicleModel:"E 클래스",vehicleNumber:"106호4926",customerName:"김호림",customerVehicle:"벤츠E220d",customerNumber:"106노8310",customerPhone:"010-2764-3360",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20260225001733",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:2789300,rentalFee:0},
+  {id:"2857721",status:"청구완료",dispatcher:"조윤호",startDate:"2026-02-15",startTime:"20:00",endDate:"2026-02-25",endTime:"15:00",billingDate:"2026-03-11",billingTime:"10:30",depositDate:"2026-03-27",vehicleModel:"E 클래스",vehicleNumber:"106호4926",customerName:"오지민",customerVehicle:"Bmw 520d",customerNumber:"45머5679",customerPhone:"010-3034-0842",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202600166490",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1217900,rentalFee:755984},
+  {id:"2848150",status:"계약종결",dispatcher:"조윤호",startDate:"2026-02-09",startTime:"15:02",endDate:"2026-02-11",endTime:"16:00",billingDate:"2026-02-11",billingTime:"16:32",depositDate:"2026-02-13",vehicleModel:"E 클래스",vehicleNumber:"106호4926",customerName:"방기영",customerVehicle:"엑티언",customerNumber:"181더6730",customerPhone:"010-9511-6370",fault:"-",insurer:"DB",billingTo:"DB",receiptNo:"202601415558",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:366800,rentalFee:258570},
+  {id:"2824079",status:"청구완료",dispatcher:"조윤호",startDate:"2026-01-26",startTime:"18:26",endDate:"2026-02-07",endTime:"15:00",billingDate:"2026-02-09",billingTime:"16:13",depositDate:"2026-02-23",vehicleModel:"E 클래스",vehicleNumber:"106호4926",customerName:"전아율",customerVehicle:"비엠 gt",customerNumber:"59보2250",customerPhone:"010-9600-5539",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20251202052492",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:4333840,rentalFee:1046066},
+  {id:"2801910",status:"계약종결",dispatcher:"조윤호",startDate:"2026-01-16",startTime:"10:00",endDate:"2026-01-21",endTime:"17:00",billingDate:"2026-01-23",billingTime:"10:51",depositDate:"2026-01-29",vehicleModel:"E 클래스",vehicleNumber:"106호4926",customerName:"서태용",customerVehicle:"gn7",customerNumber:"174호6117",customerPhone:"010-2212-3338",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20260110005350",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1196400,rentalFee:513066},
+  {id:"2774239",status:"청구완료",dispatcher:"조윤호",startDate:"2025-12-24",startTime:"18:00",endDate:"2026-01-02",endTime:"15:19",billingDate:"2026-01-02",billingTime:"17:25",depositDate:"2026-01-06",vehicleModel:"E 클래스",vehicleNumber:"106호4926",customerName:"이문구",customerVehicle:"그랜저",customerNumber:"109노1826",customerPhone:"010-9473-4340",fault:"-",insurer:"메리츠",billingTo:"메리츠",receiptNo:"202511751946",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1696000,rentalFee:1303500},
+
+  // ── 아이오닉 5 07호7034 (4건) ──
+  {id:"2932321",status:"청구완료",dispatcher:"조윤호",startDate:"2026-04-01",startTime:"12:51",endDate:"2026-04-06",endTime:"16:40",billingDate:"2026-04-06",billingTime:"18:07",depositDate:null,vehicleModel:"아이오닉 5",vehicleNumber:"07호7034",customerName:"박찬양",customerVehicle:"셀토스",customerNumber:"374무9385",customerPhone:"010-9003-7864",fault:"-",insurer:"한화",billingTo:"한화",receiptNo:"20260313374",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:661800,rentalFee:0},
+  {id:"2732852",status:"계약종결",dispatcher:"조윤호",startDate:"2025-12-08",startTime:"12:06",endDate:"2025-12-12",endTime:"15:00",billingDate:"2025-12-30",billingTime:"15:30",depositDate:"2025-12-31",vehicleModel:"아이오닉 5",vehicleNumber:"07호7034",customerName:"임보혁",customerVehicle:"K5",customerNumber:"32조3983",customerPhone:"010-4312-7326",fault:"-",insurer:"KB",billingTo:"KB",receiptNo:"20251208003433",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:419350,rentalFee:410231},
+  {id:"2660152",status:"청구완료",dispatcher:"조윤호",startDate:"2025-10-30",startTime:"15:17",endDate:"2025-11-03",endTime:"17:00",billingDate:"2025-11-04",billingTime:"11:24",depositDate:"2025-11-07",vehicleModel:"아이오닉 5",vehicleNumber:"07호7034",customerName:"여선이",customerVehicle:"싼타페",customerNumber:"149나7850",customerPhone:"010-9634-8856",fault:"-",insurer:"삼성",billingTo:"삼성",receiptNo:"2025102904956",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:746000,rentalFee:372940},
+  {id:"2655116",status:"청구완료",dispatcher:"조윤호",startDate:"2025-10-18",startTime:"18:00",endDate:"2025-10-28",endTime:"18:00",billingDate:"2025-10-28",billingTime:"13:14",depositDate:"2025-10-30",vehicleModel:"아이오닉 5",vehicleNumber:"07호7034",customerName:"최종현",customerVehicle:"아이오닉5",customerNumber:"41보8071",customerPhone:"010-2418-8272",fault:"무과실",insurer:"KB",billingTo:"KB",receiptNo:"20251018001913",salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:1243900,rentalFee:1404000},
+];
+
+const STATUS_COLORS = {
+  "배차중": { bg:"#fef3c7", text:"#92400e", dot:"#f59e0b" },
+  "청구대기": { bg:"#dbeafe", text:"#1e40af", dot:"#3b82f6" },
+  "청구완료": { bg:"#d1fae5", text:"#065f46", dot:"#10b981" },
+  "계약종결": { bg:"#f3f4f6", text:"#374151", dot:"#6b7280" },
+  "입금완료": { bg:"#ede9fe", text:"#5b21b6", dot:"#8b5cf6" },
+};
+
+const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#06b6d4","#f97316","#84cc16","#a855f7","#14b8a6","#e11d48"];
+const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
+function daysBetween(a, b) {
+  if (!a || !b) return 0;
+  return Math.ceil((new Date(b) - new Date(a)) / 86400000);
+}
+
+// ── Parse IMS Excel (2-row pairs) ──
+function parseIMSExcel(wb) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:null });
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r[0] === "연번" || !r[1]) continue;
+    const ims = String(r[1]).trim();
+    if (!ims || ims === "null" || ims === "undefined") continue;
+    const dr = (i+1 < rows.length) ? rows[i+1] : [];
+    const pv = v => { if (v == null || v === "-" || v === "") return null; return String(v).trim(); };
+    const pd = v => {
+      if (!v || v === "-") return null;
+      const s = String(v).trim();
+      let m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+      if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+      m = s.match(/^(\d{2})\.(\d{2})\.(\d{2})$/);
+      if (m) return `${parseInt(m[1])<50?"20":"19"}${m[1]}-${m[2]}-${m[3]}`;
+      return null;
+    };
+    const pt = v => {
+      if (!v) return null;
+      if (typeof v === "object" && v.getHours) return `${String(v.getHours()).padStart(2,"0")}:${String(v.getMinutes()).padStart(2,"0")}`;
+      if (typeof v === "number") { const t=Math.round(v*1440); return `${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; }
+      return String(v);
+    };
+    const pm = v => { if (!v || v === "-") return 0; const n=parseInt(String(v).replace(/\D/g,"")); return isNaN(n)?0:n; };
+    out.push({
+      id:ims, status:pv(r[2])||"배차중", dispatcher:pv(r[3])||"-",
+      startDate:pd(r[4]), startTime:pt(dr[4]), endDate:pd(r[5]), endTime:pt(dr[5]),
+      billingDate:pd(r[6]), billingTime:pt(dr[6]), depositDate:pd(r[7]),
+      vehicleModel:pv(r[8])||"", vehicleNumber:pv(dr[8])||"",
+      customerName:pv(r[9])||"", customerVehicle:pv(r[10])||"", customerNumber:pv(dr[10])||"",
+      customerPhone:pv(r[11])||"", fault:pv(r[12])||"-",
+      insurer:pv(r[13])||"-", billingTo:pv(r[14])||"-", receiptNo:pv(r[15])||"",
+      salesRep:pv(r[16])||"-", retriever:pv(r[17])||"-", referrer:pv(r[18])||"-",
+      repairShop:pv(r[19])||"-", billingAmount:pm(r[20]), rentalFee:pm(r[21]),
+    });
+    i++;
+  }
+  return out;
+}
+
+function mergeContracts(existing, incoming) {
+  const map = new Map();
+  existing.forEach(c => map.set(c.id, c));
+  let added=0, updated=0;
+  incoming.forEach(c => { if(map.has(c.id)) updated++; else added++; map.set(c.id, c); });
+  return { merged: Array.from(map.values()), added, updated };
+}
+
+// ── Export to Excel ──
+function exportToExcel(contracts) {
+  const headers = ["IMS번호","상태","배차자","배차일","배차시간","반납일","반납시간","청구일","입금일","대여차종","차량번호","고객명","고객차종","고객번호판","연락처","과실","보험사","청구처","접수번호","청구금","대여료","대여일수"];
+  const rows = contracts.map(c => [
+    c.id, c.status, c.dispatcher, c.startDate||"", c.startTime||"", c.endDate||"", c.endTime||"",
+    c.billingDate||"", c.depositDate||"", c.vehicleModel, c.vehicleNumber,
+    c.customerName, c.customerVehicle, c.customerNumber, c.customerPhone,
+    c.fault, c.insurer, c.billingTo, c.receiptNo,
+    c.billingAmount||0, c.rentalFee||0, daysBetween(c.startDate, c.endDate)
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  // Set column widths
+  ws['!cols'] = [
+    {wch:10},{wch:10},{wch:8},{wch:12},{wch:8},{wch:12},{wch:8},
+    {wch:12},{wch:12},{wch:14},{wch:12},{wch:8},{wch:16},{wch:12},
+    {wch:14},{wch:8},{wch:10},{wch:10},{wch:18},{wch:12},{wch:12},{wch:8}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "사고대차");
+  XLSX.writeFile(wb, `사고대차_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ── UI Helpers ──
+function Badge({ status }) {
+  const c = STATUS_COLORS[status] || STATUS_COLORS["계약종결"];
+  return <span style={{ background:c.bg, color:c.text, padding:"4px 12px", borderRadius:999, fontSize:12, fontWeight:700, display:"inline-flex", alignItems:"center", gap:5, whiteSpace:"nowrap", letterSpacing:"-0.2px" }}><span style={{ width:7, height:7, borderRadius:"50%", background:c.dot }}/>{status}</span>;
+}
+
+function Modal({ open, onClose, title, children, width=560 }) {
+  if (!open) return null;
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={onClose}>
+      <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.5)", backdropFilter:"blur(4px)" }}/>
+      <div onClick={e=>e.stopPropagation()} style={{ position:"relative", background:"#1a1a2e", border:"1px solid #2a2a4a", borderRadius:16, width, maxWidth:"95vw", maxHeight:"90vh", overflow:"auto", padding:28, boxShadow:"0 24px 48px rgba(0,0,0,.4)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <h3 style={{ margin:0, fontSize:18, color:"#e0e0e0" }}>{title}</h3>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#666", fontSize:22, cursor:"pointer", lineHeight:1 }}>x</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return <div style={{ marginBottom:14 }}><label style={{ display:"block", fontSize:11, color:"#888", marginBottom:4 }}>{label}</label>{children}</div>;
+}
+
+const IS = { width:"100%", padding:"8px 12px", background:"#0f0f23", border:"1px solid #2a2a4a", borderRadius:8, color:"#e0e0e0", fontSize:13, outline:"none", boxSizing:"border-box" };
+const SS = { ...IS, appearance:"auto" };
+
+function Toast({ msg, type, onDone }) {
+  useEffect(() => { const t=setTimeout(onDone,3000); return ()=>clearTimeout(t); }, [onDone]);
+  return (
+    <div style={{ position:"fixed", top:20, right:20, zIndex:2000, background:type==="success"?"#065f46":"#991b1b", color:"#fff", padding:"12px 20px", borderRadius:10, fontSize:13, fontWeight:500, boxShadow:"0 8px 24px rgba(0,0,0,.3)", animation:"si .2s" }}>
+      {msg}
+      <style>{`@keyframes si{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════
+function App() {
+  const [contracts, setContracts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("dashboard");
+  const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", depositMonth:"all" });
+  const [selected, setSelected] = useState(null);
+  const [editModal, setEditModal] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [schedMonth, setSchedMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
+  const [settlMonth, setSettlMonth] = useState("all");
+  const [gapMonth, setGapMonth] = useState("all");
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('accident_rentals').select('*').order('start_date', { ascending: false });
+        if (error) throw error;
+        setContracts(data.map(fromDbRow));
+      } catch(e) {
+        console.error('Supabase load error:', e);
+        setContracts(INITIAL_DATA);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const save = useCallback(async d => { setContracts(d); }, []);
+
+  // Dynamic vehicles from data
+  const vehicles = useMemo(() => {
+    const m = new Map();
+    contracts.forEach(c => { if(c.vehicleNumber && !m.has(c.vehicleNumber)) m.set(c.vehicleNumber, c.vehicleModel); });
+    return Array.from(m.entries()).map(([num,model],i) => ({ model, number:num, color:VCOLORS[i%VCOLORS.length] }));
+  }, [contracts]);
+
+  // File import
+  const onImport = useCallback(async e => {
+    const f = e.target.files?.[0]; if(!f) return; e.target.value="";
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type:"array", cellDates:true });
+      const inc = parseIMSExcel(wb);
+      if (!inc.length) { setToast({msg:"파싱할 수 있는 데이터가 없습니다. IMS 엑셀 형식을 확인해주세요.",type:"error"}); return; }
+      const {merged,added,updated} = mergeContracts(contracts, inc);
+      const { error } = await supabase.from('accident_rentals').upsert(merged.map(toDbRow));
+      if (error) throw error;
+      setContracts(merged);
+      setToast({msg:`완료: 신규 ${added}건, 업데이트 ${updated}건 (총 ${merged.length}건)`, type:"success"});
+    } catch(err) { setToast({msg:"파일 오류: "+err.message, type:"error"}); }
+  }, [contracts, save]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const active = contracts.filter(c=>c.status==="배차중").length;
+    const pending = contracts.filter(c=>c.status==="청구대기").length;
+    const totalBill = contracts.reduce((s,c)=>s+(c.billingAmount||0),0);
+    const deposited = contracts.filter(c=>c.depositDate);
+    const totalDep = contracts.reduce((s,c)=>s+(c.rentalFee||0),0);
+    const totalRentalFee = totalDep;
+    const unpaid = totalBill - totalDep;
+    const profitRate = totalBill > 0 ? Math.round(totalDep / totalBill * 1000) / 10 : 0;
+    const monthly = {};
+    contracts.forEach(c => { if(!c.startDate) return; const ym=c.startDate.slice(0,7); if(!monthly[ym]) monthly[ym]={bill:0,dep:0,cnt:0}; monthly[ym].bill+=(c.billingAmount||0); monthly[ym].dep+=(c.rentalFee||0); monthly[ym].cnt++; });
+    const vStats = {};
+    contracts.forEach(c => { const k=c.vehicleNumber; if(!k) return; if(!vStats[k]) vStats[k]={model:c.vehicleModel,cnt:0,bill:0,dep:0,rental:0,days:0}; vStats[k].cnt++; vStats[k].bill+=(c.billingAmount||0); vStats[k].dep+=(c.rentalFee||0); vStats[k].rental+=(c.rentalFee||0); vStats[k].days+=daysBetween(c.startDate,c.endDate); });
+    return { active, pending, totalBill, totalDep, totalRentalFee, unpaid, profitRate, monthly, vStats, total:contracts.length, depCount:deposited.length };
+  }, [contracts]);
+
+  const sortedMonths = useMemo(() => Object.entries(stats.monthly).sort((a,b)=>a[0].localeCompare(b[0])), [stats.monthly]);
+  const maxMA = useMemo(() => Math.max(...sortedMonths.map(([,d])=>d.bill),1), [sortedMonths]);
+
+  // 입금월 목록 (depositDate 기준)
+  const depositMonths = useMemo(() => {
+    const ms = new Set();
+    contracts.forEach(c => {
+      if (c.depositDate) ms.add(c.depositDate.slice(0,7));
+    });
+    return Array.from(ms).sort();
+  }, [contracts]);
+
+  const filtered = useMemo(() => {
+    let l = [...contracts];
+    if(filter.status!=="all") l=l.filter(c=>c.status===filter.status);
+    if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
+    if(filter.depositMonth!=="all") {
+      if(filter.depositMonth==="none") l=l.filter(c=>!c.depositDate);
+      else l=l.filter(c=>c.depositDate&&c.depositDate.startsWith(filter.depositMonth));
+    }
+    if(filter.search){const s=filter.search.toLowerCase(); l=l.filter(c=>c.customerName?.toLowerCase().includes(s)||c.id?.includes(s)||c.receiptNo?.toString().includes(s)||c.insurer?.toLowerCase().includes(s)||c.vehicleModel?.toLowerCase().includes(s));}
+    return l.sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
+  }, [contracts, filter]);
+
+  const sched = useMemo(() => {
+    const [y,m]=schedMonth.split("-").map(Number);
+    const dim=new Date(y,m,0).getDate(), f=new Date(y,m-1,1), la=new Date(y,m-1,dim,23,59,59);
+    const vs={};
+    contracts.forEach(c=>{
+      const st=c.startDate?new Date(c.startDate):null, en=c.endDate?new Date(c.endDate):new Date(2099,0,1);
+      if(!st||st>la||en<f) return;
+      const k=c.vehicleNumber; if(!k) return;
+      if(!vs[k]) vs[k]={model:c.vehicleModel,number:k,entries:[]};
+      vs[k].entries.push({...c, bs:Math.max(1,st<f?1:st.getDate()), be:Math.min(dim,en>la?dim:en.getDate())});
+    });
+    return {dim,vs:Object.values(vs),y,m};
+  }, [contracts, schedMonth]);
+
+  const doSave = useCallback(async d => {
+    try {
+      const { error } = await supabase.from('accident_rentals').upsert(toDbRow(d));
+      if (error) throw error;
+      const updated = contracts.filter(c=>c.id!==d.id).concat(d);
+      setContracts(updated);
+      setEditModal(false); setEditData(null);
+      setToast({msg:"저장 완료",type:"success"});
+    } catch(e) {
+      setToast({msg:"저장 실패: "+e.message,type:"error"});
+    }
+  }, [contracts]);
+  const doDelete = useCallback(async id => {
+    if(!confirm("삭제하시겠습니까?")) return;
+    try {
+      const { error } = await supabase.from('accident_rentals').delete().eq('id', id);
+      if (error) throw error;
+      setContracts(contracts.filter(c=>c.id!==id));
+      setSelected(null);
+      setToast({msg:"삭제됨",type:"success"});
+    } catch(e) {
+      setToast({msg:"삭제 실패: "+e.message,type:"error"});
+    }
+  }, [contracts]);
+  const doReset = useCallback(async () => {
+    if(!confirm("초기 데이터로 리셋합니다. (DB 전체 교체)")) return;
+    try {
+      await supabase.from('accident_rentals').delete().neq('id', '');
+      const { error } = await supabase.from('accident_rentals').insert(INITIAL_DATA.map(toDbRow));
+      if (error) throw error;
+      setContracts(INITIAL_DATA);
+      setToast({msg:"리셋 완료",type:"success"});
+    } catch(e) {
+      setToast({msg:"리셋 실패: "+e.message,type:"error"});
+    }
+  }, []);
+
+  if(loading) return <div style={{minHeight:"100vh",background:"#0f0f23",display:"flex",alignItems:"center",justifyContent:"center",color:"#e0e0e0",fontFamily:"'Pretendard',sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>BL</div><div style={{fontSize:13,color:"#888"}}>로딩 중...</div></div></div>;
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#0f0f23", color:"#e0e0e0", fontFamily:"'Pretendard',-apple-system,sans-serif" }}>
+      <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+      {toast && <Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
+      <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={onImport}/>
+
+      <header style={{ borderBottom:"1px solid #1a1a3a", padding:"10px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", background:"#12122a" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+          <div style={{ background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", borderRadius:8, width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, color:"#fff" }}>BL</div>
+          <span style={{ fontSize:14, fontWeight:700 }}>사고대차 관리</span>
+          <span style={{ fontSize:11, color:"#555" }}>{contracts.length}건</span>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <button onClick={()=>fileRef.current?.click()} style={{ padding:"7px 14px", background:"linear-gradient(135deg,#3b82f6,#6366f1)", color:"#fff", border:"none", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer" }}>+ 엑셀 업로드</button>
+          <button onClick={()=>exportToExcel(filtered)} style={{ padding:"7px 14px", background:"linear-gradient(135deg,#10b981,#059669)", color:"#fff", border:"none", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer" }}>엑셀 다운로드</button>
+          <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
+            {[["dashboard","대시보드"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:12, fontWeight:tab===k?600:400, background:tab===k?"#1e1e3f":"transparent", color:tab===k?"#e0e0e0":"#777" }}>{l}</button>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <main style={{ padding:"20px 24px", maxWidth:1320, margin:"0 auto" }}>
+
+        {/* ── DASHBOARD ── */}
+        {tab==="dashboard" && <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))", gap:12, marginBottom:24 }}>
+            {[
+              {l:"배차중",v:stats.active,u:"건",a:"#f59e0b"},
+              {l:"청구대기",v:stats.pending,u:"건",a:"#3b82f6"},
+              {l:"총 청구금",v:fmt(stats.totalBill),u:"원",a:"#10b981"},
+              {l:"총 입금액",v:fmt(stats.totalDep),u:"원",a:"#8b5cf6"},
+              {l:"차액",v:fmt(stats.unpaid),u:"원",a:"#ef4444"},
+              {l:"수익률",v:`${stats.profitRate}`,u:"%",a:"#06b6d4"},
+            ].map((s,i)=>(
+              <div key={i} style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:"16px 18px", borderLeft:`3px solid ${s.a}` }}>
+                <div style={{ fontSize:11, color:"#888", marginBottom:6 }}>{s.l}</div>
+                <div style={{ fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}<span style={{ fontSize:11, color:"#888", marginLeft:3 }}>{s.u}</span></div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+            {/* Monthly Deposits */}
+            <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:20 }}>
+              <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>월별 청구/입금 현황</h4>
+              {sortedMonths.length===0 ? <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>데이터 없음</div> :
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {sortedMonths.map(([ym,d])=>{ const [y,m]=ym.split("-"); return (
+                  <div key={ym}>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:4 }}>
+                      <span style={{color:"#aaa"}}>{y}년 {parseInt(m)}월 <span style={{color:"#666"}}>({d.cnt}건)</span></span>
+                      <span style={{fontVariantNumeric:"tabular-nums"}}><span style={{fontWeight:700}}>{fmt(d.bill)}</span><span style={{color:"#888"}}> / {fmt(d.dep)}원</span></span>
+                    </div>
+                    <div style={{ height:20, background:"#0f0f23", borderRadius:6, overflow:"hidden", position:"relative" }}>
+                      <div style={{ position:"absolute", height:"100%", width:`${d.bill/maxMA*100}%`, background:"#2a2a4a", borderRadius:6 }}/>
+                      <div style={{ position:"absolute", height:"100%", width:`${d.dep/maxMA*100}%`, background:"linear-gradient(90deg,#8b5cf6,#6366f1)", borderRadius:6 }}/>
+                    </div>
+                  </div>
+                );})}
+                <div style={{ borderTop:"1px solid #1e1e3f", paddingTop:10, display:"flex", justifyContent:"space-between", fontSize:12 }}>
+                  <span style={{color:"#888"}}>누적</span>
+                  <span style={{fontVariantNumeric:"tabular-nums"}}><span style={{fontWeight:700,color:"#10b981"}}>{fmt(stats.totalBill)}</span><span style={{color:"#888"}}> / </span><span style={{fontWeight:700,color:"#8b5cf6"}}>{fmt(stats.totalDep)}원</span></span>
+                </div>
+              </div>}
+            </div>
+            {/* Vehicle Stats */}
+            <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:20 }}>
+              <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>차량별 현황</h4>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {Object.entries(stats.vStats).map(([num,d])=>{ const v=vehicles.find(x=>x.number===num); return (
+                  <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#0f0f23", borderRadius:8 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ width:8, height:8, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
+                      <div><div style={{fontSize:13,fontWeight:500}}>{d.model}</div><div style={{fontSize:10,color:"#888"}}>{num}</div></div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:12,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>청구 {fmt(d.bill)} <span style={{color:"#888"}}>/ 입금 {fmt(d.dep)}</span></div>
+                      <div style={{fontSize:10,color:"#888"}}>{d.cnt}건 / {d.days}일</div>
+                    </div>
+                  </div>
+                );})}
+              </div>
+            </div>
+          </div>
+        </div>}
+
+        {/* ── CONTRACTS ── */}
+        {tab==="contracts" && <div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <input placeholder="검색 (고객명, IMS번호, 보험사, 차종)" value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS,width:260}}/>
+              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width:120}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
+              <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width:180}}><option value="all">전체 차량</option>{vehicles.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
+              <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value}))} style={{...SS,width:140}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}}>+ 신규</button>
+              <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",background:"#1e1e3f",color:"#aaa",border:"1px solid #2a2a4a",borderRadius:8,fontSize:11,cursor:"pointer"}}>엑셀</button>
+              <button onClick={()=>exportToExcel(filtered)} style={{padding:"7px 14px",background:"#1e1e3f",color:"#aaa",border:"1px solid #2a2a4a",borderRadius:8,fontSize:11,cursor:"pointer"}}>내보내기</button>
+              <button onClick={doReset} style={{padding:"7px 10px",background:"#1e1e3f",color:"#666",border:"1px solid #2a2a4a",borderRadius:8,fontSize:10,cursor:"pointer"}}>초기화</button>
+            </div>
+          </div>
+          <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, overflow:"hidden" }}>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+                <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
+                  {["IMS","상태","고객명","대여차량","배차일","반납일","대여일수","보험사","청구금","대여료","입금일"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:500,color:"#888",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {filtered.map((c,idx)=><tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #1a1a35",cursor:"pointer",background:idx%2===0?"transparent":"#13132a"}} onMouseEnter={e=>e.currentTarget.style.background="#1a1a3a"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"transparent":"#13132a"}>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",color:"#aaa",fontSize:11}}>{c.id}</td>
+                    <td style={{padding:"10px 12px"}}><Badge status={c.status}/></td>
+                    <td style={{padding:"10px 12px",fontWeight:500}}>{c.customerName}</td>
+                    <td style={{padding:"10px 12px"}}><div style={{fontSize:12}}>{c.vehicleModel}</div><div style={{fontSize:10,color:"#888"}}>{c.vehicleNumber}</div></td>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{c.startDate||"-"}</td>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{c.endDate||"-"}</td>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",textAlign:"center"}}>{c.endDate ? `${daysBetween(c.startDate,c.endDate)}일` : <span style={{color:"#f59e0b",fontSize:10}}>진행중</span>}</td>
+                    <td style={{padding:"10px 12px"}}>{c.insurer}</td>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",fontWeight:600,textAlign:"right"}}>{c.billingAmount?fmt(c.billingAmount):"-"}</td>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",textAlign:"right"}}>{c.rentalFee?fmt(c.rentalFee):"-"}</td>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums"}}>{c.depositDate?<span style={{color:"#10b981"}}>{c.depositDate}</span>:<span style={{color:"#ef4444",fontSize:11}}>미입금</span>}</td>
+                  </tr>)}
+                  {!filtered.length && <tr><td colSpan={11} style={{padding:32,textAlign:"center",color:"#555"}}>데이터 없음</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div style={{padding:"14px 18px",borderTop:"1px solid #1e1e3f",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:13,fontWeight:600,color:"#aaa"}}>{filtered.length}건</span>
+              <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#888",marginBottom:2}}>청구금 합계</div><div style={{fontSize:16,fontWeight:800,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0))}원</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#888",marginBottom:2}}>대여료 합계</div><div style={{fontSize:16,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#888",marginBottom:2}}>차액</div><div style={{fontSize:16,fontWeight:800,color:"#ef4444",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0)-filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
+              </div>
+            </div>
+          </div>
+        </div>}
+
+        {/* ── SETTLEMENT ── */}
+        {tab==="settlement" && <div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+            <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:18,borderTop:"3px solid #8b5cf6"}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:6}}>총 입금액(대여료)</div>
+              <div style={{fontSize:24,fontWeight:700,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(stats.totalDep)}<span style={{fontSize:12,color:"#888"}}>원</span></div>
+              <div style={{fontSize:11,color:"#666",marginTop:4}}>청구금 대비 {stats.profitRate}%</div>
+            </div>
+            <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:18,borderTop:"3px solid #ef4444"}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:6}}>차액액</div>
+              <div style={{fontSize:24,fontWeight:700,color:"#ef4444",fontVariantNumeric:"tabular-nums"}}>{fmt(stats.unpaid)}<span style={{fontSize:12,color:"#888"}}>원</span></div>
+              <div style={{fontSize:11,color:"#666",marginTop:4}}>청구금 - 입금액 차이</div>
+            </div>
+            <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:18,borderTop:"3px solid #10b981"}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:6}}>입금율</div>
+              <div style={{fontSize:24,fontWeight:700,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{stats.profitRate}<span style={{fontSize:14}}>%</span></div>
+              <div style={{fontSize:11,color:"#666",marginTop:4}}>총 청구 {fmt(stats.totalBill)}원 대비</div>
+            </div>
+          </div>
+
+          <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:20,marginBottom:20}}>
+            <h4 style={{margin:"0 0 16px",fontSize:14,fontWeight:600}}>월별 정산</h4>
+            {!sortedMonths.length ? <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>데이터 없음</div> :
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
+                {["월","건수","청구금","입금액","차액",""].map(h=><th key={h} style={{padding:"10px 14px",textAlign:["청구금","입금액","차액","건수"].includes(h)?"right":"left",fontWeight:500,color:"#888",fontSize:11,width:h===""?"30%":"auto"}}>{h}</th>)}
+              </tr></thead>
+              <tbody>{sortedMonths.map(([ym,d],idx)=>{ const [y,m]=ym.split("-"); const gap=d.bill-d.dep; return (
+                <tr key={ym} style={{borderBottom:"1px solid #1a1a35",background:idx%2===0?"transparent":"#13132a"}}>
+                  <td style={{padding:"12px 14px",fontWeight:600}}>{y}년 {parseInt(m)}월</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{d.cnt}건</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#10b981"}}>{fmt(d.bill)}원</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(d.dep)}원</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:gap>0?"#ef4444":"#10b981"}}>{fmt(gap)}원</td>
+                  <td style={{padding:"12px 14px"}}><div style={{height:16,background:"#0f0f23",borderRadius:4,overflow:"hidden",position:"relative"}}><div style={{position:"absolute",height:"100%",width:`${d.bill/maxMA*100}%`,background:"#2a2a4a",borderRadius:4}}/><div style={{position:"absolute",height:"100%",width:`${d.dep/maxMA*100}%`,background:"linear-gradient(90deg,#8b5cf6,#6366f1)",borderRadius:4}}/></div></td>
+                </tr>
+              );})}</tbody>
+              <tfoot><tr style={{borderTop:"2px solid #2a2a4a"}}>
+                <td style={{padding:"12px 14px",fontWeight:700}}>합계</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{stats.total}건</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#10b981"}}>{fmt(stats.totalBill)}원</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:800,fontVariantNumeric:"tabular-nums",color:"#8b5cf6",fontSize:15}}>{fmt(stats.totalDep)}원</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#ef4444"}}>{fmt(stats.unpaid)}원</td>
+                <td/>
+              </tr></tfoot>
+            </table>}
+          </div>
+
+          {/* ── 차량별 정산 ── */}
+          {(() => {
+            const sMonths = [...new Set(contracts.filter(c=>c.startDate).map(c=>c.startDate.slice(0,7)))].sort();
+            const fList = settlMonth==="all" ? contracts : contracts.filter(c=>c.startDate&&c.startDate.startsWith(settlMonth));
+            const fvStats = {};
+            fList.forEach(c => { const k=c.vehicleNumber; if(!k) return; if(!fvStats[k]) fvStats[k]={model:c.vehicleModel,cnt:0,bill:0,dep:0}; fvStats[k].cnt++; fvStats[k].bill+=(c.billingAmount||0); fvStats[k].dep+=(c.rentalFee||0); });
+            const fTotalBill = fList.reduce((s,c)=>s+(c.billingAmount||0),0);
+            const fTotalDep = fList.reduce((s,c)=>s+(c.rentalFee||0),0);
+            const fTotalGap = fTotalBill - fTotalDep;
+            const fRate = fTotalBill > 0 ? Math.round(fTotalDep / fTotalBill * 1000) / 10 : 0;
+            return (
+          <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:20,marginBottom:20}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h4 style={{margin:0,fontSize:14,fontWeight:600}}>차량별 정산</h4>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                <button onClick={()=>setSettlMonth("all")} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:settlMonth==="all"?700:400,background:settlMonth==="all"?"#3b82f6":"#1e1e3f",color:settlMonth==="all"?"#fff":"#888"}}>전체</button>
+                {sMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setSettlMonth(m)} style={{padding:"5px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:settlMonth===m?700:400,background:settlMonth===m?"#3b82f6":"#1e1e3f",color:settlMonth===m?"#fff":"#888"}}>{parseInt(mm)}월</button>;})}
+              </div>
+            </div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
+                {["차량","건수","청구금 합계","대여료 합계","차액","입금율"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:h==="차량"?"left":"right",fontWeight:500,color:"#888",fontSize:11}}>{h}</th>)}
+              </tr></thead>
+              <tbody>{Object.entries(fvStats).map(([num,d],idx)=>{
+                const v=vehicles.find(x=>x.number===num);
+                const gap = d.bill - d.dep;
+                const depRate = d.bill > 0 ? Math.round(d.dep / d.bill * 100) : 0;
+                return (
+                <tr key={num} style={{borderBottom:"1px solid #1a1a35",background:idx%2===0?"transparent":"#13132a"}}>
+                  <td style={{padding:"12px 14px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{width:8,height:8,borderRadius:"50%",background:v?.color||"#888",flexShrink:0}}/>
+                      <div><div style={{fontWeight:600}}>{d.model}</div><div style={{fontSize:10,color:"#888"}}>{num}</div></div>
+                    </div>
+                  </td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{d.cnt}건</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{fmt(d.bill)}원</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(d.dep)}원</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:gap>0?"#ef4444":"#10b981",fontWeight:600}}>{fmt(gap)}원</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8}}>
+                      <div style={{width:60,height:6,background:"#0f0f23",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${depRate}%`,background:depRate>=80?"#10b981":depRate>=50?"#f59e0b":"#ef4444",borderRadius:3}}/></div>
+                      <span style={{fontSize:11,fontWeight:600}}>{depRate}%</span>
+                    </div>
+                  </td>
+                </tr>
+              );})}</tbody>
+              <tfoot><tr style={{borderTop:"2px solid #2a2a4a"}}>
+                <td style={{padding:"12px 14px",fontWeight:700}}>합계</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{fList.length}건</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(fTotalBill)}원</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(fTotalDep)}원</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#ef4444"}}>{fmt(fTotalGap)}원</td>
+                <td style={{padding:"12px 14px",textAlign:"right",fontWeight:700}}>{fRate}%</td>
+              </tr></tfoot>
+            </table>
+          </div>
+            );
+          })()}
+
+          <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:20}}>
+            {(() => {
+              const gapMonths = [...new Set(contracts.filter(c=>c.startDate&&(c.billingAmount||0)>(c.rentalFee||0)).map(c=>c.startDate.slice(0,7)))].sort();
+              const gapBase = gapMonth==="all" ? contracts : contracts.filter(c=>c.startDate&&c.startDate.startsWith(gapMonth));
+              const unpaidList = gapBase.filter(c=>(c.billingAmount||0)>(c.rentalFee||0)).sort((a,b)=>(a.vehicleNumber||"").localeCompare(b.vehicleNumber||"")||(b.endDate||"9999").localeCompare(a.endDate||"9999"));
+              return <>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <h4 style={{margin:0,fontSize:14,fontWeight:600,color:"#ef4444"}}>청구/입금 차액 내역</h4>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                <button onClick={()=>setGapMonth("all")} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth==="all"?700:400,background:gapMonth==="all"?"#ef4444":"#1e1e3f",color:gapMonth==="all"?"#fff":"#888"}}>전체</button>
+                {gapMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setGapMonth(m)} style={{padding:"5px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth===m?700:400,background:gapMonth===m?"#ef4444":"#1e1e3f",color:gapMonth===m?"#fff":"#888"}}>{parseInt(mm)}월</button>;})}
+              </div>
+            </div>
+              if(!unpaidList.length) return <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>차액 없음</div>;
+              const grouped = {};
+              unpaidList.forEach(c => { const k=c.vehicleNumber||"기타"; if(!grouped[k]) grouped[k]={model:c.vehicleModel,items:[],total:0}; grouped[k].items.push(c); grouped[k].total+=(c.billingAmount||0)-(c.rentalFee||0); });
+              return Object.entries(grouped).map(([vnum,g]) => {
+                g.items.sort((a,b)=>(b.endDate||"9999").localeCompare(a.endDate||"9999"));
+                return (
+                <div key={vnum} style={{marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#0f0f23",borderRadius:8,marginBottom:4}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{width:10,height:10,borderRadius:"50%",background:vehicles.find(v=>v.number===vnum)?.color||"#888"}}/>
+                      <span style={{fontSize:15,fontWeight:800}}>{g.model}</span>
+                      <span style={{fontSize:13,fontWeight:600,color:"#aaa",background:"#1e1e3f",padding:"2px 8px",borderRadius:4}}>{vnum}</span>
+                      <span style={{fontSize:11,color:"#666"}}>({g.items.length}건)</span>
+                    </div>
+                  </div>
+                  <div style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                      <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
+                        {["상태","고객명","고객차량","보험사","접수번호","담당","연락처","기간","청구금","대여료","차액"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:["청구금","대여료","차액"].includes(h)?"right":"left",fontWeight:500,color:"#666",fontSize:10,whiteSpace:"nowrap"}}>{h}</th>)}
+                      </tr></thead>
+                      <tbody>{g.items.map((c,idx)=>{const gap=(c.billingAmount||0)-(c.rentalFee||0); return (
+                        <tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #1a1a35",cursor:"pointer",background:idx%2===1?"#13132a":"transparent"}} onMouseEnter={e=>e.currentTarget.style.background="#1a1a3a"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===1?"#13132a":"transparent"}>
+                          <td style={{padding:"8px 10px"}}><Badge status={c.status}/></td>
+                          <td style={{padding:"8px 10px",fontWeight:600}}>{c.customerName}</td>
+                          <td style={{padding:"8px 10px"}}><span style={{fontSize:11}}>{c.customerVehicle}</span> <span style={{fontSize:10,color:"#888"}}>{c.customerNumber}</span></td>
+                          <td style={{padding:"8px 10px"}}>{c.insurer}</td>
+                          <td style={{padding:"8px 10px",fontSize:10,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.receiptNo}</td>
+                          <td style={{padding:"8px 10px",fontSize:11}}>{c.dispatcher}</td>
+                          <td style={{padding:"8px 10px",fontSize:11,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.customerPhone}</td>
+                          <td style={{padding:"8px 10px",fontSize:10,color:"#888",whiteSpace:"nowrap"}}>{c.startDate}~{c.endDate||"진행중"}</td>
+                          <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:600}}>{fmt(c.billingAmount)}</td>
+                          <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{c.rentalFee?fmt(c.rentalFee):"-"}</td>
+                          <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:700,color:"#ef4444"}}>{fmt(gap)}</td>
+                        </tr>
+                      );})}</tbody>
+                    </table>
+                  </div>
+                </div>
+              );});
+              </>;
+            })()}
+          </div>
+        </div>}
+
+        {/* ── SCHEDULE ── */}
+        {tab==="schedule" && <div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+            <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);const d=new Date(y,m-2,1);setSchedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}} style={{background:"#1e1e3f",border:"1px solid #2a2a4a",borderRadius:8,color:"#e0e0e0",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&lt;</button>
+            <span style={{fontSize:16,fontWeight:700,minWidth:130,textAlign:"center"}}>{sched.y}년 {sched.m}월</span>
+            <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);const d=new Date(y,m,1);setSchedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}} style={{background:"#1e1e3f",border:"1px solid #2a2a4a",borderRadius:8,color:"#e0e0e0",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&gt;</button>
+          </div>
+          <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,overflow:"hidden"}}>
+            <div style={{overflowX:"auto"}}>
+              <div style={{minWidth:sched.dim*36+170}}>
+                <div style={{display:"flex",borderBottom:"1px solid #1e1e3f"}}>
+                  <div style={{minWidth:170,padding:"8px 14px",fontSize:11,color:"#888",fontWeight:500,flexShrink:0}}>차량</div>
+                  {Array.from({length:sched.dim},(_,i)=>{const d=new Date(sched.y,sched.m-1,i+1);const dow=d.getDay();const td=new Date();const isToday=d.getFullYear()===td.getFullYear()&&d.getMonth()===td.getMonth()&&d.getDate()===td.getDate();
+                  return <div key={i} style={{minWidth:36,textAlign:"center",padding:"6px 0",fontSize:10,color:dow===0?"#ef4444":dow===6?"#3b82f6":"#888",borderLeft:"1px solid #1a1a35",background:isToday?"#1e1e3f":"transparent"}}><div style={{fontWeight:600}}>{i+1}</div><div>{["일","월","화","수","목","금","토"][dow]}</div></div>;})}
+                </div>
+                {sched.vs.map(v=>{const vc=vehicles.find(x=>x.number===v.number);return(
+                  <div key={v.number} style={{display:"flex",borderBottom:"1px solid #1a1a35",minHeight:52}}>
+                    <div style={{minWidth:170,padding:"8px 14px",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{width:8,height:8,borderRadius:"50%",background:vc?.color||"#888",flexShrink:0}}/>
+                      <div><div style={{fontWeight:600,fontSize:12}}>{v.model}</div><div style={{fontSize:10,color:"#888"}}>{v.number}</div></div>
+                    </div>
+                    <div style={{position:"relative",display:"flex",flex:1}}>
+                      {Array.from({length:sched.dim},(_,i)=><div key={i} style={{minWidth:36,borderLeft:"1px solid #1a1a35"}}/>)}
+                      {v.entries.map((e,i)=>{const sc=STATUS_COLORS[e.status]||STATUS_COLORS["계약종결"];return(
+                        <div key={i} onClick={()=>setSelected(e)} style={{position:"absolute",left:(e.bs-1)*36+2,width:(e.be-e.bs+1)*36-4,top:6+(i%2)*22,height:18,background:sc.dot+"cc",borderRadius:4,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,color:"#fff",overflow:"hidden",whiteSpace:"nowrap",padding:"0 4px"}} title={`${e.customerName} (${e.startDate}~${e.endDate||"진행중"})`}>{e.customerName}</div>
+                      );})}
+                    </div>
+                  </div>
+                );})}
+                {!sched.vs.length && <div style={{padding:40,textAlign:"center",color:"#555",fontSize:13}}>이 달에 해당하는 계약 없음</div>}
+              </div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:12,marginTop:12,flexWrap:"wrap"}}>
+            {Object.entries(STATUS_COLORS).map(([n,c])=><div key={n} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#888"}}><span style={{width:12,height:12,borderRadius:3,background:c.dot+"cc"}}/>{n}</div>)}
+          </div>
+        </div>}
+      </main>
+
+      {/* Detail Modal */}
+      <Modal open={!!selected} onClose={()=>setSelected(null)} title="계약 상세" width={640}>
+        {selected && (()=>{
+          const unsettled = (selected.billingAmount||0) - (selected.rentalFee||0);
+          return <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+            <div>
+              <Badge status={selected.status}/>
+              <div style={{fontSize:20,fontWeight:700,marginTop:8}}>{selected.customerName}</div>
+              <div style={{fontSize:12,color:"#888"}}>IMS {selected.id} | 접수 {selected.receiptNo}</div>
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>{setEditData(selected);setEditModal(true);setSelected(null);}} style={{padding:"6px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>수정</button>
+              <button onClick={()=>doDelete(selected.id)} style={{padding:"6px 14px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>삭제</button>
+            </div>
+          </div>
+
+          {/* 차액액 prominent display */}
+          {unsettled > 0 && <div style={{background:"linear-gradient(135deg,#991b1b22,#ef444422)",border:"1px solid #ef444455",borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:11,color:"#ef4444",fontWeight:600,marginBottom:2}}>차액액</div>
+              <div style={{fontSize:10,color:"#888"}}>청구금 - 대여료</div>
+            </div>
+            <div style={{fontSize:22,fontWeight:800,color:"#ef4444",fontVariantNumeric:"tabular-nums"}}>{fmt(unsettled)}<span style={{fontSize:12}}>원</span></div>
+          </div>}
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div style={{background:"#0f0f23",borderRadius:10,padding:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:8,fontWeight:600}}>대여 정보</div>
+              {[["대여차종",selected.vehicleModel],["차량번호",selected.vehicleNumber],["배차자",selected.dispatcher],["배차일",`${selected.startDate||"-"} ${selected.startTime||""}`],["반납일",`${selected.endDate||"-"} ${selected.endTime||""}`],["대여일수",selected.endDate?`${daysBetween(selected.startDate,selected.endDate)}일`:"진행중"]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#888"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
+            </div>
+            <div style={{background:"#0f0f23",borderRadius:10,padding:14}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:8,fontWeight:600}}>고객/보험</div>
+              {[["고객차량",`${selected.customerVehicle} (${selected.customerNumber})`],["연락처",selected.customerPhone],["과실",selected.fault],["보험사",selected.insurer],["청구처",selected.billingTo],["수리처",selected.repairShop==="-"?"없음":selected.repairShop]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#888"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
+            </div>
+          </div>
+          <div style={{background:"#0f0f23",borderRadius:10,padding:14,marginTop:12}}>
+            <div style={{fontSize:11,color:"#888",marginBottom:8,fontWeight:600}}>청구/정산</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+              {[["청구금",fmt(selected.billingAmount)+"원","#10b981"],["대여료",fmt(selected.rentalFee)+"원","#8b5cf6"],["청구일",selected.billingDate||"미청구","#3b82f6"],["입금일",selected.depositDate||"미입금",selected.depositDate?"#10b981":"#ef4444"]].map(([l,v,c])=><div key={l} style={{textAlign:"center"}}><div style={{fontSize:10,color:"#888",marginBottom:3}}>{l}</div><div style={{fontSize:14,fontWeight:700,color:c,fontVariantNumeric:"tabular-nums"}}>{v}</div></div>)}
+            </div>
+          </div>
+        </div>;
+        })()}
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal open={editModal} onClose={()=>{setEditModal(false);setEditData(null);}} title={editData?"계약 수정":"신규 등록"} width={600}>
+        <EditForm init={editData} vehs={vehicles} onSave={doSave} onCancel={()=>{setEditModal(false);setEditData(null);}}/>
+      </Modal>
+    </div>
+  );
+}
+
+function EditForm({ init, vehs, onSave, onCancel }) {
+  const [f, setF] = useState(init || {
+    id:String(Date.now()),status:"배차중",dispatcher:"",startDate:new Date().toISOString().slice(0,10),startTime:"",
+    endDate:null,endTime:null,billingDate:null,billingTime:null,depositDate:null,
+    vehicleModel:"",vehicleNumber:"",customerName:"",customerVehicle:"",customerNumber:"",
+    customerPhone:"",fault:"-",insurer:"",billingTo:"",receiptNo:"",
+    salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:0,rentalFee:0
+  });
+  const u = (k,v) => setF(p=>({...p,[k]:v}));
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 14px"}}>
+      <Field label="상태"><select value={f.status} onChange={e=>u("status",e.target.value)} style={SS}>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select></Field>
+      <Field label="IMS번호"><input value={f.id} onChange={e=>u("id",e.target.value)} style={IS}/></Field>
+      <Field label="배차자"><input value={f.dispatcher} onChange={e=>u("dispatcher",e.target.value)} style={IS}/></Field>
+      <Field label="고객명"><input value={f.customerName} onChange={e=>u("customerName",e.target.value)} style={IS}/></Field>
+      <Field label="연락처"><input value={f.customerPhone} onChange={e=>u("customerPhone",e.target.value)} style={IS}/></Field>
+      <Field label="과실"><input value={f.fault} onChange={e=>u("fault",e.target.value)} style={IS}/></Field>
+      <Field label="대여차량">
+        <select value={f.vehicleNumber} onChange={e=>{const v=vehs.find(x=>x.number===e.target.value);if(v){u("vehicleModel",v.model);u("vehicleNumber",v.number);}else{u("vehicleModel","");u("vehicleNumber","");}}} style={SS}>
+          <option value="">선택</option>{vehs.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}<option value="">신규 (직접입력)</option>
+        </select>
+      </Field>
+      <Field label="차량번호"><input value={f.vehicleNumber} onChange={e=>u("vehicleNumber",e.target.value)} style={IS} placeholder="신규시 직접입력"/></Field>
+      {!vehs.find(v=>v.number===f.vehicleNumber) && <Field label="차종명"><input value={f.vehicleModel} onChange={e=>u("vehicleModel",e.target.value)} style={IS} placeholder="예: GLE 클래스"/></Field>}
+      <Field label="고객차종"><input value={f.customerVehicle} onChange={e=>u("customerVehicle",e.target.value)} style={IS}/></Field>
+      <Field label="고객번호판"><input value={f.customerNumber} onChange={e=>u("customerNumber",e.target.value)} style={IS}/></Field>
+      <Field label="보험사"><input value={f.insurer} onChange={e=>u("insurer",e.target.value)} style={IS}/></Field>
+      <Field label="청구처"><input value={f.billingTo} onChange={e=>u("billingTo",e.target.value)} style={IS}/></Field>
+      <Field label="접수번호"><input value={f.receiptNo} onChange={e=>u("receiptNo",e.target.value)} style={IS}/></Field>
+      <Field label="수리처"><input value={f.repairShop} onChange={e=>u("repairShop",e.target.value)} style={IS}/></Field>
+      <Field label="배차일"><input type="date" value={f.startDate||""} onChange={e=>u("startDate",e.target.value)} style={IS}/></Field>
+      <Field label="배차시간"><input type="time" value={f.startTime||""} onChange={e=>u("startTime",e.target.value)} style={IS}/></Field>
+      <Field label="반납일"><input type="date" value={f.endDate||""} onChange={e=>u("endDate",e.target.value||null)} style={IS}/></Field>
+      <Field label="반납시간"><input type="time" value={f.endTime||""} onChange={e=>u("endTime",e.target.value)} style={IS}/></Field>
+      <Field label="청구일"><input type="date" value={f.billingDate||""} onChange={e=>u("billingDate",e.target.value||null)} style={IS}/></Field>
+      <Field label="입금일"><input type="date" value={f.depositDate||""} onChange={e=>u("depositDate",e.target.value||null)} style={IS}/></Field>
+      <Field label="청구금"><input type="number" value={f.billingAmount} onChange={e=>u("billingAmount",Number(e.target.value))} style={IS}/></Field>
+      <Field label="대여료"><input type="number" value={f.rentalFee} onChange={e=>u("rentalFee",Number(e.target.value))} style={IS}/></Field>
+    </div>
+    <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
+      <button onClick={onCancel} style={{padding:"8px 20px",background:"#1e1e3f",color:"#888",border:"1px solid #2a2a4a",borderRadius:8,fontSize:12,cursor:"pointer"}}>취소</button>
+      <button onClick={()=>onSave(f)} style={{padding:"8px 20px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}}>저장</button>
+    </div>
+  </div>;
+}
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
