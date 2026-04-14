@@ -83,7 +83,47 @@ def parse_phone(phone):
     return phone
 
 
-def convert_claim(c):
+def make_replacement_note(c, our_numbers):
+    """교체건이면 우리차 사용일수 메모 생성"""
+    if not c.get('car_replaced'):
+        return None
+    details = c.get('details', [])
+    if len(details) <= 1:
+        return None
+
+    # 전체 기간
+    start_dt, _ = parse_datetime(c.get('delivered_at'))
+    end_dt, _ = parse_datetime(c.get('return_date'))
+    if start_dt and end_dt:
+        from datetime import datetime as dt
+        total_days = (dt.strptime(end_dt, '%Y-%m-%d') - dt.strptime(start_dt, '%Y-%m-%d')).days
+    else:
+        total_days = 0
+        for d in details:
+            info = d.get('claim_date_info') or {}
+            total_days = info.get('total_day', 0)
+            break
+
+    # 우리차 부분만 추출
+    our_parts = []
+    for d in details:
+        num = d.get('rent_car_number', '')
+        # 우리 차량번호 끝 4자리 매칭
+        is_ours = any(num.endswith(n) for n in our_numbers)
+        if is_ours:
+            # return_date에서 이전 detail의 return_date 빼서 일수 계산
+            info = d.get('claim_date_info') or {}
+            our_parts.append(num)
+
+    if not our_parts:
+        return None
+
+    # 간단히: 우리차 번호들 / 전체일수
+    parts_str = ', '.join(our_parts)
+    return f'{parts_str} / 전체{total_days}일'
+
+
+def convert_claim(c, our_numbers):
     """IMS claim → DB row"""
     start_date, start_time = parse_datetime(c.get('delivered_at'))
     end_date, end_time = parse_datetime(c.get('return_date'))
@@ -93,7 +133,34 @@ def convert_claim(c):
     deposit_date, _ = parse_datetime(c.get('claim_done_at'))
 
     # 상태 매핑
-    status = STATUS_MAP.get(c.get('claim_state', ''), c.get('claim_state', '배차중'))
+    is_replaced = c.get('car_replaced', 0) == 1
+    if is_replaced:
+        status = '교체'
+    else:
+        status = STATUS_MAP.get(c.get('claim_state', ''), c.get('claim_state', '배차중'))
+
+    # 교체건 메모
+    replacement_note = None
+    if is_replaced:
+        details = c.get('details', [])
+        if len(details) > 1:
+            parts = []
+            for d in details:
+                num = d.get('rent_car_number', '')
+                is_ours = any(num.endswith(n) for n in our_numbers)
+                if is_ours:
+                    # 일수 계산: return_date 기반
+                    parts.append(num)
+            # 전체 일수
+            if start_date and end_date:
+                from datetime import datetime as dt
+                total = (dt.strptime(end_date, '%Y-%m-%d') - dt.strptime(start_date, '%Y-%m-%d')).days
+            else:
+                total = details[0].get('claim_date_info', {}).get('total_day', 0)
+            if parts:
+                replacement_note = f'{", ".join(parts)} / 전체{total}일'
+            else:
+                replacement_note = f'우리차 없음 / 전체{total}일'
 
     return {
         'id': str(c.get('id', '')),
@@ -122,6 +189,7 @@ def convert_claim(c):
         'repair_shop': c.get('industrial_company') or '-',
         'billing_amount': c.get('claim_total_cost') or 0,
         'rental_fee': c.get('deposit_cost') or 0,
+        'replacement_note': replacement_note,
     }
 
 
@@ -149,7 +217,7 @@ def search_vehicle(session, car_number):
         total_pages = api_result.get('totalPage', 1)
 
         for c in claims:
-            contracts.append(convert_claim(c))
+            contracts.append(convert_claim(c, VEHICLE_NUMBERS))
 
         print(f'  page {page}/{total_pages}: {len(claims)}건')
 
