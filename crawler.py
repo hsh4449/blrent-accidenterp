@@ -180,10 +180,20 @@ def main():
     # 중복 제거 (같은 ID면 최신 것으로 덮어쓰기)
     seen = {}
     for c in all_contracts:
-        seen[c['id']] = c  # 나중에 나온 것이 덮어씀
+        seen[c['id']] = c
     unique = list(seen.values())
-
     print(f'\n[TOTAL] {len(unique)}건 (중복 제거)')
+
+    # DB에서 이미 입금 완료된(계약종결 + deposit_date 있는) 건 제외
+    settled = supabase_client.table('accident_rentals').select('id').eq('status', '계약종결').not_.is_('deposit_date', 'null').execute()
+    settled_ids = {r['id'] for r in settled.data}
+    before = len(unique)
+    unique = [c for c in unique if c['id'] not in settled_ids]
+    skipped = before - len(unique)
+    if skipped:
+        print(f'[SKIP] 입금완료 {skipped}건 제외')
+
+    print(f'[UPDATE] {len(unique)}건 업데이트 대상')
 
     if unique:
         supabase_client.table('accident_rentals').upsert(
