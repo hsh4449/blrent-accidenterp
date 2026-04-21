@@ -25,10 +25,13 @@ VEHICLE_NUMBERS = [
 
 STATUS_MAP = {
     'dispatch': '배차중',
-    'waiting_claim': '청구대기',
-    'checking_claim': '청구대기',
+    'using_car': '배차중',
+    'before_claim': '청구전',
+    'waiting_claim': '청구전',
+    'checking_claim': '청구전',
     'send_claim': '청구완료',
-    'done': '계약종결',
+    'done_claim': '입금완료',
+    'done': '입금완료',
 }
 
 
@@ -252,8 +255,8 @@ def main():
     unique = list(seen.values())
     print(f'\n[TOTAL] {len(unique)}건 (중복 제거)')
 
-    # DB에서 이미 입금 완료된(계약종결 + deposit_date 있는) 건 제외
-    settled = supabase_client.table('accident_rentals').select('id').eq('status', '계약종결').not_.is_('deposit_date', 'null').execute()
+    # DB에서 이미 입금완료 + deposit_date 있는 건 제외 (재크롤 방지)
+    settled = supabase_client.table('accident_rentals').select('id').eq('status', '입금완료').not_.is_('deposit_date', 'null').execute()
     settled_ids = {r['id'] for r in settled.data}
     before = len(unique)
     unique = [c for c in unique if c['id'] not in settled_ids]
