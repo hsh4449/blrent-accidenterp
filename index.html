@@ -644,26 +644,23 @@ function App() {
             const fixMonths = [...new Set(Object.keys(monthlyFixed).map(k=>k.split("|")[1]))];
             const allMonths = [...new Set([...depMonths, ...fixMonths])].sort();
             const ym = settlMonth;
-            const inMonth = c => c.depositDate && c.depositDate.startsWith(ym);
-            const monthContracts = ym==="all" ? contracts.filter(c=>c.depositDate) : contracts.filter(inMonth);
+            const monthContracts = ym==="all" ? contracts.filter(c=>c.depositDate) : contracts.filter(c=>c.depositDate && c.depositDate.startsWith(ym));
 
-            // 차량 목록 (해당 월에 활동 있는 차량 + 고정비 등록된 차량)
+            // 차량 목록 (해당 월에 활동 있는 차량 + 고정비 등록된 차량 + 현재 등록 차량)
             const vnums = new Set();
             monthContracts.forEach(c => c.vehicleNumber && vnums.add(c.vehicleNumber));
             if (ym !== "all") Object.keys(monthlyFixed).forEach(k => { const [vn,m]=k.split("|"); if (m===ym) vnums.add(vn); });
-            if (ym === "all") vehicles.forEach(v => vnums.add(v.number));
+            vehicles.forEach(v => vnums.add(v.number));
 
-            // 차량별 집계
+            // 차량별 집계 (Excel 정산서 방식)
             const vStats = {};
             [...vnums].forEach(vn => {
               const mc = monthContracts.filter(c => c.vehicleNumber === vn);
-              const deposit = mc.reduce((s,c)=>s+(c.rentalFee||0),0);
-              const vat = Math.round(deposit * 10 / 110);
-              const supply = deposit - vat;
+              const income = mc.reduce((s,c)=>s+(c.rentalFee||0),0);
+              const vat = Math.round(income * 10 / 110);
               const deliveryTotal = mc.reduce((s,c)=>s+(c.deliveryFee1||0)+(c.deliveryFee2||0),0);
               const deliveryCnt = mc.reduce((s,c)=>s+((c.deliveryFee1||0)>0?1:0)+((c.deliveryFee2||0)>0?1:0),0);
               const commission = Math.round(mc.reduce((s,c)=>s+((c.rentalFee||0)/1.1)*((c.commissionRate||0)/100),0));
-              // 고정비: 월 선택시만 - "전체"는 합산
               let installment=0, insurance=0, etc=0;
               if (ym === "all") {
                 Object.entries(monthlyFixed).forEach(([k,v])=>{ const [kvn]=k.split("|"); if (kvn===vn) { installment+=v.installment||0; insurance+=v.insurance||0; etc+=v.etc_cost||0; } });
@@ -671,20 +668,20 @@ function App() {
                 const f = monthlyFixed[`${vn}|${ym}`] || {};
                 installment = f.installment || 0; insurance = f.insurance || 0; etc = f.etc_cost || 0;
               }
-              const settle = deposit - vat - installment - insurance - deliveryTotal - commission - etc;
+              const settle = income - vat - installment - insurance - deliveryTotal - commission - etc;
               const model = vehicles.find(x=>x.number===vn)?.model || mc[0]?.vehicleModel || "";
-              const cnt = mc.length;
-              vStats[vn] = { model, cnt, deposit, vat, supply, installment, insurance, deliveryTotal, deliveryCnt, commission, etc, settle };
+              vStats[vn] = { model, cnt:mc.length, income, vat, installment, insurance, deliveryTotal, deliveryCnt, commission, etc, settle };
             });
 
-            const T = Object.values(vStats).reduce((a,d)=>({
-              cnt:a.cnt+d.cnt, deposit:a.deposit+d.deposit, vat:a.vat+d.vat,
+            const rows = Object.entries(vStats).sort((a,b)=>a[0].localeCompare(b[0]));
+            const T = rows.reduce((a,[,d])=>({
+              cnt:a.cnt+d.cnt, income:a.income+d.income, vat:a.vat+d.vat,
               installment:a.installment+d.installment, insurance:a.insurance+d.insurance,
               deliveryTotal:a.deliveryTotal+d.deliveryTotal, deliveryCnt:a.deliveryCnt+d.deliveryCnt,
               commission:a.commission+d.commission, etc:a.etc+d.etc, settle:a.settle+d.settle
-            }), {cnt:0,deposit:0,vat:0,installment:0,insurance:0,deliveryTotal:0,deliveryCnt:0,commission:0,etc:0,settle:0});
-            const settleRate = T.deposit > 0 ? Math.round(T.settle / T.deposit * 1000) / 10 : 0;
-
+            }), {cnt:0,income:0,vat:0,installment:0,insurance:0,deliveryTotal:0,deliveryCnt:0,commission:0,etc:0,settle:0});
+            const activeVehicleCount = rows.filter(([,d])=>d.income>0 || d.installment>0 || d.insurance>0 || d.etc>0).length;
+            const perVehicle = activeVehicleCount > 0 ? Math.round(T.settle / activeVehicleCount) : 0;
             const [curY,curM] = ym==="all" ? ["",""] : ym.split("-");
             const monthLabel = ym==="all" ? "전체 기간" : `${curY}년 ${parseInt(curM)}월`;
             const canEdit = ym !== "all";
@@ -697,43 +694,38 @@ function App() {
                 {allMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setSettlMonth(m)} style={{padding:"6px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:settlMonth===m?700:400,background:settlMonth===m?"#3b82f6":"#1e1e3f",color:settlMonth===m?"#fff":"#888"}}>{y.slice(2)}년 {parseInt(mm)}월</button>;})}
               </div>
 
-              {/* 요약 카드 */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
-                <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:18,borderTop:"3px solid #8b5cf6"}}>
-                  <div style={{fontSize:11,color:"#888",marginBottom:6}}>총 입금액 ({monthLabel})</div>
-                  <div style={{fontSize:22,fontWeight:700,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(T.deposit)}<span style={{fontSize:12,color:"#888"}}>원</span></div>
-                  <div style={{fontSize:11,color:"#666",marginTop:4}}>{T.cnt}건 · VAT {fmt(T.vat)}원</div>
+              {/* 핵심 KPI 3카드 */}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+                <div style={{background:"linear-gradient(135deg,#161630,#1e1e3f)",border:"1px solid #2a2a4a",borderRadius:12,padding:22,borderLeft:`4px solid ${T.settle>=0?"#10b981":"#ef4444"}`}}>
+                  <div style={{fontSize:11,color:"#888",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>총 정산액 ({monthLabel})</div>
+                  <div style={{fontSize:30,fontWeight:800,color:T.settle>=0?"#10b981":"#ef4444",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(T.settle)}<span style={{fontSize:14,color:"#888",marginLeft:4}}>원</span></div>
+                  <div style={{fontSize:11,color:"#666",marginTop:8}}>수입 {fmt(T.income)} − 지출 {fmt(T.income-T.settle)}</div>
                 </div>
-                <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:18,borderTop:"3px solid #f59e0b"}}>
-                  <div style={{fontSize:11,color:"#888",marginBottom:6}}>총 비용</div>
-                  <div style={{fontSize:22,fontWeight:700,color:"#f59e0b",fontVariantNumeric:"tabular-nums"}}>{fmt(T.vat+T.installment+T.insurance+T.deliveryTotal+T.commission+T.etc)}<span style={{fontSize:12,color:"#888"}}>원</span></div>
-                  <div style={{fontSize:10,color:"#666",marginTop:4}}>할부 {fmt(T.installment)} · 보험 {fmt(T.insurance)}</div>
+                <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:22,borderLeft:"4px solid #3b82f6"}}>
+                  <div style={{fontSize:11,color:"#888",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>1대당 평균 정산</div>
+                  <div style={{fontSize:26,fontWeight:800,color:"#3b82f6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(perVehicle)}<span style={{fontSize:14,color:"#888",marginLeft:4}}>원</span></div>
+                  <div style={{fontSize:11,color:"#666",marginTop:8}}>활동차량 {activeVehicleCount}대 기준</div>
                 </div>
-                <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:18,borderTop:"3px solid #10b981"}}>
-                  <div style={{fontSize:11,color:"#888",marginBottom:6}}>월정산액</div>
-                  <div style={{fontSize:22,fontWeight:700,color:T.settle>=0?"#10b981":"#ef4444",fontVariantNumeric:"tabular-nums"}}>{fmt(T.settle)}<span style={{fontSize:12,color:"#888"}}>원</span></div>
-                  <div style={{fontSize:11,color:"#666",marginTop:4}}>입금 − 비용</div>
-                </div>
-                <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:18,borderTop:"3px solid #3b82f6"}}>
-                  <div style={{fontSize:11,color:"#888",marginBottom:6}}>정산율</div>
-                  <div style={{fontSize:22,fontWeight:700,color:"#3b82f6",fontVariantNumeric:"tabular-nums"}}>{settleRate}<span style={{fontSize:14}}>%</span></div>
-                  <div style={{fontSize:11,color:"#666",marginTop:4}}>정산액 / 입금액</div>
+                <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:22,borderLeft:"4px solid #8b5cf6"}}>
+                  <div style={{fontSize:11,color:"#888",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>차량 대수</div>
+                  <div style={{fontSize:26,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{activeVehicleCount}<span style={{fontSize:14,color:"#888",marginLeft:4}}>대</span></div>
+                  <div style={{fontSize:11,color:"#666",marginTop:8}}>전체 등록 {rows.length}대 · 계약 {T.cnt}건</div>
                 </div>
               </div>
 
-              {/* 차량별 월정산표 */}
-              <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:20,marginBottom:20}}>
+              {/* 차량별 정산표 */}
+              <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:20}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                   <h4 style={{margin:0,fontSize:14,fontWeight:600}}>차량별 정산 ({monthLabel})</h4>
                   {!canEdit && <span style={{fontSize:11,color:"#f59e0b"}}>※ 고정비(할부/보험/기타) 편집은 특정 월 선택 시 가능</span>}
                 </div>
-                {!Object.keys(vStats).length ? <div style={{padding:30,textAlign:"center",color:"#555",fontSize:12}}>데이터 없음</div> :
+                {!rows.length ? <div style={{padding:30,textAlign:"center",color:"#555",fontSize:12}}>데이터 없음</div> :
                 <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
                   <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
-                    {["차량","건수","입금액","부가세","할부","보험료","탁송료","수수료","기타","월정산액"].map(h=><th key={h} style={{padding:"10px 10px",textAlign:h==="차량"?"left":"right",fontWeight:500,color:"#888",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
+                    {["차량","건수","수입","VAT(10%)","할부","보험료","탁송료","수수료","기타","정산"].map(h=><th key={h} style={{padding:"10px 10px",textAlign:h==="차량"?"left":"right",fontWeight:500,color:"#888",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
                   </tr></thead>
-                  <tbody>{Object.entries(vStats).sort((a,b)=>a[0].localeCompare(b[0])).map(([num,d],idx)=>{
+                  <tbody>{rows.map(([num,d],idx)=>{
                     const v=vehicles.find(x=>x.number===num);
                     return (
                     <tr key={num} style={{borderBottom:"1px solid #1a1a35",background:idx%2===0?"transparent":"#13132a"}}>
@@ -744,7 +736,7 @@ function App() {
                         </div>
                       </td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#888"}}>{d.cnt}건</td>
-                      <td style={{padding:"10px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(d.deposit)}</td>
+                      <td style={{padding:"10px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(d.income)}</td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#666"}}>{fmt(d.vat)}</td>
                       <td style={{padding:"6px 10px",textAlign:"right"}}>
                         {canEdit ? <EditableAmount value={d.installment} onSave={v=>saveMonthlyFixed(num,ym,{installment:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#aaa"}}>{fmt(d.installment)}</span>}
@@ -754,87 +746,32 @@ function App() {
                       </td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>
                         <div>{fmt(d.deliveryTotal)}</div>
-                        <div style={{fontSize:10,color:"#666"}}>{d.deliveryCnt}건</div>
+                        {d.deliveryCnt>0 && <div style={{fontSize:10,color:"#666"}}>{d.deliveryCnt}건</div>}
                       </td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#aaa"}}>{fmt(d.commission)}</td>
                       <td style={{padding:"6px 10px",textAlign:"right"}}>
                         {canEdit ? <EditableAmount value={d.etc} onSave={v=>saveMonthlyFixed(num,ym,{etc_cost:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#aaa"}}>{fmt(d.etc)}</span>}
                       </td>
-                      <td style={{padding:"10px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:d.settle>=0?"#10b981":"#ef4444"}}>{fmt(d.settle)}</td>
+                      <td style={{padding:"10px 10px",textAlign:"right",fontWeight:800,fontSize:13,fontVariantNumeric:"tabular-nums",color:d.settle>=0?"#10b981":"#ef4444"}}>{fmt(d.settle)}</td>
                     </tr>
                   );})}</tbody>
                   <tfoot><tr style={{borderTop:"2px solid #2a2a4a",background:"#0f0f23"}}>
-                    <td style={{padding:"12px 10px",fontWeight:700}}>합계</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{T.cnt}건</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:800,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(T.deposit)}</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",color:"#888"}}>{fmt(T.vat)}</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{fmt(T.installment)}</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{fmt(T.insurance)}</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{fmt(T.deliveryTotal)}<div style={{fontSize:10,color:"#666",fontWeight:400}}>{T.deliveryCnt}건</div></td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{fmt(T.commission)}</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{fmt(T.etc)}</td>
-                    <td style={{padding:"12px 10px",textAlign:"right",fontWeight:800,fontSize:13,fontVariantNumeric:"tabular-nums",color:T.settle>=0?"#10b981":"#ef4444"}}>{fmt(T.settle)}</td>
+                    <td style={{padding:"14px 10px",fontWeight:800}}>합계</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{T.cnt}건</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:800,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(T.income)}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#888"}}>{fmt(T.vat)}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.installment)}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.insurance)}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.deliveryTotal)}{T.deliveryCnt>0 && <div style={{fontSize:10,color:"#666",fontWeight:400}}>{T.deliveryCnt}건</div>}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.commission)}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.etc)}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:900,fontSize:14,fontVariantNumeric:"tabular-nums",color:T.settle>=0?"#10b981":"#ef4444"}}>{fmt(T.settle)}</td>
                   </tr></tfoot>
                 </table>
                 </div>}
               </div>
             </>);
           })()}
-
-          <div style={{background:"#161630",border:"1px solid #1e1e3f",borderRadius:12,padding:20}}>
-            {(() => {
-              const gapMonths = [...new Set(contracts.filter(c=>c.startDate&&(c.billingAmount||0)>(c.rentalFee||0)).map(c=>c.startDate.slice(0,7)))].sort();
-              const gapBase = gapMonth==="all" ? contracts : contracts.filter(c=>c.startDate&&c.startDate.startsWith(gapMonth));
-              const unpaidList = gapBase.filter(c=>(c.billingAmount||0)>(c.rentalFee||0));
-              const grouped = {};
-              unpaidList.forEach(c => { const k=c.vehicleNumber||"기타"; if(!grouped[k]) grouped[k]={model:c.vehicleModel,items:[],total:0}; grouped[k].items.push(c); grouped[k].total+=(c.billingAmount||0)-(c.rentalFee||0); });
-              Object.values(grouped).forEach(g => g.items.sort((a,b)=>(b.endDate||"9999").localeCompare(a.endDate||"9999")));
-              return (<div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                  <h4 style={{margin:0,fontSize:14,fontWeight:600,color:"#ef4444"}}>청구/입금 차액 내역</h4>
-                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                    <button onClick={()=>setGapMonth("all")} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth==="all"?700:400,background:gapMonth==="all"?"#ef4444":"#1e1e3f",color:gapMonth==="all"?"#fff":"#888"}}>전체</button>
-                    {gapMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setGapMonth(m)} style={{padding:"5px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontWeight:gapMonth===m?700:400,background:gapMonth===m?"#ef4444":"#1e1e3f",color:gapMonth===m?"#fff":"#888"}}>{parseInt(mm)}월</button>;})}
-                  </div>
-                </div>
-                {!unpaidList.length ? <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>차액 없음</div> :
-                Object.entries(grouped).map(([vnum,g]) => (
-                  <div key={vnum} style={{marginBottom:16}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#0f0f23",borderRadius:8,marginBottom:4}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <span style={{width:10,height:10,borderRadius:"50%",background:vehicles.find(v=>v.number===vnum)?.color||"#888"}}/>
-                        <span style={{fontSize:15,fontWeight:800}}>{g.model}</span>
-                        <span style={{fontSize:13,fontWeight:600,color:"#aaa",background:"#1e1e3f",padding:"2px 8px",borderRadius:4}}>{vnum}</span>
-                        <span style={{fontSize:11,color:"#666"}}>({g.items.length}건)</span>
-                      </div>
-                    </div>
-                    <div style={{overflowX:"auto"}}>
-                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                        <thead><tr style={{borderBottom:"1px solid #1e1e3f"}}>
-                          {["상태","고객명","고객차량","보험사","접수번호","담당","연락처","기간","청구금","대여료","차액"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:["청구금","대여료","차액"].includes(h)?"right":"left",fontWeight:500,color:"#666",fontSize:10,whiteSpace:"nowrap"}}>{h}</th>)}
-                        </tr></thead>
-                        <tbody>{g.items.map((c,idx)=>{const gap=(c.billingAmount||0)-(c.rentalFee||0); return (
-                          <tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #1a1a35",cursor:"pointer",background:idx%2===1?"#13132a":"transparent"}} onMouseEnter={e=>e.currentTarget.style.background="#1a1a3a"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===1?"#13132a":"transparent"}>
-                            <td style={{padding:"8px 10px"}}><Badge status={c.status}/></td>
-                            <td style={{padding:"8px 10px",fontWeight:600}}>{c.customerName}</td>
-                            <td style={{padding:"8px 10px"}}><span style={{fontSize:11}}>{c.customerVehicle}</span> <span style={{fontSize:10,color:"#888"}}>{c.customerNumber}</span></td>
-                            <td style={{padding:"8px 10px"}}>{c.insurer}</td>
-                            <td style={{padding:"8px 10px",fontSize:10,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.receiptNo}</td>
-                            <td style={{padding:"8px 10px",fontSize:11}}>{c.dispatcher}</td>
-                            <td style={{padding:"8px 10px",fontSize:11,color:"#aaa",fontVariantNumeric:"tabular-nums"}}>{c.customerPhone}</td>
-                            <td style={{padding:"8px 10px",fontSize:10,color:"#888",whiteSpace:"nowrap"}}>{c.startDate}~{c.endDate||"진행중"}</td>
-                            <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:600}}>{fmt(c.billingAmount)}</td>
-                            <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{c.rentalFee?fmt(c.rentalFee):"-"}</td>
-                            <td style={{padding:"8px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",fontWeight:700,color:"#ef4444"}}>{fmt(gap)}</td>
-                          </tr>
-                        );})}</tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>);
-            })()}
-          </div>
         </div>}
 
         {/* ── SCHEDULE ── */}
