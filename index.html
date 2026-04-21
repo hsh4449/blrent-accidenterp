@@ -197,6 +197,8 @@ const STATUS_COLORS = {
 };
 
 const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#06b6d4","#f97316","#84cc16","#a855f7","#14b8a6","#e11d48"];
+// 본사 보유차량 목록 (정산화면 집계 대상) - 외부차량/대차교체건은 정산에서 제외
+const FLEET_VEHICLES = new Set(["106호9579","106호8089","106호9470","106호7725","106호9879","106호9894","106호7950","106호7940","106호4926","07호7034"]);
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -646,11 +648,11 @@ function App() {
             const ym = settlMonth;
             const monthContracts = ym==="all" ? contracts.filter(c=>c.depositDate) : contracts.filter(c=>c.depositDate && c.depositDate.startsWith(ym));
 
-            // 차량 목록 (해당 월에 활동 있는 차량 + 고정비 등록된 차량 + 현재 등록 차량)
+            // 차량 목록 (본사 fleet만) — 외부차량/대차교체건은 정산에서 제외
             const vnums = new Set();
-            monthContracts.forEach(c => c.vehicleNumber && vnums.add(c.vehicleNumber));
-            if (ym !== "all") Object.keys(monthlyFixed).forEach(k => { const [vn,m]=k.split("|"); if (m===ym) vnums.add(vn); });
-            vehicles.forEach(v => vnums.add(v.number));
+            monthContracts.forEach(c => { if (c.vehicleNumber && FLEET_VEHICLES.has(c.vehicleNumber)) vnums.add(c.vehicleNumber); });
+            if (ym !== "all") Object.keys(monthlyFixed).forEach(k => { const [vn,m]=k.split("|"); if (m===ym && FLEET_VEHICLES.has(vn)) vnums.add(vn); });
+            vehicles.forEach(v => { if (FLEET_VEHICLES.has(v.number)) vnums.add(v.number); });
 
             // 차량별 집계 (Excel 정산서 방식)
             const vStats = {};
