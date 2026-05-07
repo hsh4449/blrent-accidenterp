@@ -145,7 +145,7 @@ def convert_claim(c, our_numbers):
     # 교체건 메모
     replacement_note = None
     if is_replaced:
-        details = c.get('details', [])
+        details = [d for d in (c.get('details') or []) if d]
         if len(details) > 1:
             parts = []
             for d in details:
@@ -159,7 +159,7 @@ def convert_claim(c, our_numbers):
                 from datetime import datetime as dt
                 total = (dt.strptime(end_date, '%Y-%m-%d') - dt.strptime(start_date, '%Y-%m-%d')).days
             else:
-                total = details[0].get('claim_date_info', {}).get('total_day', 0)
+                total = (details[0].get('claim_date_info') or {}).get('total_day', 0)
             if parts:
                 replacement_note = f'{", ".join(parts)} / 전체{total}일'
             else:
