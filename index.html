@@ -710,7 +710,10 @@ function App() {
                             <span style={{ fontWeight:600, color:"#e0e0e0", fontSize:13 }}>{c.customerName || "(이름 없음)"}</span>
                             <Badge status={c.status} />
                           </div>
-                          <button onClick={()=>openClick(c)} style={{ padding:"3px 12px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:6, fontSize:10.5, cursor:"pointer", fontWeight:600 }}>수정</button>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={()=>openClick(c)} style={{ padding:"3px 12px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:6, fontSize:10.5, cursor:"pointer", fontWeight:600 }}>수정</button>
+                            <button onClick={()=>doDelete(c.id)} style={{ padding:"3px 12px", background:"#ef4444", color:"#fff", border:"none", borderRadius:6, fontSize:10.5, cursor:"pointer", fontWeight:600 }}>삭제</button>
+                          </div>
                         </div>
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"5px 16px", color:"#aaa", fontSize:11.5 }}>
                           <div><span style={{color:"#666"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</div>
