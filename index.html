@@ -64,6 +64,8 @@
             billing_amount: c.billingAmount || 0, rental_fee: c.rentalFee || 0,
             delivery_fee_1: c.deliveryFee1 || 0, delivery_fee_2: c.deliveryFee2 || 0,
             commission_rate: c.commissionRate || 0, commission_to: c.commissionTo || null,
+            insurance_manager_name: c.insuranceManagerName || null,
+            insurance_manager_phone: c.insuranceManagerPhone || null,
           };
         }
 
@@ -84,6 +86,8 @@
             billingAmount: r.billing_amount || 0, rentalFee: r.rental_fee || 0,
             deliveryFee1: r.delivery_fee_1 || 0, deliveryFee2: r.delivery_fee_2 || 0,
             commissionRate: Number(r.commission_rate) || 0, commissionTo: r.commission_to || '',
+            insuranceManagerName: r.insurance_manager_name || '',
+            insuranceManagerPhone: r.insurance_manager_phone || '',
           };
         }
 
@@ -343,6 +347,7 @@ function App() {
   const [settlMonth, setSettlMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
   const [gapMonth, setGapMonth] = useState("all");
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
+  const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -514,7 +519,7 @@ function App() {
           <button onClick={()=>fileRef.current?.click()} style={{ padding:"7px 14px", background:"linear-gradient(135deg,#3b82f6,#6366f1)", color:"#fff", border:"none", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer" }}>+ 엑셀 업로드</button>
           <button onClick={()=>exportToExcel(filtered)} style={{ padding:"7px 14px", background:"linear-gradient(135deg,#10b981,#059669)", color:"#fff", border:"none", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer" }}>엑셀 다운로드</button>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
-            {[["dashboard","대시보드"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"]].map(([k,l])=>(
+            {[["dashboard","대시보드"],["contracts","계약내역"],["unpaid","미입금"],["settlement","정산"],["schedule","스케줄"]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:12, fontWeight:tab===k?600:400, background:tab===k?"#1e1e3f":"transparent", color:tab===k?"#e0e0e0":"#777" }}>{l}</button>
             ))}
           </nav>
@@ -631,6 +636,102 @@ function App() {
             </div>
           </div>
         </div>}
+
+        {/* ── UNPAID ── */}
+        {tab==="unpaid" && (() => {
+          const today = new Date();
+          const targets = contracts.filter(c => c.status === "청구전" || c.status === "청구완료");
+          const byVehicle = {};
+          targets.forEach(c => {
+            const key = c.vehicleNumber || "(미등록)";
+            if (!byVehicle[key]) byVehicle[key] = { model: c.vehicleModel || "", items: [] };
+            byVehicle[key].items.push(c);
+          });
+          const vehicleList = Object.entries(byVehicle).map(([num, d]) => {
+            const pending = d.items.filter(c => c.status === "청구전").length;
+            const claimed = d.items.filter(c => c.status === "청구완료").length;
+            const claimedAmount = d.items.filter(c => c.status === "청구완료").reduce((s,c)=>s+(c.billingAmount||0), 0);
+            return { num, model: d.model, items: d.items, pending, claimed, claimedAmount };
+          }).sort((a,b) => b.claimedAmount - a.claimedAmount);
+
+          if (vehicleList.length === 0) return <div style={{padding:60,textAlign:"center",color:"#888",fontSize:13}}>미청구·미입금 계약이 없습니다.</div>;
+
+          const totalPending = vehicleList.reduce((s,v)=>s+v.pending,0);
+          const totalClaimed = vehicleList.reduce((s,v)=>s+v.claimed,0);
+          const totalAmount = vehicleList.reduce((s,v)=>s+v.claimedAmount,0);
+          const openClick = (c) => { setEditData(c); setEditModal(true); };
+          const emptyTag = (txt, c) => <span onClick={(e)=>{e.stopPropagation();openClick(c);}} style={{ background:"#7f1d1d44", color:"#ef4444", padding:"2px 7px", borderRadius:4, cursor:"pointer", fontSize:10.5, fontWeight:600 }}>{txt}</span>;
+
+          return <div>
+            <div style={{ marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:8 }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:18, color:"#e0e0e0" }}>미입금 관리</h3>
+                <div style={{ fontSize:11, color:"#888", marginTop:4 }}>차량 클릭하면 계약 목록 펼침 · 빨간 (미입력) 클릭하면 즉시 수정</div>
+              </div>
+              <div style={{ display:"flex", gap:18, fontSize:12 }}>
+                <div><span style={{ color:"#888" }}>미청구</span> <b style={{ fontSize:15, color:"#3b82f6", marginLeft:4 }}>{totalPending}</b><span style={{ color:"#666" }}>건</span></div>
+                <div><span style={{ color:"#888" }}>미입금</span> <b style={{ fontSize:15, color:"#ef4444", marginLeft:4 }}>{totalClaimed}</b><span style={{ color:"#666" }}>건</span></div>
+                <div><span style={{ color:"#888" }}>미입금액</span> <b style={{ fontSize:15, color:"#ef4444", marginLeft:4, fontVariantNumeric:"tabular-nums" }}>₩{fmt(totalAmount)}</b></div>
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(440px,1fr))", gap:12 }}>
+              {vehicleList.map(v => {
+                const isOpen = unpaidExpanded.has(v.num);
+                return <div key={v.num} style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, overflow:"hidden" }}>
+                  <div onClick={()=>{
+                    setUnpaidExpanded(prev => {
+                      const ns = new Set(prev);
+                      if (ns.has(v.num)) ns.delete(v.num); else ns.add(v.num);
+                      return ns;
+                    });
+                  }} style={{ padding:"14px 16px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom: isOpen ? "1px solid #1e1e3f" : "none", background: isOpen ? "#1a1a3a" : "transparent" }}>
+                    <div style={{ minWidth:0, flex:"1 1 auto" }}>
+                      <div style={{ fontSize:14, fontWeight:700, color:"#e0e0e0" }}>{v.model || "(차종 없음)"}</div>
+                      <div style={{ fontSize:11, color:"#888", marginTop:3 }}>{v.num}</div>
+                    </div>
+                    <div style={{ display:"flex", gap:14, alignItems:"center", fontSize:11, flexShrink:0 }}>
+                      {v.pending > 0 && <div style={{ color:"#888" }}>미청구 <b style={{fontSize:14,color:"#3b82f6"}}>{v.pending}</b></div>}
+                      {v.claimed > 0 && <div style={{ color:"#888", textAlign:"right" }}>미입금 <b style={{fontSize:14,color:"#ef4444"}}>{v.claimed}</b><div style={{fontSize:10,color:"#ef4444",marginTop:1,fontVariantNumeric:"tabular-nums"}}>₩{fmt(v.claimedAmount)}</div></div>}
+                      <div style={{ color:"#666", fontSize:14, marginLeft:4 }}>{isOpen ? "▴" : "▾"}</div>
+                    </div>
+                  </div>
+
+                  {isOpen && <div style={{ padding:"4px 12px 12px" }}>
+                    {v.items.slice().sort((a,b) => (b.endDate||"").localeCompare(a.endDate||"")).map(c => {
+                      const billDays = c.billingDate ? Math.floor((today - new Date(c.billingDate)) / 86400000) : null;
+                      const isOverdue = billDays !== null && billDays >= 30;
+                      const noInsurer = !c.insurer || c.insurer === "-";
+                      const noManager = !c.insuranceManagerName;
+                      const noPhone = !c.insuranceManagerPhone;
+                      return <div key={c.id} style={{ padding:"10px 12px", borderRadius:8, background:"#0f0f23", marginTop:8, fontSize:12, border: isOverdue ? "1px solid #7f1d1d77" : "1px solid transparent" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <span style={{ fontWeight:600, color:"#e0e0e0", fontSize:13 }}>{c.customerName || "(이름 없음)"}</span>
+                            <Badge status={c.status} />
+                          </div>
+                          <button onClick={()=>openClick(c)} style={{ padding:"3px 12px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:6, fontSize:10.5, cursor:"pointer", fontWeight:600 }}>수정</button>
+                        </div>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"5px 16px", color:"#aaa", fontSize:11.5 }}>
+                          <div><span style={{color:"#666"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</div>
+                          <div>
+                            {c.status === "청구완료"
+                              ? <><span style={{color:"#666"}}>청구 </span><span style={{color:isOverdue?"#ef4444":"#aaa"}}>{c.billingDate||"-"}</span>{billDays !== null && <span style={{color:isOverdue?"#ef4444":"#888",marginLeft:6,fontWeight:isOverdue?700:400}}>({billDays}일 경과)</span>}</>
+                              : <><span style={{color:"#666"}}>청구금 </span>₩{fmt(c.billingAmount)}</>
+                            }
+                          </div>
+                          <div><span style={{color:"#666"}}>보험사 </span>{noInsurer ? emptyTag("미입력", c) : c.insurer}</div>
+                          <div><span style={{color:"#666"}}>담당자 </span>{noManager ? emptyTag("미입력", c) : c.insuranceManagerName}</div>
+                          <div style={{gridColumn:"1 / -1"}}><span style={{color:"#666"}}>연락처 </span>{noPhone ? emptyTag("미입력 — 클릭하여 입력", c) : <a href={`tel:${c.insuranceManagerPhone}`} style={{color:"#3b82f6",textDecoration:"none"}}>{c.insuranceManagerPhone}</a>}</div>
+                        </div>
+                      </div>;
+                    })}
+                  </div>}
+                </div>;
+              })}
+            </div>
+          </div>;
+        })()}
 
         {/* ── SETTLEMENT ── */}
         {tab==="settlement" && <div>
@@ -860,7 +961,8 @@ function EditForm({ init, vehs, onSave, onCancel }) {
     vehicleModel:"",vehicleNumber:"",customerName:"",customerVehicle:"",customerNumber:"",
     customerPhone:"",fault:"-",insurer:"",billingTo:"",receiptNo:"",
     salesRep:"-",retriever:"-",referrer:"-",repairShop:"-",billingAmount:0,rentalFee:0,
-    deliveryFee1:0,deliveryFee2:0,commissionRate:15,commissionTo:""
+    deliveryFee1:0,deliveryFee2:0,commissionRate:15,commissionTo:"",
+    insuranceManagerName:"",insuranceManagerPhone:""
   });
   const u = (k,v) => setF(p=>({...p,[k]:v}));
   return <div>
@@ -882,6 +984,8 @@ function EditForm({ init, vehs, onSave, onCancel }) {
       <Field label="고객번호판"><input value={f.customerNumber} onChange={e=>u("customerNumber",e.target.value)} style={IS}/></Field>
       <Field label="보험사"><input value={f.insurer} onChange={e=>u("insurer",e.target.value)} style={IS}/></Field>
       <Field label="청구처"><input value={f.billingTo} onChange={e=>u("billingTo",e.target.value)} style={IS}/></Field>
+      <Field label="보험사 담당자"><input value={f.insuranceManagerName||""} onChange={e=>u("insuranceManagerName",e.target.value)} style={IS} placeholder="손해사정사 등"/></Field>
+      <Field label="담당자 연락처"><input value={f.insuranceManagerPhone||""} onChange={e=>u("insuranceManagerPhone",e.target.value)} style={IS} placeholder="010-0000-0000"/></Field>
       <Field label="접수번호"><input value={f.receiptNo} onChange={e=>u("receiptNo",e.target.value)} style={IS}/></Field>
       <Field label="수리처"><input value={f.repairShop} onChange={e=>u("repairShop",e.target.value)} style={IS}/></Field>
       <Field label="배차일"><input type="date" value={f.startDate||""} onChange={e=>u("startDate",e.target.value)} style={IS}/></Field>
