@@ -414,13 +414,11 @@ function App() {
     const deposited = contracts.filter(c=>c.depositDate);
     const totalDep = contracts.reduce((s,c)=>s+(c.rentalFee||0),0);
     const totalRentalFee = totalDep;
-    const unpaid = totalBill - totalDep;
-    const profitRate = totalBill > 0 ? Math.round(totalDep / totalBill * 1000) / 10 : 0;
     const monthly = {};
     contracts.forEach(c => { if(!c.startDate) return; const ym=c.startDate.slice(0,7); if(!monthly[ym]) monthly[ym]={bill:0,dep:0,cnt:0}; monthly[ym].bill+=(c.billingAmount||0); monthly[ym].dep+=(c.rentalFee||0); monthly[ym].cnt++; });
     const vStats = {};
     contracts.forEach(c => { const k=c.vehicleNumber; if(!k) return; if(!vStats[k]) vStats[k]={model:c.vehicleModel,cnt:0,bill:0,dep:0,rental:0,days:0}; vStats[k].cnt++; vStats[k].bill+=(c.billingAmount||0); vStats[k].dep+=(c.rentalFee||0); vStats[k].rental+=(c.rentalFee||0); vStats[k].days+=daysBetween(c.startDate,c.endDate); });
-    return { active, pending, totalBill, totalDep, totalRentalFee, unpaid, profitRate, monthly, vStats, total:contracts.length, depCount:deposited.length };
+    return { active, pending, totalBill, totalDep, totalRentalFee, monthly, vStats, total:contracts.length, depCount:deposited.length };
   }, [contracts]);
 
   const sortedMonths = useMemo(() => Object.entries(stats.monthly).sort((a,b)=>a[0].localeCompare(b[0])), [stats.monthly]);
@@ -532,9 +530,6 @@ function App() {
               {l:"배차중",v:stats.active,u:"건",a:"#f59e0b"},
               {l:"청구전",v:stats.pending,u:"건",a:"#3b82f6"},
               {l:"총 청구금",v:fmt(stats.totalBill),u:"원",a:"#10b981"},
-              {l:"총 입금액",v:fmt(stats.totalDep),u:"원",a:"#8b5cf6"},
-              {l:"차액",v:fmt(stats.unpaid),u:"원",a:"#ef4444"},
-              {l:"수익률",v:`${stats.profitRate}`,u:"%",a:"#06b6d4"},
             ].map((s,i)=>(
               <div key={i} style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:"16px 18px", borderLeft:`3px solid ${s.a}` }}>
                 <div style={{ fontSize:11, color:"#888", marginBottom:6 }}>{s.l}</div>
@@ -632,7 +627,6 @@ function App() {
               <div style={{display:"flex",gap:20,alignItems:"center"}}>
                 <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#888",marginBottom:2}}>청구금 합계</div><div style={{fontSize:16,fontWeight:800,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0))}원</div></div>
                 <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#888",marginBottom:2}}>대여료 합계</div><div style={{fontSize:16,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#888",marginBottom:2}}>차액</div><div style={{fontSize:16,fontWeight:800,color:"#ef4444",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0)-filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
               </div>
             </div>
           </div>
@@ -818,7 +812,6 @@ function App() {
       {/* Detail Modal */}
       <Modal open={!!selected} onClose={()=>setSelected(null)} title="계약 상세" width={640}>
         {selected && (()=>{
-          const unsettled = (selected.billingAmount||0) - (selected.rentalFee||0);
           return <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
             <div>
@@ -831,15 +824,6 @@ function App() {
               <button onClick={()=>doDelete(selected.id)} style={{padding:"6px 14px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>삭제</button>
             </div>
           </div>
-
-          {/* 차액액 prominent display */}
-          {unsettled > 0 && <div style={{background:"linear-gradient(135deg,#991b1b22,#ef444422)",border:"1px solid #ef444455",borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontSize:11,color:"#ef4444",fontWeight:600,marginBottom:2}}>차액액</div>
-              <div style={{fontSize:10,color:"#888"}}>청구금 - 대여료</div>
-            </div>
-            <div style={{fontSize:22,fontWeight:800,color:"#ef4444",fontVariantNumeric:"tabular-nums"}}>{fmt(unsettled)}<span style={{fontSize:12}}>원</span></div>
-          </div>}
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <div style={{background:"#0f0f23",borderRadius:10,padding:14}}>
