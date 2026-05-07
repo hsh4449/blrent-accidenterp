@@ -424,18 +424,29 @@ function App() {
     const totalDep = contracts.reduce((s,c)=>s+(c.rentalFee||0),0);
     const totalRentalFee = totalDep;
     const monthly = {};
+    const _today = new Date();
     contracts.forEach(c => {
-      if(!c.startDate) return;
-      const ym = c.startDate.slice(0,7);
-      if(!monthly[ym]) monthly[ym] = { bill:0, dep:0, cnt:0, vehicles:{} };
-      monthly[ym].bill += (c.billingAmount||0);
-      monthly[ym].dep += (c.rentalFee||0);
-      monthly[ym].cnt++;
-      if (c.vehicleNumber) {
+      if (!c.startDate) return;
+      // bill/dep/cnt: 시작 월에만 카운트 (계약 단위)
+      const startYm = c.startDate.slice(0,7);
+      if (!monthly[startYm]) monthly[startYm] = { bill:0, dep:0, cnt:0, vehicles:{} };
+      monthly[startYm].bill += (c.billingAmount||0);
+      monthly[startYm].dep += (c.rentalFee||0);
+      monthly[startYm].cnt++;
+
+      // 차량 활동 일수: 일별 순회로 각 월에 속한 일수만 그 월에 누적
+      // (한 계약이 여러 달에 걸쳐도 한 달은 30/31일을 넘지 않도록)
+      if (!c.vehicleNumber) return;
+      const start = new Date(c.startDate);
+      const end = c.endDate ? new Date(c.endDate) : _today;
+      if (end < start) return;
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+        const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        if (!monthly[ym]) monthly[ym] = { bill:0, dep:0, cnt:0, vehicles:{} };
         if (!monthly[ym].vehicles[c.vehicleNumber]) {
           monthly[ym].vehicles[c.vehicleNumber] = { model: c.vehicleModel || '', days: 0 };
         }
-        monthly[ym].vehicles[c.vehicleNumber].days += daysBetween(c.startDate, c.endDate);
+        monthly[ym].vehicles[c.vehicleNumber].days += 1;
       }
     });
     const vStats = {};
