@@ -348,6 +348,7 @@ function App() {
   const [gapMonth, setGapMonth] = useState("all");
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
   const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
+  const [monthExpanded, setMonthExpanded] = useState(new Set());
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -420,7 +421,20 @@ function App() {
     const totalDep = contracts.reduce((s,c)=>s+(c.rentalFee||0),0);
     const totalRentalFee = totalDep;
     const monthly = {};
-    contracts.forEach(c => { if(!c.startDate) return; const ym=c.startDate.slice(0,7); if(!monthly[ym]) monthly[ym]={bill:0,dep:0,cnt:0}; monthly[ym].bill+=(c.billingAmount||0); monthly[ym].dep+=(c.rentalFee||0); monthly[ym].cnt++; });
+    contracts.forEach(c => {
+      if(!c.startDate) return;
+      const ym = c.startDate.slice(0,7);
+      if(!monthly[ym]) monthly[ym] = { bill:0, dep:0, cnt:0, vehicles:{} };
+      monthly[ym].bill += (c.billingAmount||0);
+      monthly[ym].dep += (c.rentalFee||0);
+      monthly[ym].cnt++;
+      if (c.vehicleNumber) {
+        if (!monthly[ym].vehicles[c.vehicleNumber]) {
+          monthly[ym].vehicles[c.vehicleNumber] = { model: c.vehicleModel || '', days: 0 };
+        }
+        monthly[ym].vehicles[c.vehicleNumber].days += daysBetween(c.startDate, c.endDate);
+      }
+    });
     const vStats = {};
     contracts.forEach(c => { const k=c.vehicleNumber; if(!k) return; if(!vStats[k]) vStats[k]={model:c.vehicleModel,cnt:0,bill:0,dep:0,rental:0,days:0}; vStats[k].cnt++; vStats[k].bill+=(c.billingAmount||0); vStats[k].dep+=(c.rentalFee||0); vStats[k].rental+=(c.rentalFee||0); vStats[k].days+=daysBetween(c.startDate,c.endDate); });
     return { active, pending, totalBill, totalDep, totalRentalFee, monthly, vStats, total:contracts.length, depCount:deposited.length };
@@ -518,8 +532,6 @@ function App() {
           <span style={{ fontSize:11, color:"#555" }}>{contracts.length}건</span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <button onClick={()=>fileRef.current?.click()} style={{ padding:"7px 14px", background:"linear-gradient(135deg,#3b82f6,#6366f1)", color:"#fff", border:"none", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer" }}>+ 엑셀 업로드</button>
-          <button onClick={()=>exportToExcel(filtered)} style={{ padding:"7px 14px", background:"linear-gradient(135deg,#10b981,#059669)", color:"#fff", border:"none", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer" }}>엑셀 다운로드</button>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
             {[["dashboard","대시보드"],["contracts","계약내역"],["unpaid","미입금"],["settlement","정산"],["schedule","스케줄"]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:12, fontWeight:tab===k?600:400, background:tab===k?"#1e1e3f":"transparent", color:tab===k?"#e0e0e0":"#777" }}>{l}</button>
@@ -547,25 +559,45 @@ function App() {
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
             {/* Monthly Deposits */}
             <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:20 }}>
-              <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>월별 청구/입금 현황</h4>
+              <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>월별 입금 현황 <span style={{fontSize:10,color:"#666",fontWeight:400,marginLeft:6}}>월 클릭하면 활동 차량 상세</span></h4>
               {sortedMonths.length===0 ? <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>데이터 없음</div> :
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {sortedMonths.map(([ym,d])=>{ const [y,m]=ym.split("-"); return (
-                  <div key={ym}>
-                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:4 }}>
-                      <span style={{color:"#aaa"}}>{y}년 {parseInt(m)}월 <span style={{color:"#666"}}>({d.cnt}건)</span></span>
-                      <span style={{fontVariantNumeric:"tabular-nums"}}><span style={{fontWeight:700}}>{fmt(d.bill)}</span><span style={{color:"#888"}}> / {fmt(d.dep)}원</span></span>
+                {sortedMonths.map(([ym,d])=>{
+                  const [y,m] = ym.split("-");
+                  const isOpen = monthExpanded.has(ym);
+                  const vlist = Object.entries(d.vehicles||{}).sort((a,b)=>b[1].days-a[1].days);
+                  return (
+                    <div key={ym}>
+                      <div onClick={()=>{
+                        setMonthExpanded(prev=>{
+                          const ns = new Set(prev);
+                          if (ns.has(ym)) ns.delete(ym); else ns.add(ym);
+                          return ns;
+                        });
+                      }} style={{ cursor:"pointer" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:4 }}>
+                          <span style={{color:"#aaa"}}>{y}년 {parseInt(m)}월 <span style={{color:"#666"}}>({d.cnt}건)</span> <span style={{color:"#666",marginLeft:4}}>{isOpen?"▴":"▾"}</span></span>
+                          <span style={{fontVariantNumeric:"tabular-nums"}}><span style={{fontWeight:700}}>{fmt(d.bill)}</span><span style={{color:"#888"}}> / {fmt(d.dep)}원</span></span>
+                        </div>
+                        <div style={{ height:20, background:"#0f0f23", borderRadius:6, overflow:"hidden", position:"relative" }}>
+                          <div style={{ position:"absolute", height:"100%", width:`${d.bill/maxMA*100}%`, background:"#2a2a4a", borderRadius:6 }}/>
+                          <div style={{ position:"absolute", height:"100%", width:`${d.dep/maxMA*100}%`, background:"linear-gradient(90deg,#8b5cf6,#6366f1)", borderRadius:6 }}/>
+                        </div>
+                      </div>
+                      {isOpen && <div style={{ marginTop:6, padding:"8px 12px", background:"#0f0f23", borderRadius:6, fontSize:11 }}>
+                        <div style={{ color:"#aaa", marginBottom:6 }}>활동 차량 <b style={{color:"#10b981",fontSize:13}}>{vlist.length}</b>대</div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                          {vlist.map(([vn,vd])=>(
+                            <div key={vn} style={{ display:"flex", justifyContent:"space-between", color:"#888" }}>
+                              <span>{vd.model||"(차종)"} <span style={{color:"#555",fontSize:10}}>{vn}</span></span>
+                              <span style={{fontVariantNumeric:"tabular-nums",color:"#aaa"}}><b style={{color:"#e0e0e0"}}>{vd.days}</b>일</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>}
                     </div>
-                    <div style={{ height:20, background:"#0f0f23", borderRadius:6, overflow:"hidden", position:"relative" }}>
-                      <div style={{ position:"absolute", height:"100%", width:`${d.bill/maxMA*100}%`, background:"#2a2a4a", borderRadius:6 }}/>
-                      <div style={{ position:"absolute", height:"100%", width:`${d.dep/maxMA*100}%`, background:"linear-gradient(90deg,#8b5cf6,#6366f1)", borderRadius:6 }}/>
-                    </div>
-                  </div>
-                );})}
-                <div style={{ borderTop:"1px solid #1e1e3f", paddingTop:10, display:"flex", justifyContent:"space-between", fontSize:12 }}>
-                  <span style={{color:"#888"}}>누적</span>
-                  <span style={{fontVariantNumeric:"tabular-nums"}}><span style={{fontWeight:700,color:"#10b981"}}>{fmt(stats.totalBill)}</span><span style={{color:"#888"}}> / </span><span style={{fontWeight:700,color:"#8b5cf6"}}>{fmt(stats.totalDep)}원</span></span>
-                </div>
+                  );
+                })}
               </div>}
             </div>
             {/* Vehicle Stats — 차량별 상태/미입금/이번달 입금 현황 */}
