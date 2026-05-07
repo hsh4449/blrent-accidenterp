@@ -181,7 +181,12 @@ def convert_claim(c, our_numbers):
             else:
                 replacement_note = f'우리차 없음 / 전체{total}일'
 
-    return {
+    # 보험사 담당자 자동 매핑 (IMS 응답에서 추출)
+    # IMS에 값이 있을 때만 채움, 비어있으면 dict에서 제거하여 ERP 사용자 입력 보존
+    ims_manager_name = c.get('claim_insurance_manager') or ''
+    ims_manager_phone = parse_phone(c.get('claim_insurance_contact'))
+
+    row = {
         'id': str(c.get('id', '')),
         'status': status,
         'dispatcher': c.get('rent_manager_name') or '-',
@@ -209,7 +214,16 @@ def convert_claim(c, our_numbers):
         'billing_amount': c.get('claim_total_cost') or 0,
         'rental_fee': c.get('deposit_cost') or 0,
         'replacement_note': replacement_note,
+        'insurance_manager_name': ims_manager_name,
+        'insurance_manager_phone': ims_manager_phone,
     }
+
+    # IMS에 비어있는 보호 키는 dict에서 제거 → 사용자가 ERP에서 입력한 기존 값 보존
+    for protect_key in ['insurance_manager_name', 'insurance_manager_phone']:
+        if not row.get(protect_key):
+            row.pop(protect_key, None)
+
+    return row
 
 
 def search_vehicle(session, car_number):
