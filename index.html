@@ -544,70 +544,27 @@ function App() {
 
         {/* ── DASHBOARD ── */}
         {tab==="dashboard" && <div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))", gap:12, marginBottom:24 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:14, marginBottom:24 }}>
             {[
               {l:"배차중",v:stats.active,u:"건",a:"#f59e0b"},
               {l:"청구전",v:stats.pending,u:"건",a:"#3b82f6"},
               {l:"총 청구금",v:fmt(stats.totalBill),u:"원",a:"#10b981"},
             ].map((s,i)=>(
-              <div key={i} style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:"16px 18px", borderLeft:`3px solid ${s.a}` }}>
-                <div style={{ fontSize:11, color:"#888", marginBottom:6 }}>{s.l}</div>
-                <div style={{ fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}<span style={{ fontSize:11, color:"#888", marginLeft:3 }}>{s.u}</span></div>
+              <div key={i} style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:"22px 24px", borderLeft:`4px solid ${s.a}` }}>
+                <div style={{ fontSize:14, color:"#888", marginBottom:8, fontWeight:500 }}>{s.l}</div>
+                <div style={{ fontSize:30, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}<span style={{ fontSize:14, color:"#888", marginLeft:4 }}>{s.u}</span></div>
               </div>
             ))}
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            {/* Monthly Deposits */}
-            <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:20 }}>
-              <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>월별 입금 현황 <span style={{fontSize:10,color:"#666",fontWeight:400,marginLeft:6}}>월 클릭하면 활동 차량 상세</span></h4>
-              {sortedMonths.length===0 ? <div style={{padding:24,textAlign:"center",color:"#555",fontSize:12}}>데이터 없음</div> :
-              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {sortedMonths.map(([ym,d])=>{
-                  const [y,m] = ym.split("-");
-                  const isOpen = monthExpanded.has(ym);
-                  const vlist = Object.entries(d.vehicles||{}).sort((a,b)=>b[1].days-a[1].days);
-                  return (
-                    <div key={ym}>
-                      <div onClick={()=>{
-                        setMonthExpanded(prev=>{
-                          const ns = new Set(prev);
-                          if (ns.has(ym)) ns.delete(ym); else ns.add(ym);
-                          return ns;
-                        });
-                      }} style={{ cursor:"pointer" }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:4 }}>
-                          <span style={{color:"#aaa"}}>{y}년 {parseInt(m)}월 <span style={{color:"#666"}}>({d.cnt}건)</span> <span style={{color:"#666",marginLeft:4}}>{isOpen?"▴":"▾"}</span></span>
-                          <span style={{fontVariantNumeric:"tabular-nums"}}><span style={{fontWeight:700}}>{fmt(d.bill)}</span><span style={{color:"#888"}}> / {fmt(d.dep)}원</span></span>
-                        </div>
-                        <div style={{ height:20, background:"#0f0f23", borderRadius:6, overflow:"hidden", position:"relative" }}>
-                          <div style={{ position:"absolute", height:"100%", width:`${d.bill/maxMA*100}%`, background:"#2a2a4a", borderRadius:6 }}/>
-                          <div style={{ position:"absolute", height:"100%", width:`${d.dep/maxMA*100}%`, background:"linear-gradient(90deg,#8b5cf6,#6366f1)", borderRadius:6 }}/>
-                        </div>
-                      </div>
-                      {isOpen && <div style={{ marginTop:6, padding:"8px 12px", background:"#0f0f23", borderRadius:6, fontSize:11 }}>
-                        <div style={{ color:"#aaa", marginBottom:6 }}>활동 차량 <b style={{color:"#10b981",fontSize:13}}>{vlist.length}</b>대</div>
-                        <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                          {vlist.map(([vn,vd])=>(
-                            <div key={vn} style={{ display:"flex", justifyContent:"space-between", color:"#888" }}>
-                              <span>{vd.model||"(차종)"} <span style={{color:"#555",fontSize:10}}>{vn}</span></span>
-                              <span style={{fontVariantNumeric:"tabular-nums",color:"#aaa"}}><b style={{color:"#e0e0e0"}}>{vd.days}</b>일</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>}
-                    </div>
-                  );
-                })}
-              </div>}
-            </div>
-            {/* Vehicle Stats — 차량별 상태/미입금/이번달 입금 현황 */}
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {/* Vehicle Stats — 위로 이동 */}
             {(() => {
               const _now = new Date();
               const _ymPrefix = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
               const _monthLabel = `${_now.getMonth()+1}월`;
-              return <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:20 }}>
-                <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>차량별 현황 <span style={{fontSize:10,color:"#666",fontWeight:400,marginLeft:6}}>상태 · 총 미입금 · {_monthLabel} 입금</span></h4>
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              return <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:24 }}>
+                <h4 style={{ margin:"0 0 18px", fontSize:17, fontWeight:700 }}>차량별 현황 <span style={{fontSize:13,color:"#888",fontWeight:400,marginLeft:8}}>상태 · 총 미입금 · {_monthLabel} 입금</span></h4>
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                   {Object.entries(stats.vStats).map(([num,d])=>{
                     const v = vehicles.find(x=>x.number===num);
                     const cars = contracts.filter(c => c.vehicleNumber === num);
@@ -617,19 +574,28 @@ function App() {
                     const monthDepCount = monthDeps.length;
                     const monthDepAmount = monthDeps.reduce((s,c)=>s+(c.rentalFee||0),0);
                     return (
-                      <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#0f0f23", borderRadius:8 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          <span style={{ width:8, height:8, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
-                          <div><div style={{fontSize:13,fontWeight:500}}>{d.model}</div><div style={{fontSize:10,color:"#888"}}>{num}</div></div>
+                      <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 18px", background:"#0f0f23", borderRadius:10, gap:14 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+                          <span style={{ width:12, height:12, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
+                          <div>
+                            <div style={{fontSize:18,fontWeight:700}}>{d.model}</div>
+                            <div style={{fontSize:14,color:"#888",marginTop:2}}>{num}</div>
+                          </div>
                         </div>
-                        <div style={{textAlign:"right",fontSize:11}}>
-                          <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"flex-end",marginBottom:3}}>
-                            <span style={{padding:"2px 8px",borderRadius:4,background:isActive?"#f59e0b22":"#2a2a4a",color:isActive?"#f59e0b":"#888",fontWeight:600,fontSize:10}}>{isActive?"배차중":"대기"}</span>
-                            <span style={{color:"#888"}}>미입금 <b style={{color:unpaidCount>0?"#ef4444":"#666",fontSize:13,fontVariantNumeric:"tabular-nums"}}>{unpaidCount}</b><span style={{color:"#666"}}>건</span></span>
+                        <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                          <div style={{textAlign:"right"}}>
+                            <div style={{display:"flex",gap:14,alignItems:"center",justifyContent:"flex-end",marginBottom:6}}>
+                              <span style={{padding:"4px 12px",borderRadius:6,background:isActive?"#f59e0b22":"#2a2a4a",color:isActive?"#f59e0b":"#888",fontWeight:700,fontSize:14}}>{isActive?"배차중":"대기"}</span>
+                              <span style={{color:"#aaa",fontSize:14}}>미입금 <b style={{color:unpaidCount>0?"#ef4444":"#666",fontSize:20,fontVariantNumeric:"tabular-nums",marginLeft:4}}>{unpaidCount}</b><span style={{color:"#666",fontSize:13,marginLeft:2}}>건</span></span>
+                            </div>
+                            <div style={{color:"#aaa",fontVariantNumeric:"tabular-nums",fontSize:14}}>
+                              {_monthLabel} 입금 <b style={{color:monthDepCount>0?"#10b981":"#666",fontSize:18,marginLeft:4}}>{monthDepCount}</b><span style={{color:"#666",fontSize:13}}>건</span> <span style={{color:"#666",margin:"0 6px"}}>·</span> <b style={{color:monthDepAmount>0?"#10b981":"#666",fontSize:17}}>₩{fmt(monthDepAmount)}</b>
+                            </div>
                           </div>
-                          <div style={{color:"#888",fontVariantNumeric:"tabular-nums"}}>
-                            {_monthLabel} 입금 <b style={{color:monthDepCount>0?"#10b981":"#666",fontSize:13}}>{monthDepCount}</b><span style={{color:"#666"}}>건</span> · <b style={{color:monthDepAmount>0?"#10b981":"#666",fontSize:12}}>₩{fmt(monthDepAmount)}</b>
-                          </div>
+                          <button onClick={()=>{
+                            setTab("unpaid");
+                            setUnpaidExpanded(prev => { const ns = new Set(prev); ns.add(num); return ns; });
+                          }} style={{padding:"10px 16px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>상세보기</button>
                         </div>
                       </div>
                     );
@@ -637,6 +603,51 @@ function App() {
                 </div>
               </div>;
             })()}
+
+            {/* Monthly Deposits — 아래로 이동 */}
+            <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:24 }}>
+              <h4 style={{ margin:"0 0 18px", fontSize:17, fontWeight:700 }}>월별 입금 현황 <span style={{fontSize:13,color:"#888",fontWeight:400,marginLeft:8}}>상세보기 클릭하면 활동 차량 표시</span></h4>
+              {sortedMonths.length===0 ? <div style={{padding:30,textAlign:"center",color:"#555",fontSize:14}}>데이터 없음</div> :
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                {sortedMonths.map(([ym,d])=>{
+                  const [y,m] = ym.split("-");
+                  const isOpen = monthExpanded.has(ym);
+                  const vlist = Object.entries(d.vehicles||{}).sort((a,b)=>b[1].days-a[1].days);
+                  return (
+                    <div key={ym}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, gap:12 }}>
+                        <span style={{color:"#ddd",fontSize:15,fontWeight:600}}>{y}년 {parseInt(m)}월 <span style={{color:"#888",fontWeight:400,marginLeft:4}}>({d.cnt}건)</span></span>
+                        <div style={{display:"flex",alignItems:"center",gap:12}}>
+                          <span style={{fontVariantNumeric:"tabular-nums",fontSize:15}}><span style={{fontWeight:700}}>{fmt(d.bill)}</span><span style={{color:"#888"}}> / {fmt(d.dep)}원</span></span>
+                          <button onClick={()=>{
+                            setMonthExpanded(prev=>{
+                              const ns = new Set(prev);
+                              if (ns.has(ym)) ns.delete(ym); else ns.add(ym);
+                              return ns;
+                            });
+                          }} style={{padding:"7px 14px",background:isOpen?"#1e1e3f":"#3b82f6",color:isOpen?"#aaa":"#fff",border:"none",borderRadius:7,fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{isOpen?"접기":"상세보기"}</button>
+                        </div>
+                      </div>
+                      <div style={{ height:26, background:"#0f0f23", borderRadius:7, overflow:"hidden", position:"relative" }}>
+                        <div style={{ position:"absolute", height:"100%", width:`${d.bill/maxMA*100}%`, background:"#2a2a4a", borderRadius:7 }}/>
+                        <div style={{ position:"absolute", height:"100%", width:`${d.dep/maxMA*100}%`, background:"linear-gradient(90deg,#8b5cf6,#6366f1)", borderRadius:7 }}/>
+                      </div>
+                      {isOpen && <div style={{ marginTop:10, padding:"14px 16px", background:"#0f0f23", borderRadius:8 }}>
+                        <div style={{ color:"#aaa", marginBottom:10, fontSize:14 }}>활동 차량 <b style={{color:"#10b981",fontSize:18,marginLeft:4}}>{vlist.length}</b><span style={{color:"#666",marginLeft:2}}>대</span></div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                          {vlist.map(([vn,vd])=>(
+                            <div key={vn} style={{ display:"flex", justifyContent:"space-between", color:"#aaa", fontSize:14 }}>
+                              <span><b style={{color:"#e0e0e0"}}>{vd.model||"(차종)"}</b> <span style={{color:"#666",fontSize:13,marginLeft:6}}>{vn}</span></span>
+                              <span style={{fontVariantNumeric:"tabular-nums"}}><b style={{color:"#e0e0e0",fontSize:16}}>{vd.days}</b><span style={{color:"#666",marginLeft:2}}>일</span></span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>}
+                    </div>
+                  );
+                })}
+              </div>}
+            </div>
           </div>
         </div>}
 
