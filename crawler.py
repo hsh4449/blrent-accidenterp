@@ -127,7 +127,11 @@ def make_replacement_note(c, our_numbers):
 
 
 def convert_claim(c, our_numbers):
-    """IMS claim → DB row"""
+    """IMS claim → DB row. 메인 차량이 우리 차량 아니면 None 반환 (스킵)"""
+    rent_car = c.get('rent_car_number') or ''
+    if not any(rent_car.endswith(n) for n in our_numbers):
+        return None
+
     start_date, start_time = parse_datetime(c.get('delivered_at'))
     end_date, end_time = parse_datetime(c.get('return_date'))
     billing_date, billing_time = parse_datetime(c.get('claim_at'))
@@ -219,10 +223,18 @@ def search_vehicle(session, car_number):
         claims = api_result.get('claimList', [])
         total_pages = api_result.get('totalPage', 1)
 
+        skipped_other = 0
         for c in claims:
-            contracts.append(convert_claim(c, VEHICLE_NUMBERS))
+            row = convert_claim(c, VEHICLE_NUMBERS)
+            if row is None:
+                skipped_other += 1
+                continue
+            contracts.append(row)
 
-        print(f'  page {page}/{total_pages}: {len(claims)}건')
+        msg = f'  page {page}/{total_pages}: {len(claims)}건'
+        if skipped_other:
+            msg += f' (우리차 아님 {skipped_other}건 제외)'
+        print(msg)
 
         if page >= total_pages:
             break
