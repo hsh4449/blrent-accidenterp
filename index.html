@@ -425,6 +425,9 @@ function App() {
     const totalRentalFee = totalDep;
     const monthly = {};
     const _today = new Date();
+    const _ensureVeh = (m, vn, model) => {
+      if (!m.vehicles[vn]) m.vehicles[vn] = { model: model || '', days: 0, cnt: 0, bill: 0 };
+    };
     contracts.forEach(c => {
       if (!c.startDate) return;
       // bill/dep/cnt: 시작 월에만 카운트 (계약 단위)
@@ -434,18 +437,21 @@ function App() {
       monthly[startYm].dep += (c.rentalFee||0);
       monthly[startYm].cnt++;
 
-      // 차량 활동 일수: 일별 순회로 각 월에 속한 일수만 그 월에 누적
-      // (한 계약이 여러 달에 걸쳐도 한 달은 30/31일을 넘지 않도록)
       if (!c.vehicleNumber) return;
+
+      // 차량별 시작월 통계 (건수/청구금) — 그 월에 신규 시작한 계약만
+      _ensureVeh(monthly[startYm], c.vehicleNumber, c.vehicleModel);
+      monthly[startYm].vehicles[c.vehicleNumber].cnt += 1;
+      monthly[startYm].vehicles[c.vehicleNumber].bill += (c.billingAmount||0);
+
+      // 차량 활동 일수: 일별 순회로 각 월에 속한 일수만 그 월에 누적
       const start = new Date(c.startDate);
       const end = c.endDate ? new Date(c.endDate) : _today;
       if (end < start) return;
       for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
         const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
         if (!monthly[ym]) monthly[ym] = { bill:0, dep:0, cnt:0, vehicles:{} };
-        if (!monthly[ym].vehicles[c.vehicleNumber]) {
-          monthly[ym].vehicles[c.vehicleNumber] = { model: c.vehicleModel || '', days: 0 };
-        }
+        _ensureVeh(monthly[ym], c.vehicleNumber, c.vehicleModel);
         monthly[ym].vehicles[c.vehicleNumber].days += 1;
       }
     });
@@ -667,7 +673,8 @@ function App() {
                 {sortedMonths.map(([ym,d])=>{
                   const [y,m] = ym.split("-");
                   const isOpen = monthExpanded.has(ym);
-                  const vlist = Object.entries(d.vehicles||{}).sort((a,b)=>b[1].days-a[1].days);
+                  // 차량 순서 고정: 차량번호 오름차순 (모든 월에서 동일 순서)
+                  const vlist = Object.entries(d.vehicles||{}).sort((a,b)=>a[0].localeCompare(b[0]));
                   return (
                     <div key={ym}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, gap:12 }}>
@@ -691,9 +698,13 @@ function App() {
                         <div style={{ color:"#aaa", marginBottom:10, fontSize:14 }}>활동 차량 <b style={{color:"#10b981",fontSize:18,marginLeft:4}}>{vlist.length}</b><span style={{color:"#666",marginLeft:2}}>대</span></div>
                         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                           {vlist.map(([vn,vd])=>(
-                            <div key={vn} style={{ display:"flex", justifyContent:"space-between", color:"#aaa", fontSize:14 }}>
+                            <div key={vn} style={{ display:"flex", justifyContent:"space-between", color:"#aaa", fontSize:14, alignItems:"baseline" }}>
                               <span><b style={{color:"#e0e0e0"}}>{vd.model||"(차종)"}</b> <span style={{color:"#666",fontSize:13,marginLeft:6}}>{vn}</span></span>
-                              <span style={{fontVariantNumeric:"tabular-nums"}}><b style={{color:"#e0e0e0",fontSize:16}}>{vd.days}</b><span style={{color:"#666",marginLeft:2}}>일</span></span>
+                              <span style={{fontVariantNumeric:"tabular-nums",display:"flex",gap:18,alignItems:"baseline"}}>
+                                <span style={{minWidth:46,textAlign:"right"}}><b style={{color:vd.cnt>0?"#e0e0e0":"#555",fontSize:15}}>{vd.cnt}</b><span style={{color:"#666",marginLeft:2,fontSize:13}}>건</span></span>
+                                <span style={{minWidth:110,textAlign:"right"}}><b style={{color:vd.bill>0?"#10b981":"#555",fontSize:15}}>{fmt(vd.bill)}</b><span style={{color:"#666",marginLeft:2,fontSize:13}}>원</span></span>
+                                <span style={{minWidth:48,textAlign:"right"}}><b style={{color:"#e0e0e0",fontSize:16}}>{vd.days}</b><span style={{color:"#666",marginLeft:2,fontSize:13}}>일</span></span>
+                              </span>
                             </div>
                           ))}
                         </div>
