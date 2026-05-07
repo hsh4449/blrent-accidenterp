@@ -675,7 +675,7 @@ function App() {
               </div>
             </div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(440px,1fr))", gap:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:12 }}>
               {vehicleList.map(v => {
                 const isOpen = unpaidExpanded.has(v.num);
                 return <div key={v.num} style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, overflow:"hidden" }}>
