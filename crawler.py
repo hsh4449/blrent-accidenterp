@@ -29,9 +29,6 @@ MODEL_OVERRIDE = {
     '7940': 'GLE 쿠페',
 }
 
-# [DEBUG-TEMP] 첫 교체건 raw JSON 1회 출력 플래그 — 분석 후 제거 예정
-_DEBUG_REPLACEMENT_LOGGED = False
-
 STATUS_MAP = {
     'dispatch': '배차중',
     'using_car': '배차중',
@@ -239,14 +236,7 @@ def search_vehicle(session, car_number):
         total_pages = api_result.get('totalPage', 1)
 
         skipped_other = 0
-        global _DEBUG_REPLACEMENT_LOGGED
         for c in claims:
-            # [DEBUG-TEMP] 첫 교체건 raw JSON 1회 출력 — 분석 후 제거 예정
-            if c.get('car_replaced', 0) == 1 and not _DEBUG_REPLACEMENT_LOGGED:
-                print(f'\n========== [DEBUG] 교체건 raw JSON (id={c.get("id")}) ==========')
-                print(json.dumps(c, ensure_ascii=False, indent=2, default=str)[:8000])
-                print('========== [DEBUG] 끝 ==========\n')
-                _DEBUG_REPLACEMENT_LOGGED = True
             row = convert_claim(c, VEHICLE_NUMBERS)
             if row is None:
                 skipped_other += 1
