@@ -91,6 +91,7 @@
             commissionRate: Number(r.commission_rate) || 0, commissionTo: r.commission_to || '',
             insuranceManagerName: r.insurance_manager_name || '',
             insuranceManagerPhone: r.insurance_manager_phone || '',
+            replacementNote: r.replacement_note || '',
           };
         }
 
@@ -201,6 +202,7 @@ const STATUS_COLORS = {
   "청구완료": { bg:"#d1fae5", text:"#065f46", dot:"#10b981" },
   "입금완료": { bg:"#ede9fe", text:"#5b21b6", dot:"#8b5cf6" },
   "분심중": { bg:"#fce7f3", text:"#9f1239", dot:"#e11d48" },
+  "교체": { bg:"#fef3c7", text:"#7c2d12", dot:"#a855f7" },
 };
 
 const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#06b6d4","#f97316","#84cc16","#a855f7","#14b8a6","#e11d48"];
@@ -597,7 +599,7 @@ function App() {
                     const monthDepCount = monthDeps.length;
                     const monthDepAmount = monthDeps.reduce((s,c)=>s+(c.rentalFee||0),0);
                     const isOpen = unpaidExpanded.has(num);
-                    const unpaidItems = cars.filter(c => c.status === '청구전' || c.status === '청구완료').sort((a,b)=>(b.endDate||"").localeCompare(a.endDate||""));
+                    const unpaidItems = cars.filter(c => c.status === '청구전' || c.status === '청구완료' || c.status === '교체').sort((a,b)=>(b.endDate||"").localeCompare(a.endDate||""));
                     return (
                       <div key={num} style={{ background:"#0f0f23", borderRadius:10, overflow:"hidden" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 18px", gap:14 }}>
@@ -653,6 +655,11 @@ function App() {
                                   <div><span style={{color:"#666"}}>보험사 </span>{noInsurer ? _emptyTag("미입력", c) : c.insurer}</div>
                                   <div><span style={{color:"#666"}}>담당자 </span>{noManager ? _emptyTag("미입력", c) : c.insuranceManagerName}</div>
                                   <div style={{gridColumn:"1 / -1"}}><span style={{color:"#666"}}>연락처 </span>{noPhone ? _emptyTag("미입력 — 클릭하여 입력", c) : <a href={`tel:${c.insuranceManagerPhone}`} style={{color:"#3b82f6",textDecoration:"none",fontWeight:600}}>{c.insuranceManagerPhone}</a>}</div>
+                                  {c.status === '교체' && c.replacementNote && (
+                                    <div style={{gridColumn:"1 / -1", color:"#a855f7", fontSize:13, marginTop:6, padding:"8px 12px", background:"#a855f722", borderRadius:6, border:"1px solid #a855f744"}}>
+                                      🔄 <b>교체 정보:</b> {c.replacementNote}
+                                    </div>
+                                  )}
                                 </div>
                               </div>;
                             })
