@@ -568,24 +568,43 @@ function App() {
                 </div>
               </div>}
             </div>
-            {/* Vehicle Stats */}
-            <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:20 }}>
-              <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>차량별 현황</h4>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {Object.entries(stats.vStats).map(([num,d])=>{ const v=vehicles.find(x=>x.number===num); return (
-                  <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#0f0f23", borderRadius:8 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <span style={{ width:8, height:8, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
-                      <div><div style={{fontSize:13,fontWeight:500}}>{d.model}</div><div style={{fontSize:10,color:"#888"}}>{num}</div></div>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:12,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>청구 {fmt(d.bill)} <span style={{color:"#888"}}>/ 입금 {fmt(d.dep)}</span></div>
-                      <div style={{fontSize:10,color:"#888"}}>{d.cnt}건 / {d.days}일</div>
-                    </div>
-                  </div>
-                );})}
-              </div>
-            </div>
+            {/* Vehicle Stats — 차량별 상태/미입금/이번달 입금 현황 */}
+            {(() => {
+              const _now = new Date();
+              const _ymPrefix = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
+              const _monthLabel = `${_now.getMonth()+1}월`;
+              return <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:20 }}>
+                <h4 style={{ margin:"0 0 16px", fontSize:13, fontWeight:600 }}>차량별 현황 <span style={{fontSize:10,color:"#666",fontWeight:400,marginLeft:6}}>상태 · 총 미입금 · {_monthLabel} 입금</span></h4>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {Object.entries(stats.vStats).map(([num,d])=>{
+                    const v = vehicles.find(x=>x.number===num);
+                    const cars = contracts.filter(c => c.vehicleNumber === num);
+                    const isActive = cars.some(c => c.status === '배차중');
+                    const unpaidCount = cars.filter(c => c.status === '청구완료').length;
+                    const monthDeps = cars.filter(c => c.depositDate && c.depositDate.startsWith(_ymPrefix));
+                    const monthDepCount = monthDeps.length;
+                    const monthDepAmount = monthDeps.reduce((s,c)=>s+(c.rentalFee||0),0);
+                    return (
+                      <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#0f0f23", borderRadius:8 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ width:8, height:8, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
+                          <div><div style={{fontSize:13,fontWeight:500}}>{d.model}</div><div style={{fontSize:10,color:"#888"}}>{num}</div></div>
+                        </div>
+                        <div style={{textAlign:"right",fontSize:11}}>
+                          <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"flex-end",marginBottom:3}}>
+                            <span style={{padding:"2px 8px",borderRadius:4,background:isActive?"#f59e0b22":"#2a2a4a",color:isActive?"#f59e0b":"#888",fontWeight:600,fontSize:10}}>{isActive?"배차중":"대기"}</span>
+                            <span style={{color:"#888"}}>미입금 <b style={{color:unpaidCount>0?"#ef4444":"#666",fontSize:13,fontVariantNumeric:"tabular-nums"}}>{unpaidCount}</b><span style={{color:"#666"}}>건</span></span>
+                          </div>
+                          <div style={{color:"#888",fontVariantNumeric:"tabular-nums"}}>
+                            {_monthLabel} 입금 <b style={{color:monthDepCount>0?"#10b981":"#666",fontSize:13}}>{monthDepCount}</b><span style={{color:"#666"}}>건</span> · <b style={{color:monthDepAmount>0?"#10b981":"#666",fontSize:12}}>₩{fmt(monthDepAmount)}</b>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>;
+            })()}
           </div>
         </div>}
 
