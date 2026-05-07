@@ -20,8 +20,14 @@ SUPABASE_KEY = os.environ['SUPABASE_KEY']
 
 VEHICLE_NUMBERS = [
     '9579', '8089', '9470', '7725', '9879',
-    '9894', '7950', '7940', '4926', '7034'
+    '9894', '7950', '7940', '4926', '7034',
+    '3910', '5080', '6078',
 ]
+
+# IMS 응답의 차종명이 실제와 다른 경우 차량번호 끝번호 → 모델명 강제 매핑
+MODEL_OVERRIDE = {
+    '7940': 'GLE 쿠페',
+}
 
 STATUS_MAP = {
     'dispatch': '배차중',
@@ -132,6 +138,12 @@ def convert_claim(c, our_numbers):
     if not any(rent_car.endswith(n) for n in our_numbers):
         return None
 
+    car_model = c.get('car_model') or ''
+    for suffix, override in MODEL_OVERRIDE.items():
+        if rent_car.endswith(suffix):
+            car_model = override
+            break
+
     start_date, start_time = parse_datetime(c.get('delivered_at'))
     end_date, end_time = parse_datetime(c.get('return_date'))
     billing_date, billing_time = parse_datetime(c.get('claim_at'))
@@ -180,7 +192,7 @@ def convert_claim(c, our_numbers):
         'billing_date': billing_date,
         'billing_time': billing_time,
         'deposit_date': deposit_date,
-        'vehicle_model': c.get('car_model') or '',
+        'vehicle_model': car_model,
         'vehicle_number': c.get('rent_car_number') or '',
         'customer_name': c.get('customer_name') or '',
         'customer_vehicle': c.get('customer_car') or '',
