@@ -429,12 +429,14 @@ function App() {
   const sortedMonths = useMemo(() => Object.entries(stats.monthly).sort((a,b)=>a[0].localeCompare(b[0])), [stats.monthly]);
   const maxMA = useMemo(() => Math.max(...sortedMonths.map(([,d])=>d.bill),1), [sortedMonths]);
 
-  // 입금월 목록 (depositDate 기준)
+  // 입금월 목록 (depositDate 기준 + 현재월 강제 포함)
   const depositMonths = useMemo(() => {
     const ms = new Set();
     contracts.forEach(c => {
       if (c.depositDate) ms.add(c.depositDate.slice(0,7));
     });
+    const now = new Date();
+    ms.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`);
     return Array.from(ms).sort();
   }, [contracts]);
 
@@ -739,10 +741,12 @@ function App() {
         {/* ── SETTLEMENT ── */}
         {tab==="settlement" && <div>
           {(() => {
-            // 입금월 집계 (deposit_date 기준)
+            // 입금월 집계 (deposit_date 기준 + 현재월 강제 포함)
             const depMonths = [...new Set(contracts.filter(c=>c.depositDate).map(c=>c.depositDate.slice(0,7)))].sort();
             const fixMonths = [...new Set(Object.keys(monthlyFixed).map(k=>k.split("|")[1]))];
-            const allMonths = [...new Set([...depMonths, ...fixMonths])].sort();
+            const _now = new Date();
+            const _curMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
+            const allMonths = [...new Set([...depMonths, ...fixMonths, _curMonth])].sort();
             const ym = settlMonth;
             const monthContracts = ym==="all" ? contracts.filter(c=>c.depositDate) : contracts.filter(c=>c.depositDate && c.depositDate.startsWith(ym));
 
