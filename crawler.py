@@ -186,6 +186,24 @@ def convert_claim(c, our_numbers):
     ims_manager_name = c.get('claim_insurance_manager') or ''
     ims_manager_phone = parse_phone(c.get('claim_insurance_contact'))
 
+    # 교체건 외부 차량 정보 추출 (옵션 3)
+    # details 배열에서 우리 차량이 아닌 첫 차량 정보를 별도 컬럼에 저장
+    other_vehicle = None
+    other_days = None
+    other_cost = None
+    if is_replaced:
+        for d in [d for d in (c.get('details') or []) if d]:
+            num = d.get('rent_car_number') or ''
+            if num and not any(num.endswith(n) for n in our_numbers):
+                other_vehicle = num
+                other_days = (d.get('cost_data') or {}).get('total_day')
+                cost_str = d.get('claim_cost')
+                try:
+                    other_cost = int(cost_str) if cost_str else None
+                except (ValueError, TypeError):
+                    other_cost = None
+                break  # 외부차는 보통 1대, 첫 매칭만 사용
+
     row = {
         'id': str(c.get('id', '')),
         'status': status,
@@ -216,6 +234,9 @@ def convert_claim(c, our_numbers):
         'replacement_note': replacement_note,
         'insurance_manager_name': ims_manager_name,
         'insurance_manager_phone': ims_manager_phone,
+        'replacement_other_vehicle': other_vehicle,
+        'replacement_other_days': other_days,
+        'replacement_other_cost': other_cost,
     }
 
     # IMS에 비어있는 보호 키는 dict에서 제거 → 사용자가 ERP에서 입력한 기존 값 보존
