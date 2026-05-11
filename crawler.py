@@ -157,6 +157,10 @@ def convert_claim(c, our_numbers):
         status = '교체'
     else:
         status = STATUS_MAP.get(c.get('claim_state', ''), c.get('claim_state', '배차중'))
+        # IMS 데이터 비일관성 보정: 입금일이 있으면 실제 입금된 것이므로 입금완료로 강제
+        # (IMS에서 사용자가 claim_done_at은 채웠지만 claim_state를 done_claim으로 안 바꾼 케이스)
+        if deposit_date and status == '청구완료':
+            status = '입금완료'
 
     # 교체건 메모
     replacement_note = None
