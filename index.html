@@ -434,10 +434,18 @@ function App() {
       if (!c.startDate) return;
       // bill/dep/cnt: 시작 월에만 카운트 (계약 단위)
       const startYm = c.startDate.slice(0,7);
-      if (!monthly[startYm]) monthly[startYm] = { bill:0, dep:0, cnt:0, vehicles:{} };
+      if (!monthly[startYm]) monthly[startYm] = {
+        bill:0, dep:0, cnt:0, vehicles:{},
+        pending:0, claimed:0, settled:0, active:0, replaced:0
+      };
       monthly[startYm].bill += (c.billingAmount||0);
       monthly[startYm].dep += (c.rentalFee||0);
       monthly[startYm].cnt++;
+      if (c.status === '청구전') monthly[startYm].pending++;
+      else if (c.status === '청구완료') monthly[startYm].claimed++;
+      else if (c.status === '입금완료') monthly[startYm].settled++;
+      else if (c.status === '배차중') monthly[startYm].active++;
+      else if (c.status === '교체') monthly[startYm].replaced++;
 
       if (!c.vehicleNumber) return;
 
@@ -697,6 +705,14 @@ function App() {
                         <div style={{ position:"absolute", height:"100%", width:`${d.dep/maxMA*100}%`, background:"linear-gradient(90deg,#8b5cf6,#6366f1)", borderRadius:7 }}/>
                       </div>
                       {isOpen && <div style={{ marginTop:10, padding:"14px 16px", background:"#0f0f23", borderRadius:8 }}>
+                        <div style={{ display:"flex", gap:18, flexWrap:"wrap", marginBottom:12, fontSize:14, alignItems:"baseline", paddingBottom:12, borderBottom:"1px solid #1e1e3f" }}>
+                          <span><span style={{color:"#666"}}>배차 </span><b style={{color:"#e0e0e0",fontSize:17}}>{d.cnt}</b><span style={{color:"#666",fontSize:12,marginLeft:2}}>건</span></span>
+                          {d.active > 0 && <span><span style={{color:"#666"}}>배차중 </span><b style={{color:"#f59e0b",fontSize:17}}>{d.active}</b><span style={{color:"#666",fontSize:12,marginLeft:2}}>건</span></span>}
+                          {d.pending > 0 && <span><span style={{color:"#666"}}>미청구 </span><b style={{color:"#3b82f6",fontSize:17}}>{d.pending}</b><span style={{color:"#666",fontSize:12,marginLeft:2}}>건</span></span>}
+                          {d.claimed > 0 && <span><span style={{color:"#666"}}>미입금 </span><b style={{color:"#ef4444",fontSize:17}}>{d.claimed}</b><span style={{color:"#666",fontSize:12,marginLeft:2}}>건</span></span>}
+                          {d.settled > 0 && <span><span style={{color:"#666"}}>입금완료 </span><b style={{color:"#10b981",fontSize:17}}>{d.settled}</b><span style={{color:"#666",fontSize:12,marginLeft:2}}>건</span></span>}
+                          {d.replaced > 0 && <span><span style={{color:"#666"}}>교체 </span><b style={{color:"#a855f7",fontSize:17}}>{d.replaced}</b><span style={{color:"#666",fontSize:12,marginLeft:2}}>건</span></span>}
+                        </div>
                         <div style={{ color:"#aaa", marginBottom:10, fontSize:14 }}>활동 차량 <b style={{color:"#10b981",fontSize:18,marginLeft:4}}>{vlist.length}</b><span style={{color:"#666",marginLeft:2}}>대</span></div>
                         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                           {vlist.map(([vn,vd])=>(
