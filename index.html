@@ -363,6 +363,10 @@ function App() {
   const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
   const [monthExpanded, setMonthExpanded] = useState(new Set());
   const [deletedContracts, setDeletedContracts] = useState([]);
+  const [vehicleViewYm, setVehicleViewYm] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+  });
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -629,14 +633,32 @@ function App() {
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             {/* Vehicle Stats — 차량별 현황 + 인라인 미입금 상세 */}
             {(() => {
-              const _now = new Date();
-              const _ymPrefix = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
-              const _monthLabel = `${_now.getMonth()+1}월`;
-              const _today = _now;
+              const _today = new Date();
+              const _ymPrefix = vehicleViewYm;
+              const _selYear = _ymPrefix.split("-")[0];
+              const _selMonth = _ymPrefix.split("-")[1];
+              const _monthLabel = `${parseInt(_selMonth)}월`;
+              // 드롭다운 옵션: 년 = 데이터 있는 년 ∪ 현재년, 월 = 01~12
+              const _depYears = new Set();
+              contracts.forEach(c => { if (c.depositDate) _depYears.add(c.depositDate.slice(0,4)); });
+              _depYears.add(String(_today.getFullYear()));
+              const _yearOpts = Array.from(_depYears).sort();
+              const _monthOpts = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
               const _openEdit = (c) => { setEditData(c); setEditModal(true); };
               const _emptyTag = (txt, c) => <span onClick={(e)=>{e.stopPropagation();_openEdit(c);}} style={{ background:"#7f1d1d44", color:"#ef4444", padding:"3px 10px", borderRadius:5, cursor:"pointer", fontSize:13, fontWeight:600 }}>{txt}</span>;
+              const _selectStyle = { padding:"6px 10px", background:"#0f0f23", border:"1px solid #2a2a4a", borderRadius:7, color:"#e0e0e0", fontSize:14, cursor:"pointer", fontWeight:600 };
               return <div style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:12, padding:24 }}>
-                <h4 style={{ margin:"0 0 18px", fontSize:17, fontWeight:700 }}>차량별 현황 <span style={{fontSize:13,color:"#888",fontWeight:400,marginLeft:8}}>상태 · 총 미입금 · {_monthLabel} 입금 · ▾ 펼치면 미입금 상세</span></h4>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, gap:12, flexWrap:"wrap" }}>
+                  <h4 style={{ margin:0, fontSize:17, fontWeight:700 }}>차량별 현황 <span style={{fontSize:13,color:"#888",fontWeight:400,marginLeft:8}}>상태 · 총 미입금 · {_monthLabel} 입금 · ▾ 펼치면 미입금 상세</span></h4>
+                  <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                    <select value={_selYear} onChange={e=>setVehicleViewYm(`${e.target.value}-${_selMonth}`)} style={_selectStyle}>
+                      {_yearOpts.map(y=><option key={y} value={y}>{y}년</option>)}
+                    </select>
+                    <select value={_selMonth} onChange={e=>setVehicleViewYm(`${_selYear}-${e.target.value}`)} style={_selectStyle}>
+                      {_monthOpts.map(m=><option key={m} value={m}>{parseInt(m)}월</option>)}
+                    </select>
+                  </div>
+                </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                   {Object.entries(stats.vStats).map(([num,d])=>{
                     const v = vehicles.find(x=>x.number===num);
