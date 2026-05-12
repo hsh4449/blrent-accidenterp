@@ -670,6 +670,15 @@ function App() {
                     const monthDepAmount = monthDeps.reduce((s,c)=>s+(c.rentalFee||0),0);
                     const isOpen = unpaidExpanded.has(num);
                     const unpaidItems = cars.filter(c => c.status === '청구전' || c.status === '청구완료' || c.status === '교체').sort((a,b)=>(b.endDate||"").localeCompare(a.endDate||""));
+                    // 당월 계약 건수 + 가동 일수 (가동률)
+                    const vmonth = ((stats.monthly||{})[_ymPrefix]?.vehicles || {})[num] || {};
+                    const dispatchedCount = vmonth.cnt || 0;
+                    const daysRun = vmonth.days || 0;
+                    const [_yNum, _mNum] = _ymPrefix.split('-').map(Number);
+                    const _curYmStr = `${_today.getFullYear()}-${String(_today.getMonth()+1).padStart(2,'0')}`;
+                    const daysTotal = _ymPrefix === _curYmStr
+                      ? _today.getDate()
+                      : new Date(_yNum, _mNum, 0).getDate();
                     return (
                       <div key={num} style={{ background:"#0f0f23", borderRadius:10, overflow:"hidden" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 18px", gap:14 }}>
@@ -685,6 +694,11 @@ function App() {
                               <div style={{display:"flex",gap:14,alignItems:"center",justifyContent:"flex-end",marginBottom:6}}>
                                 <span style={{padding:"4px 12px",borderRadius:6,background:isActive?"#f59e0b22":"#2a2a4a",color:isActive?"#f59e0b":"#888",fontWeight:700,fontSize:14}}>{isActive?"배차중":"대기"}</span>
                                 <span style={{color:"#aaa",fontSize:14}}>미입금 <b style={{color:unpaidCount>0?"#ef4444":"#666",fontSize:20,fontVariantNumeric:"tabular-nums",marginLeft:4}}>{unpaidCount}</b><span style={{color:"#666",fontSize:13,marginLeft:2}}>건</span></span>
+                              </div>
+                              <div style={{color:"#aaa",fontVariantNumeric:"tabular-nums",fontSize:13,marginBottom:5}}>
+                                {_monthLabel} 계약 <b style={{color:dispatchedCount>0?"#3b82f6":"#666",fontSize:16,marginLeft:4}}>{dispatchedCount}</b><span style={{color:"#666",fontSize:12}}>건</span>
+                                <span style={{color:"#444",margin:"0 7px"}}>·</span>
+                                가동 <b style={{color:daysRun>0?"#f59e0b":"#666",fontSize:16,marginLeft:4}}>{daysRun}</b><span style={{color:"#666",fontSize:13}}>/</span><b style={{color:"#888",fontSize:14}}>{daysTotal}</b><span style={{color:"#666",fontSize:12}}>일</span>
                               </div>
                               <div style={{color:"#aaa",fontVariantNumeric:"tabular-nums",fontSize:14}}>
                                 {_monthLabel} 입금 <b style={{color:monthDepCount>0?"#10b981":"#666",fontSize:18,marginLeft:4}}>{monthDepCount}</b><span style={{color:"#666",fontSize:13}}>건</span> <span style={{color:"#666",margin:"0 6px"}}>·</span> <b style={{color:monthDepAmount>0?"#10b981":"#666",fontSize:17}}>₩{fmt(monthDepAmount)}</b>
@@ -738,6 +752,23 @@ function App() {
                               </div>;
                             })
                           }
+                          {monthDeps.length > 0 && (
+                            <div style={{marginTop:14, paddingTop:14, borderTop:"1px solid #2a2a4a"}}>
+                              <div style={{color:"#10b981", fontSize:14, fontWeight:700, marginBottom:8}}>{_monthLabel} 입금 완료 <b style={{fontSize:16,marginLeft:4}}>{monthDepCount}</b><span style={{color:"#888",fontSize:12,marginLeft:2}}>건</span> <span style={{color:"#666",margin:"0 6px"}}>·</span> <b style={{fontSize:16,fontVariantNumeric:"tabular-nums"}}>₩{fmt(monthDepAmount)}</b></div>
+                              {monthDeps.slice().sort((a,b)=>(b.depositDate||"").localeCompare(a.depositDate||"")).map(c => (
+                                <div key={c.id} style={{padding:"12px 14px", borderRadius:8, background:"#161630", marginTop:8, border:"1px solid #1e1e3f"}}>
+                                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                                    <span style={{fontWeight:700, color:"#e0e0e0", fontSize:15}}>{c.customerName || "(이름 없음)"}</span>
+                                    <span style={{color:"#10b981",fontWeight:700,fontVariantNumeric:"tabular-nums",fontSize:15}}>₩{fmt(c.rentalFee)}</span>
+                                  </div>
+                                  <div style={{display:"flex", gap:18, marginTop:8, fontSize:13, color:"#888"}}>
+                                    <span><span style={{color:"#666"}}>청구 </span>{c.billingDate || "-"}</span>
+                                    <span><span style={{color:"#666"}}>입금 </span><span style={{color:"#10b981"}}>{c.depositDate}</span></span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>}
                       </div>
                     );
