@@ -144,15 +144,29 @@ def convert_claim(c, our_numbers):
             car_model = override
             break
 
-    start_date, start_time = parse_datetime(c.get('delivered_at'))
-    end_date, end_time = parse_datetime(c.get('return_date'))
+    # 교체건이면 details에서 우리 차량의 정확한 사용 시작 시점을 찾는다 (A)
+    # 외부차→우리차 교체 시 메인 c.delivered_at은 첫 차(외부) 시작 시점이라 부정확
+    is_replaced = c.get('car_replaced', 0) == 1
+    our_detail_delivered = None
+    our_detail_returned = None
+    if is_replaced:
+        for d in [d for d in (c.get('details') or []) if d]:
+            num = d.get('rent_car_number') or ''
+            if num and any(num.endswith(n) for n in our_numbers):
+                our_detail_delivered = d.get('delivered_date')
+                our_detail_returned = d.get('return_date')
+                break  # 우리 차량 첫 매칭
+
+    raw_start = our_detail_delivered or c.get('delivered_at')
+    raw_end = our_detail_returned or c.get('return_date')
+    start_date, start_time = parse_datetime(raw_start)
+    end_date, end_time = parse_datetime(raw_end)
     billing_date, billing_time = parse_datetime(c.get('claim_at'))
 
     # 입금일: claim_done_at
     deposit_date, _ = parse_datetime(c.get('claim_done_at'))
 
     # 상태 매핑
-    is_replaced = c.get('car_replaced', 0) == 1
     if is_replaced:
         status = '교체'
     else:
@@ -190,11 +204,14 @@ def convert_claim(c, our_numbers):
     ims_manager_name = c.get('claim_insurance_manager') or ''
     ims_manager_phone = parse_phone(c.get('claim_insurance_contact'))
 
-    # 교체건 외부 차량 정보 추출 (옵션 3)
+    # 교체건 외부 차량 정보 추출 (B)
     # details 배열에서 우리 차량이 아닌 첫 차량 정보를 별도 컬럼에 저장
     other_vehicle = None
     other_days = None
     other_cost = None
+    other_model = None
+    other_start_date = None
+    other_end_date = None
     if is_replaced:
         for d in [d for d in (c.get('details') or []) if d]:
             num = d.get('rent_car_number') or ''
@@ -206,6 +223,12 @@ def convert_claim(c, our_numbers):
                     other_cost = int(cost_str) if cost_str else None
                 except (ValueError, TypeError):
                     other_cost = None
+                # 모델은 rent_car_name "차량번호 모델명" 형식에서 추출
+                rent_car_name = d.get('rent_car_name') or ''
+                other_model = rent_car_name.replace(num, '').strip() or None
+                # 외부차 사용 기간
+                other_start_date, _ = parse_datetime(d.get('delivered_date'))
+                other_end_date, _ = parse_datetime(d.get('return_date'))
                 break  # 외부차는 보통 1대, 첫 매칭만 사용
 
     row = {
@@ -241,6 +264,9 @@ def convert_claim(c, our_numbers):
         'replacement_other_vehicle': other_vehicle,
         'replacement_other_days': other_days,
         'replacement_other_cost': other_cost,
+        'replacement_other_model': other_model,
+        'replacement_other_start_date': other_start_date,
+        'replacement_other_end_date': other_end_date,
     }
 
     # IMS에 비어있는 보호 키는 dict에서 제거 → 사용자가 ERP에서 입력한 기존 값 보존

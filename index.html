@@ -92,6 +92,12 @@
             insuranceManagerName: r.insurance_manager_name || '',
             insuranceManagerPhone: r.insurance_manager_phone || '',
             replacementNote: r.replacement_note || '',
+            replacementOtherVehicle: r.replacement_other_vehicle || '',
+            replacementOtherModel: r.replacement_other_model || '',
+            replacementOtherDays: r.replacement_other_days || 0,
+            replacementOtherCost: r.replacement_other_cost || 0,
+            replacementOtherStartDate: r.replacement_other_start_date || '',
+            replacementOtherEndDate: r.replacement_other_end_date || '',
             isDeleted: !!r.is_deleted,
             deletedAt: r.deleted_at || null,
           };
@@ -692,6 +698,15 @@ function App() {
                                   <div><span style={{color:"#666"}}>보험사 </span>{noInsurer ? _emptyTag("미입력", c) : c.insurer}</div>
                                   <div><span style={{color:"#666"}}>담당자 </span>{noManager ? _emptyTag("미입력", c) : c.insuranceManagerName}</div>
                                   <div style={{gridColumn:"1 / -1"}}><span style={{color:"#666"}}>연락처 </span>{noPhone ? _emptyTag("미입력 — 클릭하여 입력", c) : <a href={`tel:${c.insuranceManagerPhone}`} style={{color:"#3b82f6",textDecoration:"none",fontWeight:600}}>{c.insuranceManagerPhone}</a>}</div>
+                                  {c.status === '교체' && c.replacementOtherVehicle && (
+                                    <div style={{gridColumn:"1 / -1", marginTop:8, padding:"10px 14px", background:"#a855f718", borderRadius:8, border:"1px solid #a855f744", fontSize:13, display:"flex", flexWrap:"wrap", gap:"4px 16px", alignItems:"baseline"}}>
+                                      <span style={{color:"#a855f7",fontWeight:700}}>🔄 외부차</span>
+                                      <span><b style={{color:"#e0e0e0"}}>{c.replacementOtherModel || "(모델 없음)"}</b> <span style={{color:"#888",marginLeft:4}}>{c.replacementOtherVehicle}</span></span>
+                                      {(c.replacementOtherStartDate || c.replacementOtherEndDate) && <span style={{color:"#aaa"}}>{c.replacementOtherStartDate||"-"} ~ {c.replacementOtherEndDate||"-"}</span>}
+                                      {c.replacementOtherDays > 0 && <span><b style={{color:"#a855f7"}}>{c.replacementOtherDays}</b><span style={{color:"#888"}}>일</span></span>}
+                                      {c.replacementOtherCost > 0 && <span><b style={{color:"#a855f7",fontVariantNumeric:"tabular-nums"}}>₩{fmt(c.replacementOtherCost)}</b></span>}
+                                    </div>
+                                  )}
                                 </div>
                               </div>;
                             })
