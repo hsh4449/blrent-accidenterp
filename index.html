@@ -92,6 +92,8 @@
             insuranceManagerName: r.insurance_manager_name || '',
             insuranceManagerPhone: r.insurance_manager_phone || '',
             replacementNote: r.replacement_note || '',
+            isDeleted: !!r.is_deleted,
+            deletedAt: r.deleted_at || null,
           };
         }
 
@@ -354,6 +356,7 @@ function App() {
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
   const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
   const [monthExpanded, setMonthExpanded] = useState(new Set());
+  const [deletedContracts, setDeletedContracts] = useState([]);
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -363,9 +366,12 @@ function App() {
           supabaseClient.from('accident_rentals').select('*').order('start_date', { ascending: false }),
           supabaseClient.from('vehicle_monthly_fixed').select('*'),
         ]);
+        // 휴지통 = is_deleted, 일반 계약 = 나머지 (한 번에 가져와서 분리)
         if (e1) throw e1;
         if (e2) throw e2;
-        setContracts(rentals.map(fromDbRow));
+        const allRentals = rentals.map(fromDbRow);
+        setContracts(allRentals.filter(c => !c.isDeleted));
+        setDeletedContracts(allRentals.filter(c => c.isDeleted));
         const mf = {};
         (fixed||[]).forEach(r => { mf[`${r.vehicle_number}|${r.year_month}`] = { installment: r.installment||0, insurance: r.insurance||0, etc_cost: r.etc_cost||0, etc_note: r.etc_note||"" }; });
         setMonthlyFixed(mf);
@@ -523,17 +529,40 @@ function App() {
     }
   }, [contracts]);
   const doDelete = useCallback(async id => {
-    if(!confirm("삭제하시겠습니까?")) return;
+    if(!confirm("휴지통으로 보낼까요?")) return;
     try {
-      const { error } = await supabaseClient.from('accident_rentals').delete().eq('id', id);
+      const nowIso = new Date().toISOString();
+      const { error } = await supabaseClient.from('accident_rentals')
+        .update({ is_deleted: true, deleted_at: nowIso })
+        .eq('id', id);
       if (error) throw error;
+      const target = contracts.find(c => c.id === id);
       setContracts(contracts.filter(c=>c.id!==id));
+      if (target) setDeletedContracts([{...target, isDeleted:true, deletedAt:nowIso}, ...deletedContracts]);
       setSelected(null);
-      setToast({msg:"삭제됨",type:"success"});
+      setToast({msg:"휴지통으로 이동",type:"success"});
     } catch(e) {
       setToast({msg:"삭제 실패: "+e.message,type:"error"});
     }
-  }, [contracts]);
+  }, [contracts, deletedContracts]);
+
+  const doRestore = useCallback(async id => {
+    try {
+      const { error } = await supabaseClient.from('accident_rentals')
+        .update({ is_deleted: false, deleted_at: null })
+        .eq('id', id);
+      if (error) throw error;
+      const target = deletedContracts.find(c => c.id === id);
+      setDeletedContracts(deletedContracts.filter(c => c.id !== id));
+      if (target) {
+        const restored = {...target, isDeleted:false, deletedAt:null};
+        setContracts([restored, ...contracts].sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||'')));
+      }
+      setToast({msg:"복구됨",type:"success"});
+    } catch(e) {
+      setToast({msg:"복구 실패: "+e.message,type:"error"});
+    }
+  }, [contracts, deletedContracts]);
   const doReset = useCallback(async () => {
     if(!confirm("초기 데이터로 리셋합니다. (DB 전체 교체)")) return;
     try {
@@ -563,7 +592,7 @@ function App() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
-            {[["dashboard","대시보드"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"]].map(([k,l])=>(
+            {[["dashboard","대시보드"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["trash",`🗑 휴지통${deletedContracts.length>0?` (${deletedContracts.length})`:""}`]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:12, fontWeight:tab===k?600:400, background:tab===k?"#1e1e3f":"transparent", color:tab===k?"#e0e0e0":"#777" }}>{l}</button>
             ))}
           </nav>
@@ -961,6 +990,36 @@ function App() {
           <div style={{display:"flex",gap:12,marginTop:12,flexWrap:"wrap"}}>
             {Object.entries(STATUS_COLORS).map(([n,c])=><div key={n} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#888"}}><span style={{width:12,height:12,borderRadius:3,background:c.dot+"cc"}}/>{n}</div>)}
           </div>
+        </div>}
+
+        {/* ── TRASH ── */}
+        {tab==="trash" && <div>
+          <div style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:8 }}>
+            <div>
+              <h3 style={{ margin:0, fontSize:18, color:"#e0e0e0" }}>🗑 휴지통</h3>
+              <div style={{ fontSize:13, color:"#888", marginTop:6 }}>삭제된 계약 {deletedContracts.length}건 · 복구 버튼 누르면 원래대로 돌아옵니다.</div>
+            </div>
+          </div>
+          {deletedContracts.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#666",fontSize:14,background:"#161630",border:"1px solid #1e1e3f",borderRadius:12}}>휴지통이 비어있습니다.</div> :
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {deletedContracts.slice().sort((a,b)=>(b.deletedAt||"").localeCompare(a.deletedAt||"")).map(c => (
+              <div key={c.id} style={{ background:"#161630", border:"1px solid #1e1e3f", borderRadius:10, padding:"14px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
+                <div style={{ minWidth:0, flex:"1 1 auto" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+                    <span style={{ fontWeight:700, color:"#e0e0e0", fontSize:16 }}>{c.customerName || "(이름 없음)"}</span>
+                    <Badge status={c.status} />
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 18px", fontSize:13, color:"#aaa" }}>
+                    <span><span style={{color:"#666"}}>차량 </span>{c.vehicleModel} <span style={{color:"#666",marginLeft:4}}>{c.vehicleNumber}</span></span>
+                    <span><span style={{color:"#666"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</span>
+                    <span><span style={{color:"#666"}}>청구금 </span><b style={{color:"#e0e0e0",fontVariantNumeric:"tabular-nums"}}>₩{fmt(c.billingAmount)}</b></span>
+                    <span><span style={{color:"#666"}}>삭제일 </span>{c.deletedAt ? c.deletedAt.slice(0,10) : "-"}</span>
+                  </div>
+                </div>
+                <button onClick={()=>doRestore(c.id)} style={{padding:"10px 18px",background:"#10b981",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>복구</button>
+              </div>
+            ))}
+          </div>}
         </div>}
       </main>
 
