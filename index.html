@@ -719,9 +719,10 @@ function App() {
                               const noPhone = !c.insuranceManagerPhone;
                               return <div key={c.id} style={{ padding:"14px 16px", borderRadius:10, background:"#161630", marginTop:10, border: isOverdue ? "1px solid #7f1d1d77" : "1px solid #1e1e3f" }}>
                                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                                     <span style={{ fontWeight:700, color:"#e0e0e0", fontSize:16 }}>{c.customerName || "(이름 없음)"}</span>
                                     <Badge status={c.status} />
+                                    {c.status === '교체' && (!c.endDate || c.endDate >= _today.toISOString().slice(0,10)) && <Badge status="배차중" />}
                                   </div>
                                   <div style={{ display:"flex", gap:8 }}>
                                     <button onClick={()=>_openEdit(c)} style={{ padding:"7px 16px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:7, fontSize:13, cursor:"pointer", fontWeight:700 }}>수정</button>
