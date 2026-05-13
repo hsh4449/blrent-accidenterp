@@ -1013,13 +1013,12 @@ function App() {
                               </div>
                               <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 10px", fontSize:13 }}>
                                 <span style={{ background:"#dbeafe", color:"#1e40af", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>📅 대여 {c.startDate||"-"} ~ {c.endDate||"-"}{cDays>0 && ` · ${cDays}일`}</span>
-                                {cDaily>0 && <span style={{ background:"#fef9c3", color:"#854d0e", padding:"3px 10px", borderRadius:12, fontWeight:700 }}>💰 일당 ₩{fmt(cDaily)}</span>}
                                 <span style={{ background:"#fef3c7", color:"#854d0e", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>📤 청구 {c.billingDate||"-"}</span>
                                 <span style={{ background:"#dcfce7", color:"#166534", padding:"3px 10px", borderRadius:12, fontWeight:700 }}>✓ 입금 {c.depositDate}</span>
                                 {c.insurer && c.insurer !== '-' && <span style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>🏢 {c.insurer}</span>}
                               </div>
                             </div>
-                            <span style={{ color:"#10b981", fontWeight:800, fontSize:18, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>₩{fmt(c.rentalFee)}</span>
+                            <span style={{ color:"#10b981", fontWeight:800, fontSize:18, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>₩{fmt(c.rentalFee)}{cDaily>0 && <span style={{color:"#64748b", fontSize:13, fontWeight:500, marginLeft:5}}>({fmt(cDaily)})</span>}</span>
                           </div>
                           );
                         })}
