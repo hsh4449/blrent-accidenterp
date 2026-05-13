@@ -376,7 +376,7 @@ function App() {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("dashboard");
-  const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", depositMonth:"all" });
+  const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", searchField:"customerNumber", depositMonth:"all" });
   const [selected, setSelected] = useState(null);
   const [editModal, setEditModal] = useState(false);
   const [editData, setEditData] = useState(null);
@@ -591,7 +591,15 @@ function App() {
       if(filter.depositMonth==="none") l=l.filter(c=>!c.depositDate);
       else l=l.filter(c=>c.depositDate&&c.depositDate.startsWith(filter.depositMonth));
     }
-    if(filter.search){const s=filter.search.toLowerCase(); l=l.filter(c=>c.customerName?.toLowerCase().includes(s)||c.id?.includes(s)||c.receiptNo?.toString().includes(s)||c.insurer?.toLowerCase().includes(s)||c.vehicleModel?.toLowerCase().includes(s));}
+    if(filter.search){
+      const s=filter.search.toLowerCase();
+      const match = (val) => (val==null?"":String(val)).toLowerCase().includes(s);
+      if (filter.searchField === "all") {
+        l=l.filter(c=>match(c.customerName)||match(c.id)||match(c.receiptNo)||match(c.insurer)||match(c.vehicleModel)||match(c.vehicleNumber)||match(c.customerVehicle)||match(c.customerNumber)||match(c.customerPhone));
+      } else {
+        l=l.filter(c=>match(c[filter.searchField]));
+      }
+    }
     return l.sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
   }, [contracts, filter]);
 
@@ -686,7 +694,18 @@ function App() {
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
             {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["trash",`🗑 휴지통${deletedContracts.length>0?` (${deletedContracts.length})`:""}`]].map(([k,l])=>(
-              <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:12, fontWeight:tab===k?600:400, background:tab===k?"#e2e8f0":"transparent", color:tab===k?"#18181b":"#777" }}>{l}</button>
+              <button key={k} onClick={()=>setTab(k)} style={{
+                padding:"9px 18px",
+                borderRadius:8,
+                border: tab===k ? "1px solid #cbd5e1" : "1px solid transparent",
+                cursor:"pointer",
+                fontSize:13.5,
+                fontWeight: tab===k ? 700 : 600,
+                background: tab===k ? "#ffffff" : "transparent",
+                color: tab===k ? "#0f172a" : "#334155",
+                boxShadow: tab===k ? "0 1px 3px rgba(15,23,42,0.08)" : "none",
+                transition:"all 0.15s"
+              }}>{l}</button>
             ))}
           </nav>
         </div>
@@ -992,7 +1011,19 @@ function App() {
         {tab==="contracts" && <div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              <input placeholder="검색 (고객명, IMS번호, 보험사, 차종)" value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS,width:260}}/>
+              <div style={{display:"flex", gap:0, alignItems:"stretch"}}>
+                <select value={filter.searchField} onChange={e=>setFilter(f=>({...f,searchField:e.target.value}))} style={{...SS,width:120, borderTopRightRadius:0, borderBottomRightRadius:0, borderRight:"none"}}>
+                  <option value="customerNumber">고객차번호</option>
+                  <option value="customerName">고객명</option>
+                  <option value="customerVehicle">고객차종</option>
+                  <option value="vehicleNumber">대여차번호</option>
+                  <option value="vehicleModel">대여차종</option>
+                  <option value="id">IMS번호</option>
+                  <option value="insurer">보험사</option>
+                  <option value="all">전체</option>
+                </select>
+                <input placeholder={`${({customerNumber:"고객 차량번호",customerName:"고객명",customerVehicle:"고객 차종",vehicleNumber:"대여차 번호",vehicleModel:"대여차 차종",id:"IMS번호",insurer:"보험사",all:"전체 (모든 필드)"})[filter.searchField]} 검색`} value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS,width:220, borderTopLeftRadius:0, borderBottomLeftRadius:0}}/>
+              </div>
               <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width:120}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width:180}}><option value="all">전체 차량</option>{vehicles.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
               <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value}))} style={{...SS,width:140}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
@@ -1011,7 +1042,7 @@ function App() {
                   {["IMS","상태","고객명","대여차량","배차일","반납일","대여일수","보험사","청구금","대여료","입금일"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:500,color:"#0f172a",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {filtered.map((c,idx)=><tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #1a1a35",cursor:"pointer",background:idx%2===0?"transparent":"#13132a"}} onMouseEnter={e=>e.currentTarget.style.background="#e2e8f0"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"transparent":"#13132a"}>
+                  {filtered.map((c,idx)=><tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #f1f5f9",cursor:"pointer",background:idx%2===0?"#ffffff":"#f8fafc"}} onMouseEnter={e=>e.currentTarget.style.background="#dbeafe"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"#ffffff":"#f8fafc"}>
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",color:"#0f172a",fontSize:11}}>{c.id}</td>
                     <td style={{padding:"10px 12px"}}><Badge status={c.status}/></td>
                     <td style={{padding:"10px 12px",fontWeight:500}}>{c.customerName}</td>
@@ -1139,7 +1170,7 @@ function App() {
                     const fLabel={sold:'매각',paused:'중단',other_use:'타용도'}[fStatus];
                     const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed'}[fStatus];
                     return (
-                    <tr key={num} style={{borderBottom:"1px solid #1a1a35",background:idx%2===0?"transparent":"#13132a",opacity:isInactiveRow?0.7:1}}>
+                    <tr key={num} style={{borderBottom:"1px solid #f1f5f9",background:idx%2===0?"#ffffff":"#f8fafc",opacity:isInactiveRow?0.7:1}}>
                       <td style={{padding:"10px 10px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <span style={{width:8,height:8,borderRadius:"50%",background:v?.color||"#888",flexShrink:0}}/>
