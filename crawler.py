@@ -353,6 +353,19 @@ def main():
     if skipped:
         print(f'[SKIP] 입금완료 {skipped}건 제외')
 
+    # 같은 차량 배차중 중복 정리 — start_date 가장 최근만 유지, 나머지 청구전으로
+    # (한 차에 두 명 동시 대여 불가 → IMS의 cleanup 누락 데이터 보정)
+    by_vn_active = {}
+    for row in unique:
+        if row.get('status') == '배차중' and row.get('vehicle_number'):
+            by_vn_active.setdefault(row['vehicle_number'], []).append(row)
+    for vn, items in by_vn_active.items():
+        if len(items) > 1:
+            items.sort(key=lambda r: r.get('start_date') or '', reverse=True)
+            for r in items[1:]:
+                r['status'] = '청구전'
+            print(f'[FIX] {vn}: 배차중 {len(items)}건 → 최근 1건만 유지, {len(items)-1}건 청구전으로')
+
     print(f'[UPDATE] {len(unique)}건 업데이트 대상')
 
     if unique:
@@ -360,6 +373,27 @@ def main():
             unique, on_conflict='id'
         ).execute()
         print(f'[DB] Supabase {len(unique)}건 upsert 완료')
+
+    # 추가 DB 정리: IMS가 옛 배차중 행을 더 이상 안 보내는 경우도 정정
+    # (DB에는 남아있지만 새 배차중이 있으면 옛 행은 청구전으로)
+    try:
+        active_rows = supabase_client.table('accident_rentals') \
+            .select('id, vehicle_number, start_date') \
+            .eq('status', '배차중').eq('is_deleted', False).execute()
+        by_vn_db = {}
+        for r in active_rows.data or []:
+            by_vn_db.setdefault(r.get('vehicle_number'), []).append(r)
+        fix_ids = []
+        for vn, rows in by_vn_db.items():
+            if vn and len(rows) > 1:
+                rows.sort(key=lambda r: r.get('start_date') or '', reverse=True)
+                for r in rows[1:]:
+                    fix_ids.append(r['id'])
+        if fix_ids:
+            supabase_client.table('accident_rentals').update({'status': '청구전'}).in_('id', fix_ids).execute()
+            print(f'[DB FIX] 배차중 중복 {len(fix_ids)}건 → 청구전 정정')
+    except Exception as e:
+        print(f'[WARN] 배차중 중복 DB 정리 실패: {e}')
     else:
         print('[DB] 업데이트할 데이터 없음')
 
