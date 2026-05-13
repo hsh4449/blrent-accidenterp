@@ -286,6 +286,70 @@ def convert_claim(c, our_numbers):
     return row
 
 
+def build_extra_rows(c, our_numbers, main_row):
+    """교체건에 부 우리차 detail이 있으면 별도 행으로 분리 등록.
+    한 IMS 계약에 두 우리차가 모두 사용된 경우, 메인 차량 외 부 우리차도 별도 행으로
+    ERP에 등록해 스케줄/차량별 카드에 각자 표시되도록 한다.
+    """
+    if c.get('car_replaced', 0) != 1:
+        return []
+    main_rent_car = c.get('rent_car_number') or ''
+    extras = []
+    for d in [d for d in (c.get('details') or []) if d]:
+        num = d.get('rent_car_number') or ''
+        if not num or num == main_rent_car:
+            continue
+        if not any(num.endswith(n) for n in our_numbers):
+            continue  # 외부차는 분리 등록 안 함 (별도 컬럼에 이미 저장)
+
+        d_start, d_start_time = parse_datetime(d.get('delivered_date'))
+        d_end, d_end_time = parse_datetime(d.get('return_date'))
+
+        rent_car_name = d.get('rent_car_name') or ''
+        d_model = rent_car_name.replace(num, '').strip() or main_row.get('vehicle_model') or ''
+        for suffix, override in MODEL_OVERRIDE.items():
+            if num.endswith(suffix):
+                d_model = override
+                break
+
+        cost_str = d.get('claim_cost')
+        try:
+            d_cost = int(cost_str) if cost_str else 0
+        except (ValueError, TypeError):
+            d_cost = 0
+
+        detail_id = d.get('id')
+        d_id = str(detail_id) if detail_id else f"{c.get('id')}-{num}"
+
+        new_row = {**main_row}
+        new_row['id'] = d_id
+        new_row['vehicle_number'] = num
+        new_row['vehicle_model'] = d_model
+        new_row['start_date'] = d_start
+        new_row['start_time'] = d_start_time
+        new_row['end_date'] = d_end
+        new_row['end_time'] = d_end_time
+        new_row['billing_amount'] = d_cost  # 이 detail 분담 청구금
+        # 입금/대여료는 메인 행에서만 카운트 (중복 방지)
+        new_row['rental_fee'] = 0
+        new_row['deposit_date'] = None
+        # 외부차 정보는 부 행에 의미 없음
+        new_row['replacement_other_vehicle'] = None
+        new_row['replacement_other_model'] = None
+        new_row['replacement_other_start_date'] = None
+        new_row['replacement_other_end_date'] = None
+        new_row['replacement_other_days'] = None
+        new_row['replacement_other_cost'] = None
+
+        # 빈 값 제거 (보호 키)
+        for k in ['insurance_manager_name', 'insurance_manager_phone']:
+            if not new_row.get(k):
+                new_row.pop(k, None)
+
+        extras.append(new_row)
+    return extras
+
+
 def search_vehicle(session, car_number):
     """차량번호 검색 → __NEXT_DATA__에서 JSON 추출"""
     contracts = []
@@ -316,6 +380,9 @@ def search_vehicle(session, car_number):
                 skipped_other += 1
                 continue
             contracts.append(row)
+            # 두 우리차 교체 케이스: 부 우리차도 별도 행으로 분리
+            for extra in build_extra_rows(c, VEHICLE_NUMBERS, row):
+                contracts.append(extra)
 
         msg = f'  page {page}/{total_pages}: {len(claims)}건'
         if skipped_other:
