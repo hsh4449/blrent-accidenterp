@@ -310,7 +310,7 @@ function Modal({ open, onClose, title, children, width=560 }) {
       <div onClick={e=>e.stopPropagation()} style={{ position:"relative", background:"#1a1a2e", border:"1px solid #cbd5e1", borderRadius:16, width, maxWidth:"95vw", maxHeight:"90vh", overflow:"auto", padding:28, boxShadow:"0 24px 48px rgba(0,0,0,.4)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <h3 style={{ margin:0, fontSize:18, color:"#18181b" }}>{title}</h3>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#94a3b8", fontSize:22, cursor:"pointer", lineHeight:1 }}>x</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#1e293b", fontSize:22, cursor:"pointer", lineHeight:1 }}>x</button>
         </div>
         {children}
       </div>
@@ -319,7 +319,7 @@ function Modal({ open, onClose, title, children, width=560 }) {
 }
 
 function Field({ label, children }) {
-  return <div style={{ marginBottom:14 }}><label style={{ display:"block", fontSize:11, color:"#64748b", marginBottom:4 }}>{label}</label>{children}</div>;
+  return <div style={{ marginBottom:14 }}><label style={{ display:"block", fontSize:11, color:"#1e293b", marginBottom:4 }}>{label}</label>{children}</div>;
 }
 
 function EditableAmount({ value, onSave }) {
@@ -586,7 +586,7 @@ function App() {
     }
   }, []);
 
-  if(loading) return <div style={{minHeight:"100vh",background:"#f8fafc",display:"flex",alignItems:"center",justifyContent:"center",color:"#18181b",fontFamily:"'Pretendard',sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>BL</div><div style={{fontSize:13,color:"#64748b"}}>로딩 중...</div></div></div>;
+  if(loading) return <div style={{minHeight:"100vh",background:"#f8fafc",display:"flex",alignItems:"center",justifyContent:"center",color:"#18181b",fontFamily:"'Pretendard',sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>BL</div><div style={{fontSize:13,color:"#1e293b"}}>로딩 중...</div></div></div>;
 
   return (
     <div style={{ minHeight:"100vh", background:"#f8fafc", color:"#18181b", fontFamily:"'Pretendard',-apple-system,sans-serif" }}>
@@ -598,7 +598,7 @@ function App() {
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <div style={{ background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", borderRadius:8, width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, color:"#fff" }}>BL</div>
           <span style={{ fontSize:14, fontWeight:700 }}>사고대차 관리</span>
-          <span style={{ fontSize:11, color:"#a1a1aa" }}>{contracts.length}건</span>
+          <span style={{ fontSize:11, color:"#1e293b" }}>{contracts.length}건</span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
@@ -625,8 +625,8 @@ function App() {
               ];
             })().map((s,i)=>(
               <div key={i} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:"22px 24px", borderLeft:`4px solid ${s.a}` }}>
-                <div style={{ fontSize:14, color:"#64748b", marginBottom:8, fontWeight:500 }}>{s.l}</div>
-                <div style={{ fontSize:30, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}<span style={{ fontSize:14, color:"#64748b", marginLeft:4 }}>{s.u}</span></div>
+                <div style={{ fontSize:14, color:"#1e293b", marginBottom:8, fontWeight:500 }}>{s.l}</div>
+                <div style={{ fontSize:30, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}<span style={{ fontSize:14, color:"#1e293b", marginLeft:4 }}>{s.u}</span></div>
               </div>
             ))}
           </div>
@@ -649,7 +649,7 @@ function App() {
               const _selectStyle = { padding:"6px 10px", background:"#f8fafc", border:"1px solid #cbd5e1", borderRadius:7, color:"#18181b", fontSize:14, cursor:"pointer", fontWeight:600 };
               return <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:24 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, gap:12, flexWrap:"wrap" }}>
-                  <h4 style={{ margin:0, fontSize:17, fontWeight:700 }}>차량별 현황 <span style={{fontSize:13,color:"#64748b",fontWeight:400,marginLeft:8}}>상태 · 총 미입금 · {_monthLabel} 입금 · ▾ 펼치면 미입금 상세</span></h4>
+                  <h4 style={{ margin:0, fontSize:17, fontWeight:700 }}>차량별 현황 <span style={{fontSize:13,color:"#1e293b",fontWeight:400,marginLeft:8}}>상태 · 총 미입금 · {_monthLabel} 입금 · ▾ 펼치면 미입금 상세</span></h4>
                   <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                     <select value={_selYear} onChange={e=>setVehicleViewYm(`${e.target.value}-${_selMonth}`)} style={_selectStyle}>
                       {_yearOpts.map(y=><option key={y} value={y}>{y}년</option>)}
@@ -691,7 +691,7 @@ function App() {
                             <span style={{ width:12, height:12, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
                             <div>
                               <div style={{fontSize:18,fontWeight:700}}>{d.model}</div>
-                              <div style={{fontSize:14,color:"#64748b",marginTop:2}}>{num}</div>
+                              <div style={{fontSize:14,color:"#1e293b",marginTop:2}}>{num}</div>
                             </div>
                           </div>
                           {/* 중: 통계 4개 가로로 펼침 */}
@@ -700,27 +700,27 @@ function App() {
                               <span style={{padding:"4px 12px",borderRadius:6,background:isActive?"#f59e0b22":"#cbd5e1",color:isActive?"#f59e0b":"#888",fontWeight:700,fontSize:14}}>{isActive?"배차중":"대기"}</span>
                             </div>
                             <div style={{ textAlign:"center", minWidth:80 }}>
-                              <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>총 미입금</div>
-                              <div style={{fontSize:20,fontWeight:700,color:unpaidCount>0?"#ef4444":"#666",fontVariantNumeric:"tabular-nums"}}>{unpaidCount}<span style={{color:"#94a3b8",fontSize:12,marginLeft:2,fontWeight:400}}>건</span></div>
+                              <div style={{fontSize:11,color:"#1e293b",marginBottom:3}}>총 미입금</div>
+                              <div style={{fontSize:20,fontWeight:700,color:unpaidCount>0?"#ef4444":"#666",fontVariantNumeric:"tabular-nums"}}>{unpaidCount}<span style={{color:"#1e293b",fontSize:12,marginLeft:2,fontWeight:400}}>건</span></div>
                             </div>
                             <div style={{ textAlign:"center", minWidth:80 }}>
-                              <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>{_monthLabel} 계약</div>
-                              <div style={{fontSize:18,fontWeight:700,color:dispatchedCount>0?"#3b82f6":"#666",fontVariantNumeric:"tabular-nums"}}>{dispatchedCount}<span style={{color:"#94a3b8",fontSize:12,marginLeft:2,fontWeight:400}}>건</span></div>
+                              <div style={{fontSize:11,color:"#1e293b",marginBottom:3}}>{_monthLabel} 계약</div>
+                              <div style={{fontSize:18,fontWeight:700,color:dispatchedCount>0?"#3b82f6":"#666",fontVariantNumeric:"tabular-nums"}}>{dispatchedCount}<span style={{color:"#1e293b",fontSize:12,marginLeft:2,fontWeight:400}}>건</span></div>
                             </div>
                             <div style={{ textAlign:"center", minWidth:90 }}>
-                              <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>가동</div>
+                              <div style={{fontSize:11,color:"#1e293b",marginBottom:3}}>가동</div>
                               <div style={{fontSize:18,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>
                                 <span style={{color:daysRun>0?"#f59e0b":"#666"}}>{daysRun}</span>
-                                <span style={{color:"#94a3b8",fontSize:14,margin:"0 2px",fontWeight:400}}>/</span>
-                                <span style={{color:"#64748b",fontSize:14,fontWeight:600}}>{daysTotal}</span>
-                                <span style={{color:"#94a3b8",fontSize:12,marginLeft:2,fontWeight:400}}>일</span>
+                                <span style={{color:"#1e293b",fontSize:14,margin:"0 2px",fontWeight:400}}>/</span>
+                                <span style={{color:"#1e293b",fontSize:14,fontWeight:600}}>{daysTotal}</span>
+                                <span style={{color:"#1e293b",fontSize:12,marginLeft:2,fontWeight:400}}>일</span>
                               </div>
                             </div>
                             <div style={{ textAlign:"center", minWidth:140 }}>
-                              <div style={{fontSize:11,color:"#64748b",marginBottom:3}}>{_monthLabel} 입금</div>
+                              <div style={{fontSize:11,color:"#1e293b",marginBottom:3}}>{_monthLabel} 입금</div>
                               <div style={{fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>
-                                <span style={{color:monthDepCount>0?"#10b981":"#666"}}>{monthDepCount}</span><span style={{color:"#94a3b8",fontSize:12,marginLeft:2,fontWeight:400}}>건</span>
-                                <span style={{color:"#cbd5e1",margin:"0 6px"}}>·</span>
+                                <span style={{color:monthDepCount>0?"#10b981":"#666"}}>{monthDepCount}</span><span style={{color:"#1e293b",fontSize:12,marginLeft:2,fontWeight:400}}>건</span>
+                                <span style={{color:"#334155",margin:"0 6px"}}>·</span>
                                 <span style={{color:monthDepAmount>0?"#10b981":"#666",fontSize:16}}>₩{fmt(monthDepAmount)}</span>
                               </div>
                             </div>
@@ -731,7 +731,7 @@ function App() {
                           }} style={{padding:"10px 14px",background:isOpen?"#e2e8f0":"#3b82f6",color:isOpen?"#aaa":"#fff",border:"none",borderRadius:8,fontSize:20,fontWeight:700,cursor:"pointer",lineHeight:1,minWidth:52,flexShrink:0}}>{isOpen?"▴":"▾"}</button>
                         </div>
                         {isOpen && <div style={{ padding:"0 14px 14px" }}>
-                          {unpaidItems.length === 0 ? <div style={{padding:18,textAlign:"center",color:"#94a3b8",fontSize:14,background:"#ffffff",borderRadius:10}}>미청구·미입금 계약 없음</div> :
+                          {unpaidItems.length === 0 ? <div style={{padding:18,textAlign:"center",color:"#1e293b",fontSize:14,background:"#ffffff",borderRadius:10}}>미청구·미입금 계약 없음</div> :
                             unpaidItems.map(c => {
                               const billDays = c.billingDate ? Math.floor((_today - new Date(c.billingDate)) / 86400000) : null;
                               const isOverdue = billDays !== null && billDays >= 30;
@@ -750,23 +750,23 @@ function App() {
                                     <button onClick={()=>doDelete(c.id)} style={{ padding:"7px 16px", background:"#ef4444", color:"#fff", border:"none", borderRadius:7, fontSize:13, cursor:"pointer", fontWeight:700 }}>삭제</button>
                                   </div>
                                 </div>
-                                <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"8px 20px", color:"#475569", fontSize:14 }}>
-                                  <div><span style={{color:"#94a3b8"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</div>
+                                <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"8px 20px", color:"#1e293b", fontSize:14 }}>
+                                  <div><span style={{color:"#1e293b"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</div>
                                   <div>
                                     {c.status === "청구완료"
-                                      ? <><span style={{color:"#94a3b8"}}>청구 </span><span style={{color:isOverdue?"#ef4444":"#aaa"}}>{c.billingDate||"-"}</span>{billDays !== null && <span style={{color:isOverdue?"#ef4444":"#888",marginLeft:6,fontWeight:isOverdue?700:400}}>({billDays}일 경과)</span>}</>
-                                      : <><span style={{color:"#94a3b8"}}>청구금 </span>₩{fmt(c.billingAmount)}</>
+                                      ? <><span style={{color:"#1e293b"}}>청구 </span><span style={{color:isOverdue?"#ef4444":"#aaa"}}>{c.billingDate||"-"}</span>{billDays !== null && <span style={{color:isOverdue?"#ef4444":"#888",marginLeft:6,fontWeight:isOverdue?700:400}}>({billDays}일 경과)</span>}</>
+                                      : <><span style={{color:"#1e293b"}}>청구금 </span>₩{fmt(c.billingAmount)}</>
                                     }
                                   </div>
-                                  <div><span style={{color:"#94a3b8"}}>보험사 </span>{noInsurer ? _emptyTag("미입력", c) : c.insurer}</div>
-                                  <div><span style={{color:"#94a3b8"}}>담당자 </span>{noManager ? _emptyTag("미입력", c) : c.insuranceManagerName}</div>
-                                  <div style={{gridColumn:"1 / -1"}}><span style={{color:"#94a3b8"}}>연락처 </span>{noPhone ? _emptyTag("미입력 — 클릭하여 입력", c) : <a href={`tel:${c.insuranceManagerPhone}`} style={{color:"#3b82f6",textDecoration:"none",fontWeight:600}}>{c.insuranceManagerPhone}</a>}</div>
+                                  <div><span style={{color:"#1e293b"}}>보험사 </span>{noInsurer ? _emptyTag("미입력", c) : c.insurer}</div>
+                                  <div><span style={{color:"#1e293b"}}>담당자 </span>{noManager ? _emptyTag("미입력", c) : c.insuranceManagerName}</div>
+                                  <div style={{gridColumn:"1 / -1"}}><span style={{color:"#1e293b"}}>연락처 </span>{noPhone ? _emptyTag("미입력 — 클릭하여 입력", c) : <a href={`tel:${c.insuranceManagerPhone}`} style={{color:"#3b82f6",textDecoration:"none",fontWeight:600}}>{c.insuranceManagerPhone}</a>}</div>
                                   {c.status === '교체' && c.replacementOtherVehicle && (
                                     <div style={{gridColumn:"1 / -1", marginTop:8, padding:"10px 14px", background:"#a855f718", borderRadius:8, border:"1px solid #a855f744", fontSize:13, display:"flex", flexWrap:"wrap", gap:"4px 16px", alignItems:"baseline"}}>
                                       <span style={{color:"#a855f7",fontWeight:700}}>🔄 외부차</span>
-                                      <span><b style={{color:"#18181b"}}>{c.replacementOtherModel || "(모델 없음)"}</b> <span style={{color:"#64748b",marginLeft:4}}>{c.replacementOtherVehicle}</span></span>
-                                      {(c.replacementOtherStartDate || c.replacementOtherEndDate) && <span style={{color:"#475569"}}>{c.replacementOtherStartDate||"-"} ~ {c.replacementOtherEndDate||"-"}</span>}
-                                      {c.replacementOtherDays > 0 && <span><b style={{color:"#a855f7"}}>{c.replacementOtherDays}</b><span style={{color:"#64748b"}}>일</span></span>}
+                                      <span><b style={{color:"#18181b"}}>{c.replacementOtherModel || "(모델 없음)"}</b> <span style={{color:"#1e293b",marginLeft:4}}>{c.replacementOtherVehicle}</span></span>
+                                      {(c.replacementOtherStartDate || c.replacementOtherEndDate) && <span style={{color:"#1e293b"}}>{c.replacementOtherStartDate||"-"} ~ {c.replacementOtherEndDate||"-"}</span>}
+                                      {c.replacementOtherDays > 0 && <span><b style={{color:"#a855f7"}}>{c.replacementOtherDays}</b><span style={{color:"#1e293b"}}>일</span></span>}
                                       {c.replacementOtherCost > 0 && <span><b style={{color:"#a855f7",fontVariantNumeric:"tabular-nums"}}>₩{fmt(c.replacementOtherCost)}</b></span>}
                                     </div>
                                   )}
@@ -776,16 +776,16 @@ function App() {
                           }
                           {monthDeps.length > 0 && (
                             <div style={{marginTop:14, paddingTop:14, borderTop:"1px solid #cbd5e1"}}>
-                              <div style={{color:"#10b981", fontSize:14, fontWeight:700, marginBottom:8}}>{_monthLabel} 입금 완료 <b style={{fontSize:16,marginLeft:4}}>{monthDepCount}</b><span style={{color:"#64748b",fontSize:12,marginLeft:2}}>건</span> <span style={{color:"#94a3b8",margin:"0 6px"}}>·</span> <b style={{fontSize:16,fontVariantNumeric:"tabular-nums"}}>₩{fmt(monthDepAmount)}</b></div>
+                              <div style={{color:"#10b981", fontSize:14, fontWeight:700, marginBottom:8}}>{_monthLabel} 입금 완료 <b style={{fontSize:16,marginLeft:4}}>{monthDepCount}</b><span style={{color:"#1e293b",fontSize:12,marginLeft:2}}>건</span> <span style={{color:"#1e293b",margin:"0 6px"}}>·</span> <b style={{fontSize:16,fontVariantNumeric:"tabular-nums"}}>₩{fmt(monthDepAmount)}</b></div>
                               {monthDeps.slice().sort((a,b)=>(b.depositDate||"").localeCompare(a.depositDate||"")).map(c => (
                                 <div key={c.id} style={{padding:"12px 14px", borderRadius:8, background:"#ffffff", marginTop:8, border:"1px solid #e2e8f0"}}>
                                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
                                     <span style={{fontWeight:700, color:"#18181b", fontSize:15}}>{c.customerName || "(이름 없음)"}</span>
                                     <span style={{color:"#10b981",fontWeight:700,fontVariantNumeric:"tabular-nums",fontSize:15}}>₩{fmt(c.rentalFee)}</span>
                                   </div>
-                                  <div style={{display:"flex", gap:18, marginTop:8, fontSize:13, color:"#64748b"}}>
-                                    <span><span style={{color:"#94a3b8"}}>청구 </span>{c.billingDate || "-"}</span>
-                                    <span><span style={{color:"#94a3b8"}}>입금 </span><span style={{color:"#10b981"}}>{c.depositDate}</span></span>
+                                  <div style={{display:"flex", gap:18, marginTop:8, fontSize:13, color:"#1e293b"}}>
+                                    <span><span style={{color:"#1e293b"}}>청구 </span>{c.billingDate || "-"}</span>
+                                    <span><span style={{color:"#1e293b"}}>입금 </span><span style={{color:"#10b981"}}>{c.depositDate}</span></span>
                                   </div>
                                 </div>
                               ))}
@@ -836,10 +836,10 @@ function App() {
             <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:24 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, gap:12, flexWrap:"wrap" }}>
                 <div>
-                  <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:"#18181b" }}>입금 완료 <span style={{fontSize:13,color:"#64748b",fontWeight:400,marginLeft:8}}>{_monthLabel} 입금된 건만 차량별로</span></h3>
-                  <div style={{ fontSize:14, color:"#475569", marginTop:8 }}>
-                    {_monthLabel} 총 <b style={{color:totalCount>0?"#10b981":"#94a3b8",fontSize:18,marginLeft:4}}>{totalCount}</b><span style={{color:"#64748b",marginLeft:2}}>건</span>
-                    <span style={{color:"#cbd5e1",margin:"0 8px"}}>·</span>
+                  <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:"#18181b" }}>입금 완료 <span style={{fontSize:13,color:"#1e293b",fontWeight:400,marginLeft:8}}>{_monthLabel} 입금된 건만 차량별로</span></h3>
+                  <div style={{ fontSize:14, color:"#1e293b", marginTop:8 }}>
+                    {_monthLabel} 총 <b style={{color:totalCount>0?"#10b981":"#94a3b8",fontSize:18,marginLeft:4}}>{totalCount}</b><span style={{color:"#1e293b",marginLeft:2}}>건</span>
+                    <span style={{color:"#334155",margin:"0 8px"}}>·</span>
                     <b style={{color:totalAmount>0?"#10b981":"#94a3b8",fontSize:18,fontVariantNumeric:"tabular-nums"}}>₩{fmt(totalAmount)}</b>
                   </div>
                 </div>
@@ -853,18 +853,18 @@ function App() {
                 </div>
               </div>
 
-              {vehicleList.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#94a3b8",fontSize:14,background:"#f8fafc",borderRadius:10}}>{_monthLabel}에 입금 완료된 계약이 없습니다.</div> :
+              {vehicleList.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#1e293b",fontSize:14,background:"#f8fafc",borderRadius:10}}>{_monthLabel}에 입금 완료된 계약이 없습니다.</div> :
                 <div style={{display:"flex",flexDirection:"column",gap:14}}>
                   {vehicleList.map(v => (
                     <div key={v.num} style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 18px" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10, gap:12 }}>
                         <div>
                           <span style={{fontSize:17,fontWeight:700,color:"#18181b"}}>{v.model || "(차종 없음)"}</span>
-                          <span style={{fontSize:14,color:"#64748b",marginLeft:8}}>{v.num}</span>
+                          <span style={{fontSize:14,color:"#1e293b",marginLeft:8}}>{v.num}</span>
                         </div>
                         <div style={{ fontSize:14, fontVariantNumeric:"tabular-nums" }}>
-                          <b style={{color:"#10b981",fontSize:16}}>{v.items.length}</b><span style={{color:"#94a3b8",fontSize:12,marginLeft:2}}>건</span>
-                          <span style={{color:"#cbd5e1",margin:"0 8px"}}>·</span>
+                          <b style={{color:"#10b981",fontSize:16}}>{v.items.length}</b><span style={{color:"#1e293b",fontSize:12,marginLeft:2}}>건</span>
+                          <span style={{color:"#334155",margin:"0 8px"}}>·</span>
                           <b style={{color:"#10b981",fontSize:16}}>₩{fmt(v.amount)}</b>
                         </div>
                       </div>
@@ -873,11 +873,11 @@ function App() {
                           <div key={c.id} style={{ padding:"10px 14px", background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
                             <div style={{ flex:1, minWidth:0 }}>
                               <div style={{ fontSize:15, fontWeight:600, color:"#18181b", marginBottom:4 }}>{c.customerName || "(이름 없음)"}</div>
-                              <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 16px", fontSize:13, color:"#475569" }}>
-                                <span><span style={{color:"#94a3b8"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</span>
-                                <span><span style={{color:"#94a3b8"}}>청구 </span>{c.billingDate||"-"}</span>
-                                <span><span style={{color:"#94a3b8"}}>입금 </span><span style={{color:"#10b981",fontWeight:600}}>{c.depositDate}</span></span>
-                                {c.insurer && c.insurer !== '-' && <span><span style={{color:"#94a3b8"}}>보험사 </span>{c.insurer}</span>}
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 16px", fontSize:13, color:"#1e293b" }}>
+                                <span><span style={{color:"#1e293b"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</span>
+                                <span><span style={{color:"#1e293b"}}>청구 </span>{c.billingDate||"-"}</span>
+                                <span><span style={{color:"#1e293b"}}>입금 </span><span style={{color:"#10b981",fontWeight:600}}>{c.depositDate}</span></span>
+                                {c.insurer && c.insurer !== '-' && <span><span style={{color:"#1e293b"}}>보험사 </span>{c.insurer}</span>}
                               </div>
                             </div>
                             <span style={{ color:"#10b981", fontWeight:700, fontSize:16, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>₩{fmt(c.rentalFee)}</span>
@@ -903,23 +903,23 @@ function App() {
             </div>
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}}>+ 신규</button>
-              <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",background:"#e2e8f0",color:"#475569",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>엑셀</button>
-              <button onClick={()=>exportToExcel(filtered)} style={{padding:"7px 14px",background:"#e2e8f0",color:"#475569",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>내보내기</button>
-              <button onClick={doReset} style={{padding:"7px 10px",background:"#e2e8f0",color:"#94a3b8",border:"1px solid #cbd5e1",borderRadius:8,fontSize:10,cursor:"pointer"}}>초기화</button>
+              <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",background:"#e2e8f0",color:"#1e293b",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>엑셀</button>
+              <button onClick={()=>exportToExcel(filtered)} style={{padding:"7px 14px",background:"#e2e8f0",color:"#1e293b",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>내보내기</button>
+              <button onClick={doReset} style={{padding:"7px 10px",background:"#e2e8f0",color:"#1e293b",border:"1px solid #cbd5e1",borderRadius:8,fontSize:10,cursor:"pointer"}}>초기화</button>
             </div>
           </div>
           <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden" }}>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
                 <thead><tr style={{borderBottom:"1px solid #e2e8f0"}}>
-                  {["IMS","상태","고객명","대여차량","배차일","반납일","대여일수","보험사","청구금","대여료","입금일"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:500,color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
+                  {["IMS","상태","고객명","대여차량","배차일","반납일","대여일수","보험사","청구금","대여료","입금일"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:500,color:"#1e293b",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {filtered.map((c,idx)=><tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #1a1a35",cursor:"pointer",background:idx%2===0?"transparent":"#13132a"}} onMouseEnter={e=>e.currentTarget.style.background="#e2e8f0"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"transparent":"#13132a"}>
-                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",color:"#475569",fontSize:11}}>{c.id}</td>
+                    <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",color:"#1e293b",fontSize:11}}>{c.id}</td>
                     <td style={{padding:"10px 12px"}}><Badge status={c.status}/></td>
                     <td style={{padding:"10px 12px",fontWeight:500}}>{c.customerName}</td>
-                    <td style={{padding:"10px 12px"}}><div style={{fontSize:12}}>{c.vehicleModel}</div><div style={{fontSize:10,color:"#64748b"}}>{c.vehicleNumber}</div></td>
+                    <td style={{padding:"10px 12px"}}><div style={{fontSize:12}}>{c.vehicleModel}</div><div style={{fontSize:10,color:"#1e293b"}}>{c.vehicleNumber}</div></td>
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{c.startDate||"-"}</td>
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{c.endDate||"-"}</td>
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",textAlign:"center"}}>{c.endDate ? `${daysBetween(c.startDate,c.endDate)}일` : <span style={{color:"#f59e0b",fontSize:10}}>진행중</span>}</td>
@@ -928,15 +928,15 @@ function App() {
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",textAlign:"right"}}>{c.rentalFee?fmt(c.rentalFee):"-"}</td>
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums"}}>{c.depositDate?<span style={{color:"#10b981"}}>{c.depositDate}</span>:<span style={{color:"#ef4444",fontSize:11}}>미입금</span>}</td>
                   </tr>)}
-                  {!filtered.length && <tr><td colSpan={11} style={{padding:32,textAlign:"center",color:"#a1a1aa"}}>데이터 없음</td></tr>}
+                  {!filtered.length && <tr><td colSpan={11} style={{padding:32,textAlign:"center",color:"#1e293b"}}>데이터 없음</td></tr>}
                 </tbody>
               </table>
             </div>
             <div style={{padding:"14px 18px",borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:13,fontWeight:600,color:"#475569"}}>{filtered.length}건</span>
+              <span style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{filtered.length}건</span>
               <div style={{display:"flex",gap:20,alignItems:"center"}}>
-                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>청구금 합계</div><div style={{fontSize:16,fontWeight:800,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0))}원</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>대여료 합계</div><div style={{fontSize:16,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#1e293b",marginBottom:2}}>청구금 합계</div><div style={{fontSize:16,fontWeight:800,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0))}원</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#1e293b",marginBottom:2}}>대여료 합계</div><div style={{fontSize:16,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
               </div>
             </div>
           </div>
@@ -997,7 +997,7 @@ function App() {
             return (<>
               {/* 월 선택 탭 */}
               <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:14,marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                <span style={{fontSize:12,color:"#64748b",fontWeight:600,marginRight:4}}>정산월</span>
+                <span style={{fontSize:12,color:"#1e293b",fontWeight:600,marginRight:4}}>정산월</span>
                 <button onClick={()=>setSettlMonth("all")} style={{padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:settlMonth==="all"?700:400,background:settlMonth==="all"?"#3b82f6":"#e2e8f0",color:settlMonth==="all"?"#fff":"#888"}}>전체</button>
                 {allMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setSettlMonth(m)} style={{padding:"6px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:settlMonth===m?700:400,background:settlMonth===m?"#3b82f6":"#e2e8f0",color:settlMonth===m?"#fff":"#888"}}>{y.slice(2)}년 {parseInt(mm)}월</button>;})}
               </div>
@@ -1005,19 +1005,19 @@ function App() {
               {/* 핵심 KPI 3카드 */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
                 <div style={{background:"linear-gradient(135deg,#ffffff,#e2e8f0)",border:"1px solid #cbd5e1",borderRadius:12,padding:22,borderLeft:`4px solid ${T.settle>=0?"#10b981":"#ef4444"}`}}>
-                  <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>총 정산액 ({monthLabel})</div>
-                  <div style={{fontSize:30,fontWeight:800,color:T.settle>=0?"#10b981":"#ef4444",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(T.settle)}<span style={{fontSize:14,color:"#64748b",marginLeft:4}}>원</span></div>
-                  <div style={{fontSize:11,color:"#94a3b8",marginTop:8}}>수입 {fmt(T.income)} − 지출 {fmt(T.income-T.settle)}</div>
+                  <div style={{fontSize:11,color:"#1e293b",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>총 정산액 ({monthLabel})</div>
+                  <div style={{fontSize:30,fontWeight:800,color:T.settle>=0?"#10b981":"#ef4444",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(T.settle)}<span style={{fontSize:14,color:"#1e293b",marginLeft:4}}>원</span></div>
+                  <div style={{fontSize:11,color:"#1e293b",marginTop:8}}>수입 {fmt(T.income)} − 지출 {fmt(T.income-T.settle)}</div>
                 </div>
                 <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:22,borderLeft:"4px solid #3b82f6"}}>
-                  <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>1대당 평균 정산</div>
-                  <div style={{fontSize:26,fontWeight:800,color:"#3b82f6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(perVehicle)}<span style={{fontSize:14,color:"#64748b",marginLeft:4}}>원</span></div>
-                  <div style={{fontSize:11,color:"#94a3b8",marginTop:8}}>활동차량 {activeVehicleCount}대 기준</div>
+                  <div style={{fontSize:11,color:"#1e293b",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>1대당 평균 정산</div>
+                  <div style={{fontSize:26,fontWeight:800,color:"#3b82f6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(perVehicle)}<span style={{fontSize:14,color:"#1e293b",marginLeft:4}}>원</span></div>
+                  <div style={{fontSize:11,color:"#1e293b",marginTop:8}}>활동차량 {activeVehicleCount}대 기준</div>
                 </div>
                 <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:22,borderLeft:"4px solid #8b5cf6"}}>
-                  <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>차량 대수</div>
-                  <div style={{fontSize:26,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{activeVehicleCount}<span style={{fontSize:14,color:"#64748b",marginLeft:4}}>대</span></div>
-                  <div style={{fontSize:11,color:"#94a3b8",marginTop:8}}>전체 등록 {rows.length}대 · 계약 {T.cnt}건</div>
+                  <div style={{fontSize:11,color:"#1e293b",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>차량 대수</div>
+                  <div style={{fontSize:26,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{activeVehicleCount}<span style={{fontSize:14,color:"#1e293b",marginLeft:4}}>대</span></div>
+                  <div style={{fontSize:11,color:"#1e293b",marginTop:8}}>전체 등록 {rows.length}대 · 계약 {T.cnt}건</div>
                 </div>
               </div>
 
@@ -1027,11 +1027,11 @@ function App() {
                   <h4 style={{margin:0,fontSize:14,fontWeight:600}}>차량별 정산 ({monthLabel})</h4>
                   {!canEdit && <span style={{fontSize:11,color:"#f59e0b"}}>※ 고정비(할부/보험/기타) 편집은 특정 월 선택 시 가능</span>}
                 </div>
-                {!rows.length ? <div style={{padding:30,textAlign:"center",color:"#a1a1aa",fontSize:12}}>데이터 없음</div> :
+                {!rows.length ? <div style={{padding:30,textAlign:"center",color:"#1e293b",fontSize:12}}>데이터 없음</div> :
                 <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
                   <thead><tr style={{borderBottom:"1px solid #e2e8f0"}}>
-                    {["차량","건수","수입","VAT(10%)","할부","보험료","탁송료","수수료","기타","정산"].map(h=><th key={h} style={{padding:"10px 10px",textAlign:h==="차량"?"left":"right",fontWeight:500,color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
+                    {["차량","건수","수입","VAT(10%)","할부","보험료","탁송료","수수료","기타","정산"].map(h=><th key={h} style={{padding:"10px 10px",textAlign:h==="차량"?"left":"right",fontWeight:500,color:"#1e293b",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>)}
                   </tr></thead>
                   <tbody>{rows.map(([num,d],idx)=>{
                     const v=vehicles.find(x=>x.number===num);
@@ -1040,25 +1040,25 @@ function App() {
                       <td style={{padding:"10px 10px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <span style={{width:8,height:8,borderRadius:"50%",background:v?.color||"#888",flexShrink:0}}/>
-                          <div><div style={{fontWeight:600}}>{d.model}</div><div style={{fontSize:10,color:"#64748b"}}>{num}</div></div>
+                          <div><div style={{fontWeight:600}}>{d.model}</div><div style={{fontSize:10,color:"#1e293b"}}>{num}</div></div>
                         </div>
                       </td>
-                      <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#64748b"}}>{d.cnt}건</td>
+                      <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#1e293b"}}>{d.cnt}건</td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(d.income)}</td>
-                      <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#94a3b8"}}>{fmt(d.vat)}</td>
+                      <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#1e293b"}}>{fmt(d.vat)}</td>
                       <td style={{padding:"6px 10px",textAlign:"right"}}>
-                        {canEdit ? <EditableAmount value={d.installment} onSave={v=>saveMonthlyFixed(num,ym,{installment:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#475569"}}>{fmt(d.installment)}</span>}
+                        {canEdit ? <EditableAmount value={d.installment} onSave={v=>saveMonthlyFixed(num,ym,{installment:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#1e293b"}}>{fmt(d.installment)}</span>}
                       </td>
                       <td style={{padding:"6px 10px",textAlign:"right"}}>
-                        {canEdit ? <EditableAmount value={d.insurance} onSave={v=>saveMonthlyFixed(num,ym,{insurance:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#475569"}}>{fmt(d.insurance)}</span>}
+                        {canEdit ? <EditableAmount value={d.insurance} onSave={v=>saveMonthlyFixed(num,ym,{insurance:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#1e293b"}}>{fmt(d.insurance)}</span>}
                       </td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>
                         <div>{fmt(d.deliveryTotal)}</div>
-                        {d.deliveryCnt>0 && <div style={{fontSize:10,color:"#94a3b8"}}>{d.deliveryCnt}건</div>}
+                        {d.deliveryCnt>0 && <div style={{fontSize:10,color:"#1e293b"}}>{d.deliveryCnt}건</div>}
                       </td>
-                      <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#475569"}}>{fmt(d.commission)}</td>
+                      <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#1e293b"}}>{fmt(d.commission)}</td>
                       <td style={{padding:"6px 10px",textAlign:"right"}}>
-                        {canEdit ? <EditableAmount value={d.etc} onSave={v=>saveMonthlyFixed(num,ym,{etc_cost:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#475569"}}>{fmt(d.etc)}</span>}
+                        {canEdit ? <EditableAmount value={d.etc} onSave={v=>saveMonthlyFixed(num,ym,{etc_cost:v})}/> : <span style={{fontVariantNumeric:"tabular-nums",color:"#1e293b"}}>{fmt(d.etc)}</span>}
                       </td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontWeight:800,fontSize:13,fontVariantNumeric:"tabular-nums",color:d.settle>=0?"#10b981":"#ef4444"}}>{fmt(d.settle)}</td>
                     </tr>
@@ -1067,10 +1067,10 @@ function App() {
                     <td style={{padding:"14px 10px",fontWeight:800}}>합계</td>
                     <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{T.cnt}건</td>
                     <td style={{padding:"14px 10px",textAlign:"right",fontWeight:800,fontVariantNumeric:"tabular-nums",color:"#8b5cf6"}}>{fmt(T.income)}</td>
-                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#64748b"}}>{fmt(T.vat)}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",color:"#1e293b"}}>{fmt(T.vat)}</td>
                     <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.installment)}</td>
                     <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.insurance)}</td>
-                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.deliveryTotal)}{T.deliveryCnt>0 && <div style={{fontSize:10,color:"#94a3b8",fontWeight:400}}>{T.deliveryCnt}건</div>}</td>
+                    <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.deliveryTotal)}{T.deliveryCnt>0 && <div style={{fontSize:10,color:"#1e293b",fontWeight:400}}>{T.deliveryCnt}건</div>}</td>
                     <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.commission)}</td>
                     <td style={{padding:"14px 10px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(T.etc)}</td>
                     <td style={{padding:"14px 10px",textAlign:"right",fontWeight:900,fontSize:14,fontVariantNumeric:"tabular-nums",color:T.settle>=0?"#10b981":"#ef4444"}}>{fmt(T.settle)}</td>
@@ -1093,7 +1093,7 @@ function App() {
             <div style={{overflowX:"auto"}}>
               <div style={{minWidth:sched.dim*36+170}}>
                 <div style={{display:"flex",borderBottom:"1px solid #e2e8f0"}}>
-                  <div style={{minWidth:170,padding:"8px 14px",fontSize:11,color:"#64748b",fontWeight:500,flexShrink:0}}>차량</div>
+                  <div style={{minWidth:170,padding:"8px 14px",fontSize:11,color:"#1e293b",fontWeight:500,flexShrink:0}}>차량</div>
                   {Array.from({length:sched.dim},(_,i)=>{const d=new Date(sched.y,sched.m-1,i+1);const dow=d.getDay();const td=new Date();const isToday=d.getFullYear()===td.getFullYear()&&d.getMonth()===td.getMonth()&&d.getDate()===td.getDate();
                   return <div key={i} style={{minWidth:36,textAlign:"center",padding:"6px 0",fontSize:10,color:dow===0?"#ef4444":dow===6?"#3b82f6":"#888",borderLeft:"1px solid #1a1a35",background:isToday?"#e2e8f0":"transparent"}}><div style={{fontWeight:600}}>{i+1}</div><div>{["일","월","화","수","목","금","토"][dow]}</div></div>;})}
                 </div>
@@ -1101,7 +1101,7 @@ function App() {
                   <div key={v.number} style={{display:"flex",borderBottom:"1px solid #1a1a35",minHeight:52}}>
                     <div style={{minWidth:170,padding:"8px 14px",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
                       <span style={{width:8,height:8,borderRadius:"50%",background:vc?.color||"#888",flexShrink:0}}/>
-                      <div><div style={{fontWeight:600,fontSize:12}}>{v.model}</div><div style={{fontSize:10,color:"#64748b"}}>{v.number}</div></div>
+                      <div><div style={{fontWeight:600,fontSize:12}}>{v.model}</div><div style={{fontSize:10,color:"#1e293b"}}>{v.number}</div></div>
                     </div>
                     <div style={{position:"relative",display:"flex",flex:1}}>
                       {Array.from({length:sched.dim},(_,i)=><div key={i} style={{minWidth:36,borderLeft:"1px solid #1a1a35"}}/>)}
@@ -1111,12 +1111,12 @@ function App() {
                     </div>
                   </div>
                 );})}
-                {!sched.vs.length && <div style={{padding:40,textAlign:"center",color:"#a1a1aa",fontSize:13}}>이 달에 해당하는 계약 없음</div>}
+                {!sched.vs.length && <div style={{padding:40,textAlign:"center",color:"#1e293b",fontSize:13}}>이 달에 해당하는 계약 없음</div>}
               </div>
             </div>
           </div>
           <div style={{display:"flex",gap:12,marginTop:12,flexWrap:"wrap"}}>
-            {Object.entries(STATUS_COLORS).map(([n,c])=><div key={n} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}><span style={{width:12,height:12,borderRadius:3,background:c.dot+"cc"}}/>{n}</div>)}
+            {Object.entries(STATUS_COLORS).map(([n,c])=><div key={n} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#1e293b"}}><span style={{width:12,height:12,borderRadius:3,background:c.dot+"cc"}}/>{n}</div>)}
           </div>
         </div>}
 
@@ -1125,10 +1125,10 @@ function App() {
           <div style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:8 }}>
             <div>
               <h3 style={{ margin:0, fontSize:18, color:"#18181b" }}>🗑 휴지통</h3>
-              <div style={{ fontSize:13, color:"#64748b", marginTop:6 }}>삭제된 계약 {deletedContracts.length}건 · 복구 버튼 누르면 원래대로 돌아옵니다.</div>
+              <div style={{ fontSize:13, color:"#1e293b", marginTop:6 }}>삭제된 계약 {deletedContracts.length}건 · 복구 버튼 누르면 원래대로 돌아옵니다.</div>
             </div>
           </div>
-          {deletedContracts.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#94a3b8",fontSize:14,background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12}}>휴지통이 비어있습니다.</div> :
+          {deletedContracts.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#1e293b",fontSize:14,background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12}}>휴지통이 비어있습니다.</div> :
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {deletedContracts.slice().sort((a,b)=>(b.deletedAt||"").localeCompare(a.deletedAt||"")).map(c => (
               <div key={c.id} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
@@ -1137,11 +1137,11 @@ function App() {
                     <span style={{ fontWeight:700, color:"#18181b", fontSize:16 }}>{c.customerName || "(이름 없음)"}</span>
                     <Badge status={c.status} />
                   </div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 18px", fontSize:13, color:"#475569" }}>
-                    <span><span style={{color:"#94a3b8"}}>차량 </span>{c.vehicleModel} <span style={{color:"#94a3b8",marginLeft:4}}>{c.vehicleNumber}</span></span>
-                    <span><span style={{color:"#94a3b8"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</span>
-                    <span><span style={{color:"#94a3b8"}}>청구금 </span><b style={{color:"#18181b",fontVariantNumeric:"tabular-nums"}}>₩{fmt(c.billingAmount)}</b></span>
-                    <span><span style={{color:"#94a3b8"}}>삭제일 </span>{c.deletedAt ? c.deletedAt.slice(0,10) : "-"}</span>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 18px", fontSize:13, color:"#1e293b" }}>
+                    <span><span style={{color:"#1e293b"}}>차량 </span>{c.vehicleModel} <span style={{color:"#1e293b",marginLeft:4}}>{c.vehicleNumber}</span></span>
+                    <span><span style={{color:"#1e293b"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</span>
+                    <span><span style={{color:"#1e293b"}}>청구금 </span><b style={{color:"#18181b",fontVariantNumeric:"tabular-nums"}}>₩{fmt(c.billingAmount)}</b></span>
+                    <span><span style={{color:"#1e293b"}}>삭제일 </span>{c.deletedAt ? c.deletedAt.slice(0,10) : "-"}</span>
                   </div>
                 </div>
                 <button onClick={()=>doRestore(c.id)} style={{padding:"10px 18px",background:"#10b981",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>복구</button>
@@ -1159,7 +1159,7 @@ function App() {
             <div>
               <Badge status={selected.status}/>
               <div style={{fontSize:20,fontWeight:700,marginTop:8}}>{selected.customerName}</div>
-              <div style={{fontSize:12,color:"#64748b"}}>IMS {selected.id} | 접수 {selected.receiptNo}</div>
+              <div style={{fontSize:12,color:"#1e293b"}}>IMS {selected.id} | 접수 {selected.receiptNo}</div>
             </div>
             <div style={{display:"flex",gap:6}}>
               <button onClick={()=>{setEditData(selected);setEditModal(true);setSelected(null);}} style={{padding:"6px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>수정</button>
@@ -1169,18 +1169,18 @@ function App() {
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <div style={{background:"#f8fafc",borderRadius:10,padding:14}}>
-              <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}}>대여 정보</div>
-              {[["대여차종",selected.vehicleModel],["차량번호",selected.vehicleNumber],["배차자",selected.dispatcher],["배차일",`${selected.startDate||"-"} ${selected.startTime||""}`],["반납일",`${selected.endDate||"-"} ${selected.endTime||""}`],["대여일수",selected.endDate?`${daysBetween(selected.startDate,selected.endDate)}일`:"진행중"]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#64748b"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
+              <div style={{fontSize:11,color:"#1e293b",marginBottom:8,fontWeight:600}}>대여 정보</div>
+              {[["대여차종",selected.vehicleModel],["차량번호",selected.vehicleNumber],["배차자",selected.dispatcher],["배차일",`${selected.startDate||"-"} ${selected.startTime||""}`],["반납일",`${selected.endDate||"-"} ${selected.endTime||""}`],["대여일수",selected.endDate?`${daysBetween(selected.startDate,selected.endDate)}일`:"진행중"]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#1e293b"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
             </div>
             <div style={{background:"#f8fafc",borderRadius:10,padding:14}}>
-              <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}}>고객/보험</div>
-              {[["고객차량",`${selected.customerVehicle} (${selected.customerNumber})`],["연락처",selected.customerPhone],["과실",selected.fault],["보험사",selected.insurer],["청구처",selected.billingTo],["수리처",selected.repairShop==="-"?"없음":selected.repairShop]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#64748b"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
+              <div style={{fontSize:11,color:"#1e293b",marginBottom:8,fontWeight:600}}>고객/보험</div>
+              {[["고객차량",`${selected.customerVehicle} (${selected.customerNumber})`],["연락처",selected.customerPhone],["과실",selected.fault],["보험사",selected.insurer],["청구처",selected.billingTo],["수리처",selected.repairShop==="-"?"없음":selected.repairShop]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#1e293b"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
             </div>
           </div>
           <div style={{background:"#f8fafc",borderRadius:10,padding:14,marginTop:12}}>
-            <div style={{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}}>청구/정산</div>
+            <div style={{fontSize:11,color:"#1e293b",marginBottom:8,fontWeight:600}}>청구/정산</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-              {[["청구금",fmt(selected.billingAmount)+"원","#10b981"],["대여료",fmt(selected.rentalFee)+"원","#8b5cf6"],["청구일",selected.billingDate||"미청구","#3b82f6"],["입금일",selected.depositDate||"미입금",selected.depositDate?"#10b981":"#ef4444"]].map(([l,v,c])=><div key={l} style={{textAlign:"center"}}><div style={{fontSize:10,color:"#64748b",marginBottom:3}}>{l}</div><div style={{fontSize:14,fontWeight:700,color:c,fontVariantNumeric:"tabular-nums"}}>{v}</div></div>)}
+              {[["청구금",fmt(selected.billingAmount)+"원","#10b981"],["대여료",fmt(selected.rentalFee)+"원","#8b5cf6"],["청구일",selected.billingDate||"미청구","#3b82f6"],["입금일",selected.depositDate||"미입금",selected.depositDate?"#10b981":"#ef4444"]].map(([l,v,c])=><div key={l} style={{textAlign:"center"}}><div style={{fontSize:10,color:"#1e293b",marginBottom:3}}>{l}</div><div style={{fontSize:14,fontWeight:700,color:c,fontVariantNumeric:"tabular-nums"}}>{v}</div></div>)}
             </div>
           </div>
         </div>;
@@ -1243,7 +1243,7 @@ function EditForm({ init, vehs, onSave, onCancel }) {
       <Field label="수수료 지급처"><input value={f.commissionTo||""} onChange={e=>u("commissionTo",e.target.value)} style={IS} placeholder="예: 홍길동"/></Field>
     </div>
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
-      <button onClick={onCancel} style={{padding:"8px 20px",background:"#e2e8f0",color:"#64748b",border:"1px solid #cbd5e1",borderRadius:8,fontSize:12,cursor:"pointer"}}>취소</button>
+      <button onClick={onCancel} style={{padding:"8px 20px",background:"#e2e8f0",color:"#1e293b",border:"1px solid #cbd5e1",borderRadius:8,fontSize:12,cursor:"pointer"}}>취소</button>
       <button onClick={()=>onSave(f)} style={{padding:"8px 20px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}}>저장</button>
     </div>
   </div>;
