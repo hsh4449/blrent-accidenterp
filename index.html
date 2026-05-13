@@ -663,7 +663,11 @@ function App() {
                   {Object.entries(stats.vStats).map(([num,d])=>{
                     const v = vehicles.find(x=>x.number===num);
                     const cars = contracts.filter(c => c.vehicleNumber === num);
-                    const isActive = cars.some(c => c.status === '배차중');
+                    const _todayStr = _today.toISOString().slice(0,10);
+                    const isActive = cars.some(c =>
+                      c.status === '배차중' ||
+                      (c.status === '교체' && (!c.endDate || c.endDate >= _todayStr))
+                    );
                     const unpaidCount = cars.filter(c => c.status === '청구완료').length;
                     const monthDeps = cars.filter(c => c.depositDate && c.depositDate.startsWith(_ymPrefix));
                     const monthDepCount = monthDeps.length;
