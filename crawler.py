@@ -442,6 +442,20 @@ def main():
                 r['status'] = '청구전'
             print(f'[FIX] {vn}: 배차중 {len(items)}건 → 최근 1건만 유지, {len(items)-1}건 청구전으로')
 
+    # rental_fee 이상치 보호 — IMS deposit_cost는 취소된 입금 항목까지 raw 합산해서 보내는 케이스가 있음
+    # (예: 대여료 776,620 입력 후 취소 → IMS UI는 776,620이지만 API deposit_cost는 1,553,240)
+    # 청구금 > 0 인데 대여료 > 청구금이면 비정상 — upsert에서 rental_fee 컬럼 제외해 DB 기존 값 보존
+    fee_protected = 0
+    for row in unique:
+        bil = row.get('billing_amount') or 0
+        ren = row.get('rental_fee') or 0
+        if bil > 0 and ren > bil:
+            print(f'[WARN] {row["id"]} {row.get("customer_name","")}: rental_fee {ren:,} > billing_amount {bil:,} — rental_fee 보호(upsert 제외, ERP 수정값 유지)')
+            row.pop('rental_fee', None)
+            fee_protected += 1
+    if fee_protected:
+        print(f'[PROTECT] rental_fee 이상치 {fee_protected}건 — 청구금 < 대여료 케이스 보호됨')
+
     print(f'[UPDATE] {len(unique)}건 업데이트 대상')
 
     if unique:
