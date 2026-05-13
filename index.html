@@ -222,8 +222,7 @@ const STATUS_COLORS = {
 };
 
 const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#06b6d4","#f97316","#84cc16","#a855f7","#14b8a6","#e11d48"];
-// 본사 보유차량 목록 (정산화면 집계 대상) - 외부차량/대차교체건은 정산에서 제외
-const FLEET_VEHICLES = new Set(["106호9579","106호8089","106호9470","106호7725","106호9879","106호9894","106호7950","106호7940","106호4926","07호7034","106호3910","106호5080","07호6078","106호7986"]);
+// 본사 보유차량은 Supabase `accident_fleet` 테이블에서 동적으로 불러옴 (차량 관리 탭에서 추가/변경)
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -354,6 +353,24 @@ function Toast({ msg, type, onDone }) {
   );
 }
 
+function FleetAddForm({ onAdd }) {
+  const [num, setNum] = useState("");
+  const [model, setModel] = useState("");
+  const submit = async () => {
+    const ok = await onAdd(num, model);
+    if (ok) { setNum(""); setModel(""); }
+  };
+  const onKey = e => { if (e.key === 'Enter') submit(); };
+  return (
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", padding:"14px 16px", background:"#f8fafc", border:"1px dashed #cbd5e1", borderRadius:10 }}>
+      <span style={{ fontSize:13, fontWeight:700, color:"#0f172a" }}>+ 차량 추가</span>
+      <input value={num} onChange={e=>setNum(e.target.value)} onKeyDown={onKey} placeholder="차량번호 (예: 106호9340)" style={{ padding:"7px 12px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, fontSize:13, color:"#18181b", minWidth:200 }}/>
+      <input value={model} onChange={e=>setModel(e.target.value)} onKeyDown={onKey} placeholder="모델 (예: CLE 클래스)" style={{ padding:"7px 12px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, fontSize:13, color:"#18181b", minWidth:200 }}/>
+      <button onClick={submit} style={{ padding:"7px 16px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:7, fontSize:13, fontWeight:700, cursor:"pointer" }}>추가</button>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════
 function App() {
   const [contracts, setContracts] = useState([]);
@@ -375,30 +392,88 @@ function App() {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
   });
+  // accident_fleet: { vehicleNumber: { model, status, note } }
+  // status: 'active' | 'sold' | 'paused' | 'other_use'
+  const [fleet, setFleet] = useState({});
+  const [showInactiveFleet, setShowInactiveFleet] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [{ data: rentals, error: e1 }, { data: fixed, error: e2 }] = await Promise.all([
+        const [{ data: rentals, error: e1 }, { data: fixed, error: e2 }, { data: fleetData, error: e3 }] = await Promise.all([
           supabaseClient.from('accident_rentals').select('*').order('start_date', { ascending: false }),
           supabaseClient.from('vehicle_monthly_fixed').select('*'),
+          supabaseClient.from('accident_fleet').select('*'),
         ]);
         // 휴지통 = is_deleted, 일반 계약 = 나머지 (한 번에 가져와서 분리)
         if (e1) throw e1;
         if (e2) throw e2;
+        if (e3) throw e3;
         const allRentals = rentals.map(fromDbRow);
         setContracts(allRentals.filter(c => !c.isDeleted));
         setDeletedContracts(allRentals.filter(c => c.isDeleted));
         const mf = {};
         (fixed||[]).forEach(r => { mf[`${r.vehicle_number}|${r.year_month}`] = { installment: r.installment||0, insurance: r.insurance||0, etc_cost: r.etc_cost||0, etc_note: r.etc_note||"" }; });
         setMonthlyFixed(mf);
+        const fm = {};
+        (fleetData||[]).forEach(r => { fm[r.vehicle_number] = { model: r.model, status: r.status, note: r.note || '' }; });
+        setFleet(fm);
       } catch(e) {
         console.error('Supabase load error:', e);
         setContracts(INITIAL_DATA);
       }
       setLoading(false);
     })();
+  }, []);
+
+  // 활성 차량 Set + 등록된 fleet 전체 Set
+  const activeFleetSet = useMemo(() => {
+    const s = new Set();
+    Object.entries(fleet).forEach(([num, info]) => { if (info.status === 'active') s.add(num); });
+    return s;
+  }, [fleet]);
+  const fleetSet = useMemo(() => new Set(Object.keys(fleet)), [fleet]);
+
+  // 차량별 카드/스케줄에서 표시할지 여부: 등록 + active (showInactive 토글이면 inactive도)
+  const isFleetVisible = useCallback((num) => {
+    const f = fleet[num];
+    if (!f) return false; // 미등록 차량은 숨김 (정산엔 별개로 다룸)
+    return showInactiveFleet || f.status === 'active';
+  }, [fleet, showInactiveFleet]);
+
+  const saveFleet = useCallback(async (vehicleNumber, patch) => {
+    const prev = fleet[vehicleNumber] || { model: '', status: 'active', note: '' };
+    const next = { ...prev, ...patch };
+    setFleet(p => ({ ...p, [vehicleNumber]: next }));
+    const payload = {
+      vehicle_number: vehicleNumber,
+      model: next.model,
+      status: next.status,
+      note: next.note || null,
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.status && patch.status !== prev.status) payload.status_changed_at = new Date().toISOString();
+    const { error } = await supabaseClient.from('accident_fleet').upsert(payload, { onConflict: 'vehicle_number' });
+    if (error) { setToast({msg:"저장 실패: "+error.message, type:"error"}); }
+  }, [fleet]);
+
+  const addFleet = useCallback(async (vehicleNumber, model) => {
+    const vn = (vehicleNumber||'').trim();
+    const mod = (model||'').trim();
+    if (!vn || !mod) { setToast({msg:"차량번호와 모델은 필수입니다", type:"error"}); return false; }
+    if (fleet[vn]) { setToast({msg:"이미 등록된 차량입니다", type:"error"}); return false; }
+    await saveFleet(vn, { model: mod, status: 'active', note: '' });
+    setToast({msg:`${vn} 추가됨`, type:"success"});
+    return true;
+  }, [fleet, saveFleet]);
+
+  const deleteFleet = useCallback(async (vehicleNumber) => {
+    if (!confirm(`${vehicleNumber}을(를) 차량 목록에서 삭제할까요?\n(과거 계약/통계 데이터는 그대로 유지됩니다)`)) return;
+    const { error } = await supabaseClient.from('accident_fleet').delete().eq('vehicle_number', vehicleNumber);
+    if (error) { setToast({msg:"삭제 실패: "+error.message, type:"error"}); return; }
+    setFleet(p => { const n = {...p}; delete n[vehicleNumber]; return n; });
+    setToast({msg:"삭제됨", type:"success"});
   }, []);
 
   // 월별 고정비 저장 (차량×월)
@@ -610,7 +685,7 @@ function App() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
-            {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["trash",`🗑 휴지통${deletedContracts.length>0?` (${deletedContracts.length})`:""}`]].map(([k,l])=>(
+            {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["trash",`🗑 휴지통${deletedContracts.length>0?` (${deletedContracts.length})`:""}`]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:12, fontWeight:tab===k?600:400, background:tab===k?"#e2e8f0":"transparent", color:tab===k?"#18181b":"#777" }}>{l}</button>
             ))}
           </nav>
@@ -659,6 +734,10 @@ function App() {
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, gap:12, flexWrap:"wrap" }}>
                   <h4 style={{ margin:0, fontSize:17, fontWeight:700 }}>차량별 현황 <span style={{fontSize:13,color:"#0f172a",fontWeight:400,marginLeft:8}}>상태 · 총 미입금 · {_monthLabel} 입금 · ▾ 펼치면 미입금 상세</span></h4>
                   <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                    <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"#0f172a", cursor:"pointer", padding:"6px 10px", background:"#f8fafc", border:"1px solid #cbd5e1", borderRadius:7, fontWeight:600 }}>
+                      <input type="checkbox" checked={showInactiveFleet} onChange={e=>setShowInactiveFleet(e.target.checked)} style={{margin:0}}/>
+                      비활성 포함
+                    </label>
                     <select value={_selYear} onChange={e=>setVehicleViewYm(`${e.target.value}-${_selMonth}`)} style={_selectStyle}>
                       {_yearOpts.map(y=><option key={y} value={y}>{y}년</option>)}
                     </select>
@@ -668,7 +747,7 @@ function App() {
                   </div>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {Object.entries(stats.vStats).map(([num,d])=>{
+                  {Object.entries(stats.vStats).filter(([num]) => isFleetVisible(num)).map(([num,d])=>{
                     const v = vehicles.find(x=>x.number===num);
                     const cars = contracts.filter(c => c.vehicleNumber === num);
                     const _todayStr = _today.toISOString().slice(0,10);
@@ -691,14 +770,22 @@ function App() {
                     const daysTotal = _ymPrefix === _curYmStr
                       ? _today.getDate()
                       : new Date(_yNum, _mNum, 0).getDate();
+                    const fleetInfo = fleet[num];
+                    const fleetStatus = fleetInfo?.status || 'active';
+                    const isInactiveFleet = fleetStatus !== 'active';
+                    const fleetLabel = { sold:'매각', paused:'중단', other_use:'타용도' }[fleetStatus];
+                    const fleetColor = { sold:'#dc2626', paused:'#a16207', other_use:'#7c3aed' }[fleetStatus];
                     return (
-                      <div key={num} style={{ background:"#f8fafc", borderRadius:10, overflow:"hidden" }}>
+                      <div key={num} style={{ background:"#f8fafc", borderRadius:10, overflow:"hidden", opacity: isInactiveFleet ? 0.65 : 1 }}>
                         <div style={{ display:"flex", alignItems:"center", padding:"16px 20px", gap:20 }}>
                           {/* 좌: 차량 정보 */}
                           <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0, minWidth:170 }}>
                             <span style={{ width:12, height:12, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
                             <div>
-                              <div style={{fontSize:18,fontWeight:700}}>{d.model}</div>
+                              <div style={{fontSize:18,fontWeight:700, display:"flex", alignItems:"center", gap:6}}>
+                                {d.model}
+                                {isInactiveFleet && <span style={{fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:4, background:fleetColor+"22", color:fleetColor, letterSpacing:0}}>{fleetLabel}</span>}
+                              </div>
                               <div style={{fontSize:14,color:"#0f172a",marginTop:2}}>{num}</div>
                             </div>
                           </div>
@@ -963,11 +1050,13 @@ function App() {
             const ym = settlMonth;
             const monthContracts = ym==="all" ? contracts.filter(c=>c.depositDate) : contracts.filter(c=>c.depositDate && c.depositDate.startsWith(ym));
 
-            // 차량 목록 (본사 fleet만) — 외부차량/대차교체건은 정산에서 제외
+            // 차량 목록 (본사 fleet만, status 무관 — 매각/중단 차량도 통계 포함) — 외부차량/대차교체건은 정산에서 제외
             const vnums = new Set();
-            monthContracts.forEach(c => { if (c.vehicleNumber && FLEET_VEHICLES.has(c.vehicleNumber)) vnums.add(c.vehicleNumber); });
-            if (ym !== "all") Object.keys(monthlyFixed).forEach(k => { const [vn,m]=k.split("|"); if (m===ym && FLEET_VEHICLES.has(vn)) vnums.add(vn); });
-            vehicles.forEach(v => { if (FLEET_VEHICLES.has(v.number)) vnums.add(v.number); });
+            monthContracts.forEach(c => { if (c.vehicleNumber && fleetSet.has(c.vehicleNumber)) vnums.add(c.vehicleNumber); });
+            if (ym !== "all") Object.keys(monthlyFixed).forEach(k => { const [vn,m]=k.split("|"); if (m===ym && fleetSet.has(vn)) vnums.add(vn); });
+            vehicles.forEach(v => { if (fleetSet.has(v.number)) vnums.add(v.number); });
+            // accident_fleet 등록된 모든 차량은 항상 행 표시 (활동 없어도)
+            fleetSet.forEach(vn => vnums.add(vn));
 
             // 차량별 집계 (Excel 정산서 방식)
             const vStats = {};
@@ -1044,12 +1133,23 @@ function App() {
                   </tr></thead>
                   <tbody>{rows.map(([num,d],idx)=>{
                     const v=vehicles.find(x=>x.number===num);
+                    const fInfo=fleet[num];
+                    const fStatus=fInfo?.status||'active';
+                    const isInactiveRow=fStatus!=='active';
+                    const fLabel={sold:'매각',paused:'중단',other_use:'타용도'}[fStatus];
+                    const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed'}[fStatus];
                     return (
-                    <tr key={num} style={{borderBottom:"1px solid #1a1a35",background:idx%2===0?"transparent":"#13132a"}}>
+                    <tr key={num} style={{borderBottom:"1px solid #1a1a35",background:idx%2===0?"transparent":"#13132a",opacity:isInactiveRow?0.7:1}}>
                       <td style={{padding:"10px 10px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <span style={{width:8,height:8,borderRadius:"50%",background:v?.color||"#888",flexShrink:0}}/>
-                          <div><div style={{fontWeight:600}}>{d.model}</div><div style={{fontSize:10,color:"#0f172a"}}>{num}</div></div>
+                          <div>
+                            <div style={{fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+                              {d.model || fInfo?.model || "(차종 없음)"}
+                              {fLabel && <span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:fColor+"22",color:fColor}}>{fLabel}</span>}
+                            </div>
+                            <div style={{fontSize:10,color:"#0f172a"}}>{num}</div>
+                          </div>
                         </div>
                       </td>
                       <td style={{padding:"10px 10px",textAlign:"right",fontVariantNumeric:"tabular-nums",color:"#0f172a"}}>{d.cnt}건</td>
@@ -1097,6 +1197,10 @@ function App() {
             <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);const d=new Date(y,m-2,1);setSchedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}} style={{background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:8,color:"#18181b",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&lt;</button>
             <span style={{fontSize:16,fontWeight:700,minWidth:130,textAlign:"center"}}>{sched.y}년 {sched.m}월</span>
             <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);const d=new Date(y,m,1);setSchedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}} style={{background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:8,color:"#18181b",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&gt;</button>
+            <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"#0f172a", cursor:"pointer", padding:"6px 10px", background:"#f8fafc", border:"1px solid #cbd5e1", borderRadius:7, fontWeight:600, marginLeft:8 }}>
+              <input type="checkbox" checked={showInactiveFleet} onChange={e=>setShowInactiveFleet(e.target.checked)} style={{margin:0}}/>
+              비활성 포함
+            </label>
           </div>
           <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,overflow:"hidden"}}>
             <div style={{overflowX:"auto"}}>
@@ -1106,11 +1210,11 @@ function App() {
                   {Array.from({length:sched.dim},(_,i)=>{const d=new Date(sched.y,sched.m-1,i+1);const dow=d.getDay();const td=new Date();const isToday=d.getFullYear()===td.getFullYear()&&d.getMonth()===td.getMonth()&&d.getDate()===td.getDate();
                   return <div key={i} style={{minWidth:36,textAlign:"center",padding:"6px 0",fontSize:10,color:dow===0?"#ef4444":dow===6?"#3b82f6":"#888",borderLeft:"1px solid #1a1a35",background:isToday?"#e2e8f0":"transparent"}}><div style={{fontWeight:600}}>{i+1}</div><div>{["일","월","화","수","목","금","토"][dow]}</div></div>;})}
                 </div>
-                {sched.vs.map(v=>{const vc=vehicles.find(x=>x.number===v.number);return(
-                  <div key={v.number} style={{display:"flex",borderBottom:"1px solid #1a1a35",minHeight:52}}>
+                {sched.vs.filter(v=>isFleetVisible(v.number)).map(v=>{const vc=vehicles.find(x=>x.number===v.number);const fInfo=fleet[v.number];const fStatus=fInfo?.status||'active';const fLabel={sold:'매각',paused:'중단',other_use:'타용도'}[fStatus];const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed'}[fStatus];return(
+                  <div key={v.number} style={{display:"flex",borderBottom:"1px solid #1a1a35",minHeight:52,opacity:fStatus!=='active'?0.6:1}}>
                     <div style={{minWidth:170,padding:"8px 14px",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
                       <span style={{width:8,height:8,borderRadius:"50%",background:vc?.color||"#888",flexShrink:0}}/>
-                      <div><div style={{fontWeight:600,fontSize:12}}>{v.model}</div><div style={{fontSize:10,color:"#0f172a"}}>{v.number}</div></div>
+                      <div><div style={{fontWeight:600,fontSize:12,display:"flex",alignItems:"center",gap:5}}>{v.model}{fLabel&&<span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:fColor+"22",color:fColor}}>{fLabel}</span>}</div><div style={{fontSize:10,color:"#0f172a"}}>{v.number}</div></div>
                     </div>
                     <div style={{position:"relative",display:"flex",flex:1}}>
                       {Array.from({length:sched.dim},(_,i)=><div key={i} style={{minWidth:36,borderLeft:"1px solid #1a1a35"}}/>)}
@@ -1128,6 +1232,78 @@ function App() {
             {Object.entries(STATUS_COLORS).map(([n,c])=><div key={n} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#0f172a"}}><span style={{width:12,height:12,borderRadius:3,background:c.dot+"cc"}}/>{n}</div>)}
           </div>
         </div>}
+
+        {/* ── FLEET (차량 관리) ── */}
+        {tab==="fleet" && (() => {
+          const STATUS_OPTIONS = [
+            { v:'active',    l:'운영중',   c:'#10b981' },
+            { v:'sold',      l:'매각',     c:'#dc2626' },
+            { v:'paused',    l:'사고대여 중단', c:'#a16207' },
+            { v:'other_use', l:'타용도',   c:'#7c3aed' },
+          ];
+          const rows = Object.entries(fleet)
+            .map(([num, info]) => ({ num, ...info }))
+            .sort((a,b) => {
+              // active 먼저, 그 안에서 차량번호 정렬
+              const aActive = a.status === 'active' ? 0 : 1;
+              const bActive = b.status === 'active' ? 0 : 1;
+              if (aActive !== bActive) return aActive - bActive;
+              return a.num.localeCompare(b.num);
+            });
+          const counts = rows.reduce((acc, r) => { acc[r.status] = (acc[r.status]||0)+1; return acc; }, {});
+          return <div>
+            <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:24, marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16, flexWrap:"wrap", gap:14 }}>
+                <div>
+                  <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:"#18181b" }}>차량 관리</h3>
+                  <div style={{ fontSize:13, color:"#0f172a", marginTop:6 }}>운영 중인 차량만 대시보드/스케줄에 표시. 매각·중단·타용도 차량은 화면에서 숨겨지지만 과거 통계·정산은 그대로 잡힙니다.</div>
+                </div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {STATUS_OPTIONS.map(s => (
+                    <span key={s.v} style={{ padding:"4px 10px", borderRadius:6, background:s.c+"18", color:s.c, fontSize:12, fontWeight:700 }}>{s.l} {counts[s.v]||0}</span>
+                  ))}
+                </div>
+              </div>
+              {/* 신규 추가 폼 */}
+              <FleetAddForm onAdd={addFleet}/>
+            </div>
+
+            <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:0, overflow:"hidden" }}>
+              <div style={{ padding:"14px 20px", borderBottom:"1px solid #e2e8f0", background:"#f8fafc", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:14, fontWeight:700 }}>등록 차량 {rows.length}대</span>
+              </div>
+              {rows.length === 0 ? <div style={{ padding:40, textAlign:"center", color:"#0f172a", fontSize:13 }}>등록된 차량이 없습니다. 위에서 추가하세요.</div> :
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                  <thead><tr style={{ borderBottom:"1px solid #e2e8f0", background:"#f8fafc" }}>
+                    {["차량번호","모델","운영 상태","메모","액션"].map(h => <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:600, color:"#0f172a", fontSize:12, whiteSpace:"nowrap" }}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {rows.map(r => {
+                      const opt = STATUS_OPTIONS.find(s => s.v === r.status) || STATUS_OPTIONS[0];
+                      const isInactive = r.status !== 'active';
+                      return <tr key={r.num} style={{ borderBottom:"1px solid #f1f5f9", opacity: isInactive ? 0.75 : 1 }}>
+                        <td style={{ padding:"12px 14px", fontWeight:700, fontFamily:"'Pretendard',monospace" }}>{r.num}</td>
+                        <td style={{ padding:"12px 14px" }}>{r.model}</td>
+                        <td style={{ padding:"8px 14px" }}>
+                          <select value={r.status} onChange={e=>saveFleet(r.num, { status: e.target.value })} style={{ padding:"6px 10px", background: opt.c+"15", color: opt.c, border:`1px solid ${opt.c}55`, borderRadius:6, fontSize:13, fontWeight:700, cursor:"pointer", minWidth:140 }}>
+                            {STATUS_OPTIONS.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding:"8px 14px" }}>
+                          <input defaultValue={r.note} onBlur={e=>{ const v = e.target.value; if (v !== r.note) saveFleet(r.num, { note: v }); }} placeholder="사유, 매각일 등" style={{ width:"100%", minWidth:200, padding:"6px 10px", background:"#f8fafc", border:"1px solid #cbd5e1", borderRadius:6, fontSize:13, color:"#18181b" }}/>
+                        </td>
+                        <td style={{ padding:"8px 14px" }}>
+                          <button onClick={()=>deleteFleet(r.num)} style={{ padding:"6px 12px", background:"#ef4444", color:"#fff", border:"none", borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer" }}>삭제</button>
+                        </td>
+                      </tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>}
+            </div>
+          </div>;
+        })()}
 
         {/* ── TRASH ── */}
         {tab==="trash" && <div>
