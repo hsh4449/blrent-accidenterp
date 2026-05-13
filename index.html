@@ -547,6 +547,8 @@ function App() {
     const _ensureVeh = (m, vn, model) => {
       if (!m.vehicles[vn]) m.vehicles[vn] = { model: model || '', days: 0, cnt: 0, bill: 0 };
     };
+    // 같은 차량×같은 날짜 중복 카운트 방지 (인접 계약의 경계일 보호)
+    const _seenVehicleDays = new Set();
     contracts.forEach(c => {
       if (!c.startDate) return;
       // bill/dep/cnt: 시작 월에만 카운트 (계약 단위)
@@ -572,11 +574,15 @@ function App() {
       monthly[startYm].vehicles[c.vehicleNumber].bill += (c.billingAmount||0);
 
       // 차량 활동 일수: 일별 순회로 각 월에 속한 일수만 그 월에 누적
+      // 같은 차량의 같은 날짜는 한 번만 카운트 (인접 계약: A 03-06 반납 + B 03-06 인수 시 03-06 중복 방지)
       const start = new Date(c.startDate);
       const end = c.endDate ? new Date(c.endDate) : _today;
       if (end < start) return;
       for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
         const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const dayKey = `${c.vehicleNumber}|${ym}-${String(d.getDate()).padStart(2,'0')}`;
+        if (_seenVehicleDays.has(dayKey)) continue;
+        _seenVehicleDays.add(dayKey);
         if (!monthly[ym]) monthly[ym] = { bill:0, dep:0, cnt:0, vehicles:{} };
         _ensureVeh(monthly[ym], c.vehicleNumber, c.vehicleModel);
         monthly[ym].vehicles[c.vehicleNumber].days += 1;
