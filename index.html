@@ -1425,7 +1425,7 @@ function App() {
             </div>
             <div style={{background:"#f8fafc",borderRadius:10,padding:14}}>
               <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600}}>고객/보험</div>
-              {[["고객차량",`${selected.customerVehicle} (${selected.customerNumber})`],["연락처",selected.customerPhone],["과실",selected.fault],["보험사",selected.insurer],["청구처",selected.billingTo],["수리처",selected.repairShop==="-"?"없음":selected.repairShop]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#0f172a"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
+              {[["고객차량",`${selected.customerVehicle} (${selected.customerNumber})`],["연락처",selected.customerPhone],["과실",selected.fault],["보험사",selected.insurer],["접수번호",selected.receiptNo||"-"],["수리처",selected.repairShop==="-"?"없음":selected.repairShop]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#0f172a"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
             </div>
           </div>
           <div style={{background:"#f8fafc",borderRadius:10,padding:14,marginTop:12}}>
