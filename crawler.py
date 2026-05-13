@@ -144,18 +144,27 @@ def convert_claim(c, our_numbers):
             car_model = override
             break
 
-    # 교체건이면 details에서 우리 차량의 정확한 사용 시작 시점을 찾는다 (A)
-    # 외부차→우리차 교체 시 메인 c.delivered_at은 첫 차(외부) 시작 시점이라 부정확
+    # 교체건이면 details에서 메인 차량(=ERP에 저장될 vehicle_number)과 매칭되는 detail의 기간을 사용
+    # 첫 우리차 detail이 아니라 메인 차량 detail의 delivered_date/return_date를 써야 정확
+    # (메인 차량이 마지막에 사용된 차이므로 그 detail이 ERP 행의 진짜 사용 기간)
     is_replaced = c.get('car_replaced', 0) == 1
     our_detail_delivered = None
     our_detail_returned = None
     if is_replaced:
         for d in [d for d in (c.get('details') or []) if d]:
             num = d.get('rent_car_number') or ''
-            if num and any(num.endswith(n) for n in our_numbers):
+            if num == rent_car:  # 메인 차량과 정확히 일치하는 detail
                 our_detail_delivered = d.get('delivered_date')
                 our_detail_returned = d.get('return_date')
-                break  # 우리 차량 첫 매칭
+                break
+        # 메인과 매칭되는 detail 못 찾으면 fallback으로 우리차 매칭 detail
+        if not our_detail_delivered:
+            for d in [d for d in (c.get('details') or []) if d]:
+                num = d.get('rent_car_number') or ''
+                if num and any(num.endswith(n) for n in our_numbers):
+                    our_detail_delivered = d.get('delivered_date')
+                    our_detail_returned = d.get('return_date')
+                    break
 
     raw_start = our_detail_delivered or c.get('delivered_at')
     raw_end = our_detail_returned or c.get('return_date')
