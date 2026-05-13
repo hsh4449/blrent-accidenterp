@@ -500,6 +500,24 @@ function App() {
     return Array.from(m.entries()).map(([num,model],i) => ({ model, number:num, color:VCOLORS[i%VCOLORS.length] }));
   }, [contracts]);
 
+  // 계약내역 탭의 "전체 차량" 드롭다운 옵션 — 비활성 fleet 차량 제외 + 현재 다른 필터(status/depositMonth)에 매칭되는 차량만
+  const vehicleOptions = useMemo(() => {
+    let l = contracts;
+    if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
+    if (filter.depositMonth !== "all") {
+      if (filter.depositMonth === "none") l = l.filter(c => !c.depositDate);
+      else l = l.filter(c => c.depositDate && c.depositDate.startsWith(filter.depositMonth));
+    }
+    const presentNums = new Set();
+    l.forEach(c => { if (c.vehicleNumber) presentNums.add(c.vehicleNumber); });
+    return vehicles.filter(v => {
+      if (!presentNums.has(v.number)) return false;
+      const f = fleet[v.number];
+      if (f && f.status !== 'active') return false; // 비활성 fleet 제외 (미등록은 통과)
+      return true;
+    });
+  }, [contracts, filter.status, filter.depositMonth, vehicles, fleet]);
+
   // File import
   const onImport = useCallback(async e => {
     const f = e.target.files?.[0]; if(!f) return; e.target.value="";
@@ -1023,7 +1041,7 @@ function App() {
                 <input placeholder={`${({customerNumber:"고객 차량번호",customerName:"고객명",customerVehicle:"고객 차종",vehicleNumber:"대여차 번호",vehicleModel:"대여차 차종",id:"IMS번호",insurer:"보험사",all:"전체 (모든 필드)"})[filter.searchField]} 검색`} value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS,width:220, borderTopLeftRadius:0, borderBottomLeftRadius:0}}/>
               </div>
               <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width:120}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
-              <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width:180}}><option value="all">전체 차량</option>{vehicles.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
+              <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width:180}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
               <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value}))} style={{...SS,width:140}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
             </div>
             <div style={{ display:"flex", gap:6 }}>
