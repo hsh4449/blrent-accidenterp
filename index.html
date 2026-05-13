@@ -952,11 +952,13 @@ function App() {
           });
           const vehicleList = Object.entries(byVehicle).map(([num,d])=>{
             const amount = d.items.reduce((s,c)=>s+(c.rentalFee||0),0);
-            return { num, model: d.model, items: d.items, amount };
+            const days = d.items.reduce((s,c)=>s+daysBetween(c.startDate,c.endDate),0);
+            return { num, model: d.model, items: d.items, amount, days };
           }).sort((a,b)=>a.num.localeCompare(b.num));
 
           const totalCount = vehicleList.reduce((s,v)=>s+v.items.length,0);
           const totalAmount = vehicleList.reduce((s,v)=>s+v.amount,0);
+          const totalDays = vehicleList.reduce((s,v)=>s+v.days,0);
 
           return <div>
             <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:24 }}>
@@ -966,7 +968,10 @@ function App() {
                   <div style={{ fontSize:14, color:"#0f172a", marginTop:8 }}>
                     {_monthLabel} 총 <b style={{color:totalCount>0?"#10b981":"#94a3b8",fontSize:18,marginLeft:4}}>{totalCount}</b><span style={{color:"#0f172a",marginLeft:2}}>건</span>
                     <span style={{color:"#0f172a",margin:"0 8px"}}>·</span>
+                    <b style={{color:totalDays>0?"#f59e0b":"#94a3b8",fontSize:18,fontVariantNumeric:"tabular-nums"}}>{totalDays}</b><span style={{color:"#0f172a",marginLeft:2}}>일</span>
+                    <span style={{color:"#0f172a",margin:"0 8px"}}>·</span>
                     <b style={{color:totalAmount>0?"#10b981":"#94a3b8",fontSize:18,fontVariantNumeric:"tabular-nums"}}>₩{fmt(totalAmount)}</b>
+                    {totalDays>0 && <span style={{color:"#64748b",fontSize:13,marginLeft:8}}>(일당 평균 ₩{fmt(Math.round(totalAmount/totalDays))})</span>}
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -992,11 +997,15 @@ function App() {
                           <span style={{fontSize:14,color:"#0f172a",background:"#f1f5f9",padding:"2px 10px",borderRadius:12,fontWeight:600}}>{v.num}</span>
                         </div>
                         <div style={{ fontSize:14, fontVariantNumeric:"tabular-nums", background:"#dcfce7", color:"#166534", padding:"6px 14px", borderRadius:20, fontWeight:700 }}>
-                          {v.items.length}건 · ₩{fmt(v.amount)}
+                          {v.items.length}건 · {v.days}일 · ₩{fmt(v.amount)}
+                          {v.days>0 && <span style={{fontWeight:500,marginLeft:6,opacity:0.85}}>(일당 ₩{fmt(Math.round(v.amount/v.days))})</span>}
                         </div>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                        {v.items.slice().sort((a,b)=>(b.depositDate||"").localeCompare(a.depositDate||"")).map(c => (
+                        {v.items.slice().sort((a,b)=>(b.depositDate||"").localeCompare(a.depositDate||"")).map(c => {
+                          const cDays = daysBetween(c.startDate, c.endDate);
+                          const cDaily = cDays > 0 ? Math.round((c.rentalFee||0) / cDays) : 0;
+                          return (
                           <div key={c.id} style={{ padding:"12px 16px", background:"#f8fafc", border:"1px solid #e2e8f0", borderLeft:`3px solid ${vColor}`, borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
                             <div style={{ flex:1, minWidth:0 }}>
                               <div style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", marginBottom:6 }}>
@@ -1005,7 +1014,8 @@ function App() {
                                 <span style={{ fontSize:12, color:"#64748b", fontWeight:500 }}>· {c.customerName || "이름 없음"}</span>
                               </div>
                               <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 10px", fontSize:13 }}>
-                                <span style={{ background:"#dbeafe", color:"#1e40af", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>📅 대여 {c.startDate||"-"} ~ {c.endDate||"-"}</span>
+                                <span style={{ background:"#dbeafe", color:"#1e40af", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>📅 대여 {c.startDate||"-"} ~ {c.endDate||"-"}{cDays>0 && ` · ${cDays}일`}</span>
+                                {cDaily>0 && <span style={{ background:"#fef9c3", color:"#854d0e", padding:"3px 10px", borderRadius:12, fontWeight:700 }}>💰 일당 ₩{fmt(cDaily)}</span>}
                                 <span style={{ background:"#fef3c7", color:"#854d0e", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>📤 청구 {c.billingDate||"-"}</span>
                                 <span style={{ background:"#dcfce7", color:"#166534", padding:"3px 10px", borderRadius:12, fontWeight:700 }}>✓ 입금 {c.depositDate}</span>
                                 {c.insurer && c.insurer !== '-' && <span style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>🏢 {c.insurer}</span>}
@@ -1013,6 +1023,8 @@ function App() {
                             </div>
                             <span style={{ color:"#10b981", fontWeight:800, fontSize:18, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>₩{fmt(c.rentalFee)}</span>
                           </div>
+                          );
+                        })}
                         ))}
                       </div>
                     </div>
