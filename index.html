@@ -855,37 +855,38 @@ function App() {
 
               {vehicleList.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#1e293b",fontSize:14,background:"#f8fafc",borderRadius:10}}>{_monthLabel}에 입금 완료된 계약이 없습니다.</div> :
                 <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                  {vehicleList.map(v => (
-                    <div key={v.num} style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 18px" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10, gap:12 }}>
-                        <div>
+                  {vehicleList.map(v => {
+                    const vColor = (vehicles.find(x=>x.number===v.num)?.color) || "#3b82f6";
+                    return (
+                    <div key={v.num} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderLeft:`5px solid ${vColor}`, borderRadius:10, padding:"14px 18px", boxShadow:"0 1px 2px rgba(0,0,0,0.04)" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, gap:12 }}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <span style={{ width:12, height:12, borderRadius:"50%", background:vColor, flexShrink:0 }}/>
                           <span style={{fontSize:17,fontWeight:700,color:"#18181b"}}>{v.model || "(차종 없음)"}</span>
-                          <span style={{fontSize:14,color:"#1e293b",marginLeft:8}}>{v.num}</span>
+                          <span style={{fontSize:14,color:"#1e293b",background:"#f1f5f9",padding:"2px 10px",borderRadius:12,fontWeight:600}}>{v.num}</span>
                         </div>
-                        <div style={{ fontSize:14, fontVariantNumeric:"tabular-nums" }}>
-                          <b style={{color:"#10b981",fontSize:16}}>{v.items.length}</b><span style={{color:"#1e293b",fontSize:12,marginLeft:2}}>건</span>
-                          <span style={{color:"#334155",margin:"0 8px"}}>·</span>
-                          <b style={{color:"#10b981",fontSize:16}}>₩{fmt(v.amount)}</b>
+                        <div style={{ fontSize:14, fontVariantNumeric:"tabular-nums", background:"#dcfce7", color:"#166534", padding:"6px 14px", borderRadius:20, fontWeight:700 }}>
+                          {v.items.length}건 · ₩{fmt(v.amount)}
                         </div>
                       </div>
-                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
                         {v.items.slice().sort((a,b)=>(b.depositDate||"").localeCompare(a.depositDate||"")).map(c => (
-                          <div key={c.id} style={{ padding:"10px 14px", background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
+                          <div key={c.id} style={{ padding:"12px 16px", background:"#f8fafc", border:"1px solid #e2e8f0", borderLeft:`3px solid ${vColor}`, borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
                             <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ fontSize:15, fontWeight:600, color:"#18181b", marginBottom:4 }}>{c.customerName || "(이름 없음)"}</div>
-                              <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 16px", fontSize:13, color:"#1e293b" }}>
-                                <span><span style={{color:"#1e293b"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</span>
-                                <span><span style={{color:"#1e293b"}}>청구 </span>{c.billingDate||"-"}</span>
-                                <span><span style={{color:"#1e293b"}}>입금 </span><span style={{color:"#10b981",fontWeight:600}}>{c.depositDate}</span></span>
-                                {c.insurer && c.insurer !== '-' && <span><span style={{color:"#1e293b"}}>보험사 </span>{c.insurer}</span>}
+                              <div style={{ fontSize:15, fontWeight:700, color:"#18181b", marginBottom:6 }}>{c.customerName || "(이름 없음)"}</div>
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 10px", fontSize:13 }}>
+                                <span style={{ background:"#dbeafe", color:"#1e40af", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>📅 대여 {c.startDate||"-"} ~ {c.endDate||"-"}</span>
+                                <span style={{ background:"#fef3c7", color:"#854d0e", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>📤 청구 {c.billingDate||"-"}</span>
+                                <span style={{ background:"#dcfce7", color:"#166534", padding:"3px 10px", borderRadius:12, fontWeight:700 }}>✓ 입금 {c.depositDate}</span>
+                                {c.insurer && c.insurer !== '-' && <span style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>🏢 {c.insurer}</span>}
                               </div>
                             </div>
-                            <span style={{ color:"#10b981", fontWeight:700, fontSize:16, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>₩{fmt(c.rentalFee)}</span>
+                            <span style={{ color:"#10b981", fontWeight:800, fontSize:18, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>₩{fmt(c.rentalFee)}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               }
             </div>
