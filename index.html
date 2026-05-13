@@ -664,18 +664,6 @@ function App() {
       setToast({msg:"복구 실패: "+e.message,type:"error"});
     }
   }, [contracts, deletedContracts]);
-  const doReset = useCallback(async () => {
-    if(!confirm("초기 데이터로 리셋합니다. (DB 전체 교체)")) return;
-    try {
-      await supabaseClient.from('accident_rentals').delete().neq('id', '');
-      const { error } = await supabaseClient.from('accident_rentals').insert(INITIAL_DATA.map(toDbRow));
-      if (error) throw error;
-      setContracts(INITIAL_DATA);
-      setToast({msg:"리셋 완료",type:"success"});
-    } catch(e) {
-      setToast({msg:"리셋 실패: "+e.message,type:"error"});
-    }
-  }, []);
 
   if(loading) return <div style={{minHeight:"100vh",background:"#f8fafc",display:"flex",alignItems:"center",justifyContent:"center",color:"#18181b",fontFamily:"'Pretendard',sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>BL</div><div style={{fontSize:13,color:"#0f172a"}}>로딩 중...</div></div></div>;
 
@@ -1042,7 +1030,6 @@ function App() {
               <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}}>+ 신규</button>
               <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>엑셀</button>
               <button onClick={()=>exportToExcel(filtered)} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>내보내기</button>
-              <button onClick={doReset} style={{padding:"7px 10px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:10,cursor:"pointer"}}>초기화</button>
             </div>
           </div>
           <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden" }}>
