@@ -727,20 +727,28 @@ function App() {
 
         {/* ── DASHBOARD ── */}
         {tab==="dashboard" && <div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:14, marginBottom:24 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14, marginBottom:24 }}>
             {(() => {
               const _ym = vehicleViewYm;
               const _monthLabel = `${parseInt(_ym.split("-")[1])}월`;
-              const _curMonthDep = contracts.filter(c => c.depositDate && c.depositDate.startsWith(_ym)).reduce((s,c)=>s+(c.rentalFee||0), 0);
+              const _monthDeps = contracts.filter(c => c.depositDate && c.depositDate.startsWith(_ym));
+              const _monthDepAmount = _monthDeps.reduce((s,c)=>s+(c.rentalFee||0), 0);
+              const _unpaidList = contracts.filter(c => c.status === '청구완료' && !c.depositDate);
+              const _unpaidAmount = _unpaidList.reduce((s,c)=>s+(c.billingAmount||0), 0);
+              const _activeFleetTotal = activeFleetSet.size;
               return [
-                {l:"배차중",v:stats.active,u:"건",a:"#f59e0b"},
-                {l:"청구전",v:stats.pending,u:"건",a:"#3b82f6"},
-                {l:`${_monthLabel} 입금액`,v:fmt(_curMonthDep),u:"원",a:"#10b981"},
+                {l:"운행중", v:stats.active, u:"대", sub:`전체 ${_activeFleetTotal}대 중`, a:"#f59e0b"},
+                {l:"청구전", v:stats.pending, u:"건", sub:null, a:"#3b82f6"},
+                {l:"미입금", v:_unpaidList.length, u:"건", sub:`₩${fmt(_unpaidAmount)}`, a:"#dc2626"},
+                {l:`${_monthLabel} 입금`, v:`₩${fmt(_monthDepAmount)}`, u:"", sub:`${_monthDeps.length}건`, a:"#10b981"},
               ];
             })().map((s,i)=>(
               <div key={i} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:"22px 24px", borderLeft:`4px solid ${s.a}` }}>
-                <div style={{ fontSize:14, color:"#0f172a", marginBottom:8, fontWeight:500 }}>{s.l}</div>
-                <div style={{ fontSize:30, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}<span style={{ fontSize:14, color:"#0f172a", marginLeft:4 }}>{s.u}</span></div>
+                <div style={{ fontSize:14, color:"#0f172a", marginBottom:8, fontWeight:500, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
+                  <span>{s.l}</span>
+                  {s.sub && <span style={{ fontSize:11, color:"#64748b", fontWeight:500 }}>{s.sub}</span>}
+                </div>
+                <div style={{ fontSize:30, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}{s.u && <span style={{ fontSize:14, color:"#0f172a", marginLeft:4 }}>{s.u}</span>}</div>
               </div>
             ))}
           </div>
