@@ -1516,27 +1516,36 @@ function EditForm({ init, vehs, onSave, onCancel }) {
 function DokchokTab({ sb, contracts }) {
   const [settings, setSettings] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [excluded, setExcluded] = useState({}); // {contract_id: {reason, excluded_at, excluded_by}}
   const [templateDraft, setTemplateDraft] = useState("");
   const [cutoffDraft, setCutoffDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 1) 설정 + 로그 로드
+  // 1) 설정 + 로그 + 제외목록 로드
   const reload = useCallback(async () => {
-    const { data: s } = await sb.from("accident_send_settings").select("*").eq("id", 1).single();
+    const [{ data: s }, { data: l }, { data: ex }] = await Promise.all([
+      sb.from("accident_send_settings").select("*").eq("id", 1).single(),
+      sb.from("accident_sms_logs").select("*").order("sent_at", { ascending: false }).limit(30),
+      sb.from("accident_excluded_contracts").select("*"),
+    ]);
     setSettings(s);
     setTemplateDraft(s?.message_template || "");
     setCutoffDraft(s?.cutoff_billing_date || "");
-    const { data: l } = await sb.from("accident_sms_logs").select("*").order("sent_at", { ascending: false }).limit(30);
     setLogs(l || []);
+    const exMap = {};
+    (ex || []).forEach(r => { exMap[r.contract_id] = r; });
+    setExcluded(exMap);
   }, [sb]);
 
   useEffect(() => { reload(); }, [reload]);
 
-  // 2) 미입금 대상 (UI props.contracts 에서 필터)
-  const unpaid = useMemo(() => contracts.filter(c =>
+  // 2) 미입금 후보 (cutoff 적용, excluded 적용 전) — 제외섹션에서도 사용
+  const unpaidRaw = useMemo(() => contracts.filter(c =>
     c.status === "청구완료" && !c.depositDate
     && (!settings?.cutoff_billing_date || (c.billingDate || "") >= settings.cutoff_billing_date)
   ), [contracts, settings]);
+  const unpaid = useMemo(() => unpaidRaw.filter(c => !excluded[c.id]), [unpaidRaw, excluded]);
+  const excludedRows = useMemo(() => unpaidRaw.filter(c => excluded[c.id]), [unpaidRaw, excluded]);
 
   // 3) 담당자별 그룹핑
   const groups = useMemo(() => {
@@ -1592,6 +1601,26 @@ function DokchokTab({ sb, contracts }) {
     saveField({ send_armed: true, armed_at: new Date().toISOString(), armed_by: "ui:erp" });
   };
   const onDisarm = () => saveField({ send_armed: false, armed_at: null, armed_by: null });
+
+  // 제외/복구
+  const QUICK_REASONS = ["분심위", "회수포기", "분할입금협의중", "보험사 검토중", "과실 분쟁중"];
+  const onExclude = async (c) => {
+    const reason = prompt(`제외 사유 (자동발송 대상에서 빼기)\n\n빠른선택: ${QUICK_REASONS.join(" / ")}\n또는 직접 입력:`, "");
+    if (reason === null) return; // 취소
+    const r = (reason || "").trim();
+    if (!r) { alert("사유를 입력해주세요."); return; }
+    const { error } = await sb.from("accident_excluded_contracts").insert({
+      contract_id: c.id, reason: r, excluded_by: "ui:erp",
+    });
+    if (error) { alert("제외 실패: " + error.message); return; }
+    await reload();
+  };
+  const onRestore = async (id) => {
+    if (!confirm("제외 해제하시겠습니까? 다음 발송부터 다시 대상에 포함됩니다.")) return;
+    const { error } = await sb.from("accident_excluded_contracts").delete().eq("contract_id", id);
+    if (error) { alert("복구 실패: " + error.message); return; }
+    await reload();
+  };
 
   if (!settings) return <div style={{padding:40,textAlign:"center",color:"#0f172a"}}>로딩 중...</div>;
 
@@ -1760,10 +1789,16 @@ function DokchokTab({ sb, contracts }) {
                             {c.billingDate && <span style={{background:overdueColor.bg,color:overdueColor.fg,padding:"3px 10px",borderRadius:12,fontWeight:700}}>⏱ 청구 후 {overdueDays}일 경과</span>}
                           </div>
                         </div>
-                        <span style={{color:"#dc2626",fontWeight:800,fontSize:18,fontVariantNumeric:"tabular-nums",flexShrink:0}}>
-                          ₩{(c.billingAmount||0).toLocaleString()}
-                          {dailyRate>0 && <span style={{color:"#64748b",fontSize:13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
-                        </span>
+                        <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                          <span style={{color:"#dc2626",fontWeight:800,fontSize:18,fontVariantNumeric:"tabular-nums"}}>
+                            ₩{(c.billingAmount||0).toLocaleString()}
+                            {dailyRate>0 && <span style={{color:"#64748b",fontSize:13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
+                          </span>
+                          <button onClick={()=>onExclude(c)} title="자동발송 대상에서 제외"
+                            style={{padding:"6px 10px",background:"#fff",color:"#64748b",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                            제외
+                          </button>
+                        </div>
                       </div>;
                     })}
                   </div>
@@ -1775,6 +1810,32 @@ function DokchokTab({ sb, contracts }) {
         ⚠ 보험사 담당자 연락처가 비어있어 자동 제외된 건 {groups.noContact.length}건 — ERP 계약수정에서 담당자 연락처 입력 필요
       </div>}
     </div>
+
+    {/* 4-1행: 수동 제외 목록 (분심위 / 회수포기 등) */}
+    {excludedRows.length > 0 && <div style={cardSt}>
+      <div style={{...labelSt,marginBottom:12}}>📋 발송 제외됨 — {excludedRows.length}건 · ₩{excludedRows.reduce((s,c)=>s+(Number(c.billingAmount)||0),0).toLocaleString()}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {excludedRows.sort((a,b)=>(excluded[b.id]?.excluded_at||"").localeCompare(excluded[a.id]?.excluded_at||"")).map(c => {
+          const ex = excluded[c.id] || {};
+          return <div key={c.id} style={{padding:"10px 14px",background:"#f8fafc",border:"1px solid #e2e8f0",borderLeft:"3px solid #94a3b8",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,opacity:0.85}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",marginBottom:4}}>
+                <span style={{padding:"2px 9px",background:"#475569",color:"#fff",borderRadius:5,fontSize:11,fontWeight:700}}>{ex.reason || "사유미상"}</span>
+                <span style={{fontSize:14,fontWeight:700,color:"#475569"}}>{c.customerVehicle || ""}</span>
+                <span style={{fontSize:12,fontWeight:700,color:"#475569",background:"#e2e8f0",padding:"2px 8px",borderRadius:5}}>{c.customerNumber || "-"}</span>
+                <span style={{fontSize:11,color:"#64748b"}}>· {c.customerName || ""}</span>
+                <span style={{fontSize:11,color:"#64748b"}}>· {c.insuranceManagerName || ""} ({c.insurer || ""})</span>
+              </div>
+              <div style={{fontSize:11,color:"#64748b"}}>
+                청구 {c.billingDate || "?"} · ₩{(c.billingAmount||0).toLocaleString()}
+                {ex.excluded_at && <span style={{marginLeft:10}}>제외 {ex.excluded_at.slice(0,10)}</span>}
+              </div>
+            </div>
+            <button onClick={()=>onRestore(c.id)} style={{padding:"6px 12px",background:"#10b981",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>복구</button>
+          </div>;
+        })}
+      </div>
+    </div>}
 
     {/* 5행: 발송 이력 (최근 30건) */}
     <div style={cardSt}>
