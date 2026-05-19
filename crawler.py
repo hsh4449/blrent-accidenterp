@@ -458,6 +458,24 @@ def main():
 
     print(f'[UPDATE] {len(unique)}건 업데이트 대상')
 
+    # 디버그: IMS 응답 중 DB 에 없는 신규 id 식별 (왜 신규 INSERT 가 안 일어나는지 추적)
+    try:
+        existing = supabase_client.table('accident_rentals').select('id').execute()
+        db_ids = {r['id'] for r in (existing.data or [])}
+        ims_ids = {c['id'] for c in unique}
+        new_ids = ims_ids - db_ids
+        print(f'[DEBUG] IMS 응답 id {len(ims_ids)}건 / DB 전체 id {len(db_ids)}건 / 차집합(신규 후보) {len(new_ids)}건')
+        if new_ids:
+            print(f'[DEBUG] 신규 id 샘플: {sorted(list(new_ids))[:10]}')
+        # 입금완료 skip 전 raw 응답 통계
+        all_ims_ids = {c['id'] for c in all_contracts}
+        raw_new = all_ims_ids - db_ids
+        print(f'[DEBUG] IMS raw 응답 (skip 전) id {len(all_ims_ids)}건 / 그 중 DB 에 없는 id {len(raw_new)}건')
+        if raw_new:
+            print(f'[DEBUG] raw 신규 id 샘플: {sorted(list(raw_new))[:10]}')
+    except Exception as e:
+        print(f'[DEBUG] 신규 id 추적 실패: {e}')
+
     # updated_at 명시적 갱신 — Supabase upsert 는 payload 에 있는 컬럼만 update.
     # payload 에 updated_at 가 없으면 row 가 실제로 변경되어도 timestamp 가 영원히 안 움직임.
     # → 매 upsert 마다 utcnow() ISO 로 동봉.
