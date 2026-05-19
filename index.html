@@ -1528,6 +1528,7 @@ function DokchokTab({ sb, contracts }) {
   const [templateDraft, setTemplateDraft] = useState("");
   const [cutoffDraft, setCutoffDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [locallyPaid, setLocallyPaid] = useState(new Set()); // 입금완료 처리한 contract id (페이지 새로고침 전까지 발송예정에서 제외)
 
   // 1) 설정 + 로그 + 제외목록 로드
   const reload = useCallback(async () => {
@@ -1557,10 +1558,11 @@ function DokchokTab({ sb, contracts }) {
     const thrIso = thr.toISOString().slice(0,10);
     return contracts.filter(c =>
       c.status === "청구완료" && !c.depositDate
+      && !locallyPaid.has(c.id)
       && c.billingDate && c.billingDate <= thrIso
       && (!settings?.cutoff_billing_date || c.billingDate >= settings.cutoff_billing_date)
     );
-  }, [contracts, settings]);
+  }, [contracts, settings, locallyPaid]);
   const unpaid = useMemo(() => unpaidRaw.filter(c => !excluded[c.id]), [unpaidRaw, excluded]);
   const excludedRows = useMemo(() => unpaidRaw.filter(c => excluded[c.id]), [unpaidRaw, excluded]);
 
@@ -1620,6 +1622,35 @@ function DokchokTab({ sb, contracts }) {
     saveField({ send_armed: true, armed_at: new Date().toISOString(), armed_by: "ui:erp" });
   };
   const onDisarm = () => saveField({ send_armed: false, armed_at: null, armed_by: null });
+
+  // 입금완료 처리 — accident_rentals 본 테이블 직접 update
+  // (발송예정 row 에서 [💰 입금완료] 버튼 클릭 시)
+  const onMarkPaid = async (c) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const input = prompt(
+      `입금일을 입력하세요 (YYYY-MM-DD)\n\n${c.customerName || ""} · ${c.customerNumber || ""}\n청구 ${c.billingDate || "?"} · ₩${(c.billingAmount || 0).toLocaleString()}`,
+      today
+    );
+    if (input === null) return;
+    const date = (input || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      alert("YYYY-MM-DD 형식으로 입력해주세요.");
+      return;
+    }
+    const { error } = await sb.from("accident_rentals").update({
+      status: "입금완료",
+      deposit_date: date,
+      updated_at: new Date().toISOString(),
+    }).eq("id", c.id);
+    if (error) { alert("입금완료 처리 실패: " + error.message); return; }
+    // 로컬 stale 처리: 즉시 발송예정에서 사라짐. 페이지 새로고침 시 입금완료 탭에 정상 표시.
+    setLocallyPaid(prev => { const n = new Set(prev); n.add(c.id); return n; });
+    // 보류로 마킹된 건이라면 보류 마커도 같이 제거 (입금됐으니 의미 없음)
+    if (excluded[c.id]) {
+      await sb.from("accident_excluded_contracts").delete().eq("contract_id", c.id);
+    }
+    await reload();
+  };
 
   // 상태 변경 — 요청중(=excluded 제거) / 분심진행중 / 보류
   // 데이터(accident_rentals) 는 항상 그대로. excluded 테이블의 reason 만 바뀜.
@@ -1854,6 +1885,10 @@ function DokchokTab({ sb, contracts }) {
                             ₩{(c.billingAmount||0).toLocaleString()}
                             {dailyRate>0 && <span style={{color:"#64748b",fontSize:13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
                           </span>
+                          <button onClick={()=>onMarkPaid(c)} title="입금완료 처리 — deposit_date + status='입금완료'"
+                            style={{padding:"6px 10px",background:"#10b981",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                            💰 입금완료
+                          </button>
                           {renderStatusSelect(c, null)}
                         </div>
                       </div>;
@@ -1893,6 +1928,10 @@ function DokchokTab({ sb, contracts }) {
                 {ex.excluded_at && <span style={{marginLeft:10}}>보류 {ex.excluded_at.slice(0,10)}</span>}
               </div>
             </div>
+            <button onClick={()=>onMarkPaid(c)} title="입금완료 처리"
+              style={{padding:"6px 10px",background:"#10b981",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              💰 입금완료
+            </button>
             {renderStatusSelect(c, ex.reason)}
           </div>;
         })}
