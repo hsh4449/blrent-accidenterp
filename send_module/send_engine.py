@@ -40,7 +40,7 @@ MIN_OVERDUE_DAYS = 3
 # 풀린 후에도 accident_send_settings.send_armed 게이트 + 사용자 클릭 확인이 추가로 필요합니다.
 # 발송 1회 끝나면 즉시 MASTER_KILL_SWITCH=True 로 복귀 + push.
 # ─────────────────────────────────────────────────────────────────────────
-MASTER_KILL_SWITCH = True
+MASTER_KILL_SWITCH = False  # 2026-05-19 사용자 "사고대차 킬스위치 해제" 지시. send_armed 게이트는 여전히 작동.
 
 
 def fmt_won(n) -> str:
