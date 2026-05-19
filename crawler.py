@@ -10,7 +10,7 @@ import re
 import json
 import hashlib
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from supabase import create_client
 
 IMS_ID = os.environ['IMS_ID']
@@ -458,11 +458,18 @@ def main():
 
     print(f'[UPDATE] {len(unique)}건 업데이트 대상')
 
+    # updated_at 명시적 갱신 — Supabase upsert 는 payload 에 있는 컬럼만 update.
+    # payload 에 updated_at 가 없으면 row 가 실제로 변경되어도 timestamp 가 영원히 안 움직임.
+    # → 매 upsert 마다 utcnow() ISO 로 동봉.
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for row in unique:
+        row['updated_at'] = now_iso
+
     if unique:
         supabase_client.table('accident_rentals').upsert(
             unique, on_conflict='id'
         ).execute()
-        print(f'[DB] Supabase {len(unique)}건 upsert 완료')
+        print(f'[DB] Supabase {len(unique)}건 upsert 완료 (updated_at={now_iso})')
 
     # 추가 DB 정리: IMS가 옛 배차중 행을 더 이상 안 보내는 경우도 정정
     # (DB에는 남아있지만 새 배차중이 있으면 옛 행은 청구전으로)
@@ -480,12 +487,13 @@ def main():
                 for r in rows[1:]:
                     fix_ids.append(r['id'])
         if fix_ids:
-            supabase_client.table('accident_rentals').update({'status': '청구전'}).in_('id', fix_ids).execute()
+            supabase_client.table('accident_rentals').update({
+                'status': '청구전',
+                'updated_at': now_iso,
+            }).in_('id', fix_ids).execute()
             print(f'[DB FIX] 배차중 중복 {len(fix_ids)}건 → 청구전 정정')
     except Exception as e:
         print(f'[WARN] 배차중 중복 DB 정리 실패: {e}')
-    else:
-        print('[DB] 업데이트할 데이터 없음')
 
     print(f'=== 완료: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} ===')
 
