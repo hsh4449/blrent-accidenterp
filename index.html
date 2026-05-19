@@ -1707,25 +1707,73 @@ function DokchokTab({ sb, contracts }) {
       </div>
     </div>
 
-    {/* 4행: 발송 대상 담당자별 리스트 */}
+    {/* 4행: 발송 예정 (담당자별 그룹 + 청구건 상세) */}
     <div style={cardSt}>
-      <div style={{...labelSt,marginBottom:12}}>발송 예정 (담당자별 그룹) {groups.groups.length}건</div>
+      <div style={{...labelSt,marginBottom:12}}>발송 예정 (담당자별 그룹) — {groups.groups.length}명 · {unpaid.length}건 · {total.toLocaleString()}원</div>
       {groups.groups.length === 0
         ? <div style={{padding:30,textAlign:"center",color:"#0f172a",fontSize:13}}>발송 대상 없음</div>
-        : <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {groups.groups.map(([phone, items]) => {
-              const total = items.reduce((s,c)=>s+(Number(c.billingAmount)||0), 0);
-              return <div key={phone} style={{border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div>
-                  <span style={{fontWeight:700,color:"#18181b"}}>{items[0].insuranceManagerName || "(이름없음)"}</span>
-                  <span style={{marginLeft:8,color:"#0f172a",fontSize:12}}>{items[0].insurer || "(보험사미상)"} · {phone.replace(/(\d{3})(\d{4})(\d{4})/,"$1-$2-$3")}</span>
-                </div>
-                <div style={{fontSize:12,color:"#0f172a"}}>
-                  <b style={{color:"#dc2626"}}>{items.length}건</b> · <b style={{color:"#10b981"}}>{total.toLocaleString()}원</b>
-                </div>
-              </div>;
-            })}
+        : <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            {(() => {
+              const PALETTE = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#ec4899","#84cc16","#6366f1"];
+              const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+              const daysBetween = (a,b) => {
+                if (!a || !b) return 0;
+                const da = new Date(a), db = new Date(b);
+                return Math.round((db.getTime()-da.getTime())/86400000);
+              };
+              return groups.groups.map(([phone, items], gi) => {
+                const color = PALETTE[gi % PALETTE.length];
+                const groupTotal = items.reduce((s,c)=>s+(Number(c.billingAmount)||0), 0);
+                const formattedPhone = phone.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+                const sorted = [...items].sort((a,b)=>(a.billingDate||"").localeCompare(b.billingDate||""));
+                return <div key={phone} style={{background:"#ffffff",border:"1px solid #e2e8f0",borderLeft:`5px solid ${color}`,borderRadius:10,padding:"14px 18px",boxShadow:"0 1px 2px rgba(0,0,0,0.04)"}}>
+                  {/* 그룹 헤더 — 담당자명 + 보험사 + 전화번호 + 그룹합계 */}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:12,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                      <span style={{width:12,height:12,borderRadius:"50%",background:color,flexShrink:0}}/>
+                      <span style={{fontSize:17,fontWeight:700,color:"#18181b"}}>{items[0].insuranceManagerName || "(이름없음)"}</span>
+                      <span style={{fontSize:13,color:"#5b21b6",background:"#ede9fe",padding:"3px 10px",borderRadius:12,fontWeight:600}}>{items[0].insurer || "(보험사미상)"}</span>
+                      <span style={{fontSize:13,color:"#0f172a",background:"#f1f5f9",padding:"3px 10px",borderRadius:12,fontWeight:600,fontFamily:"monospace"}}>{formattedPhone}</span>
+                    </div>
+                    <div style={{fontSize:14,fontVariantNumeric:"tabular-nums",background:"#fee2e2",color:"#991b1b",padding:"6px 14px",borderRadius:20,fontWeight:700}}>
+                      {items.length}건 · ₩{groupTotal.toLocaleString()}
+                    </div>
+                  </div>
+                  {/* 각 청구건 row */}
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {sorted.map(c => {
+                      const rentDays = daysBetween(c.startDate, c.endDate);
+                      const overdueDays = c.billingDate ? daysBetween(c.billingDate, todayDate.toISOString().slice(0,10)) : 0;
+                      const dailyRate = rentDays > 0 ? Math.round((c.billingAmount||0) / rentDays) : 0;
+                      const overdueColor = overdueDays >= 30 ? {bg:"#fee2e2",fg:"#991b1b"} : overdueDays >= 14 ? {bg:"#fed7aa",fg:"#9a3412"} : {bg:"#fef3c7",fg:"#854d0e"};
+                      return <div key={c.id} style={{padding:"12px 16px",background:"#f8fafc",border:"1px solid #e2e8f0",borderLeft:`3px solid ${color}`,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:14}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",marginBottom:6}}>
+                            <span style={{fontSize:15,fontWeight:700,color:"#18181b"}}>{c.customerVehicle || "(차종 없음)"}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#1e40af",background:"#dbeafe",padding:"2px 9px",borderRadius:5,letterSpacing:0.2}}>{c.customerNumber || "-"}</span>
+                            <span style={{fontSize:12,color:"#64748b",fontWeight:500}}>· {c.customerName || "이름없음"}</span>
+                            <span style={{fontSize:11,color:"#0f172a",background:"#f1f5f9",padding:"2px 7px",borderRadius:4,fontWeight:600,marginLeft:4}}>대차 {c.vehicleNumber || "-"} {c.vehicleModel || ""}</span>
+                          </div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:"6px 10px",fontSize:13}}>
+                            <span style={{background:"#dbeafe",color:"#1e40af",padding:"3px 10px",borderRadius:12,fontWeight:600}}>대여 {c.startDate||"?"} ~ {c.endDate||"?"}{rentDays>0 && ` · ${rentDays}일`}</span>
+                            <span style={{background:"#fef3c7",color:"#854d0e",padding:"3px 10px",borderRadius:12,fontWeight:600}}>청구 {c.billingDate||"?"}</span>
+                            {c.billingDate && <span style={{background:overdueColor.bg,color:overdueColor.fg,padding:"3px 10px",borderRadius:12,fontWeight:700}}>⏱ 청구 후 {overdueDays}일 경과</span>}
+                          </div>
+                        </div>
+                        <span style={{color:"#dc2626",fontWeight:800,fontSize:18,fontVariantNumeric:"tabular-nums",flexShrink:0}}>
+                          ₩{(c.billingAmount||0).toLocaleString()}
+                          {dailyRate>0 && <span style={{color:"#64748b",fontSize:13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
+                        </span>
+                      </div>;
+                    })}
+                  </div>
+                </div>;
+              });
+            })()}
           </div>}
+      {groups.noContact.length > 0 && <div style={{marginTop:12,padding:"10px 14px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#7f1d1d"}}>
+        ⚠ 보험사 담당자 연락처가 비어있어 자동 제외된 건 {groups.noContact.length}건 — ERP 계약수정에서 담당자 연락처 입력 필요
+      </div>}
     </div>
 
     {/* 5행: 발송 이력 (최근 30건) */}
