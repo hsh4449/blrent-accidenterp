@@ -48,10 +48,16 @@ SUPABASE_URL=https://jjwsnwnfhqcszwmjdcac.supabase.co
 SUPABASE_KEY=<service_role_key>     # ⚠ anon 키 X — RLS 우회용 service_role
 SOLAPI_API_KEY=...
 SOLAPI_API_SECRET=...
-SOLAPI_FROM=...                     # 사전 등록된 발신번호
+SOLAPI_FROM=010-2418-8272           # 사고대차 전용 발신번호
 ```
 
-jiip-claims 와 같은 Vultr 서버에 배포한다면 솔라피 계정/발신번호를 공유해도 됨.
+⚠ **발신번호는 jiip-claims 와 다름** (사용자 지정):
+- 사고대차 (이 모듈) : `010-2418-8272`
+- jiip-claims        : `010-5602-4417`
+
+같은 Vultr 서버에 jiip-claims 와 함께 배포하는 경우에도, 발신번호는 반드시 분리합니다.
+Solapi API_KEY/SECRET 이 jiip 와 같은 계정인지는 사용자 확인 필요 — Solapi 콘솔에서
+두 발신번호가 같은 계정에 등록되어 있다면 KEY/SECRET 만 공유 가능.
 
 ---
 
