@@ -1612,29 +1612,36 @@ function DokchokTab({ sb, contracts }) {
   };
   const onDisarm = () => saveField({ send_armed: false, armed_at: null, armed_by: null });
 
-  // 제외/복구 — 데이터는 그대로, 자동발송 대상에서만 제외
-  const QUICK_REASONS = ["분심진행중", "회수포기", "분할입금협의중", "보험사 검토중", "과실 분쟁중"];
-  const insertExclude = async (c, reason) => {
-    const { error } = await sb.from("accident_excluded_contracts").insert({
-      contract_id: c.id, reason, excluded_by: "ui:erp",
-    });
-    if (error) { alert("보류 실패: " + error.message); return false; }
+  // 상태 변경 — 요청중(=excluded 제거) / 분심진행중 / 보류
+  // 데이터(accident_rentals) 는 항상 그대로. excluded 테이블의 reason 만 바뀜.
+  const onChangeStatus = async (c, newValue) => {
+    if (newValue === "요청중") {
+      const { error } = await sb.from("accident_excluded_contracts").delete().eq("contract_id", c.id);
+      if (error) { alert("변경 실패: " + error.message); return; }
+    } else {
+      const { error } = await sb.from("accident_excluded_contracts").upsert({
+        contract_id: c.id, reason: newValue, excluded_by: "ui:erp",
+        excluded_at: new Date().toISOString(),
+      }, { onConflict: "contract_id" });
+      if (error) { alert("변경 실패: " + error.message); return; }
+    }
     await reload();
-    return true;
   };
-  const onExclude = async (c) => {
-    const reason = prompt(`독촉 발송을 보류할 사유\n(데이터는 그대로 보존됨. 입금되면 정상 처리)\n\n빠른선택: ${QUICK_REASONS.join(" / ")}\n또는 직접 입력:`, "");
-    if (reason === null) return;
-    const r = (reason || "").trim();
-    if (!r) { alert("사유를 입력해주세요."); return; }
-    await insertExclude(c, r);
+  // 상태 select 공통 스타일
+  const STATUS_OPTIONS = ["요청중", "분심진행중", "보류"];
+  const statusStyle = (v) => {
+    if (v === "분심진행중") return { bg:"#7c3aed", color:"#fff", border:"#7c3aed" };
+    if (v === "보류") return { bg:"#94a3b8", color:"#fff", border:"#94a3b8" };
+    return { bg:"#fff", color:"#0f172a", border:"#cbd5e1" }; // 요청중
   };
-  const onMarkBunsim = (c) => insertExclude(c, "분심진행중");
-  const onRestore = async (id) => {
-    if (!confirm("제외 해제하시겠습니까? 다음 발송부터 다시 대상에 포함됩니다.")) return;
-    const { error } = await sb.from("accident_excluded_contracts").delete().eq("contract_id", id);
-    if (error) { alert("복구 실패: " + error.message); return; }
-    await reload();
+  const renderStatusSelect = (c, currentReason) => {
+    const value = STATUS_OPTIONS.includes(currentReason) ? currentReason : (currentReason ? "보류" : "요청중");
+    const s = statusStyle(value);
+    return <select value={value} onChange={e=>onChangeStatus(c, e.target.value)}
+      title="자동발송 대상 상태. 데이터는 항상 보존됨"
+      style={{padding:"6px 10px",background:s.bg,color:s.color,border:`1px solid ${s.border}`,borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",appearance:"auto"}}>
+      {STATUS_OPTIONS.map(o => <option key={o} value={o} style={{background:"#fff",color:"#0f172a"}}>{o}</option>)}
+    </select>;
   };
 
   if (!settings) return <div style={{padding:40,textAlign:"center",color:"#0f172a"}}>로딩 중...</div>;
@@ -1838,14 +1845,7 @@ function DokchokTab({ sb, contracts }) {
                             ₩{(c.billingAmount||0).toLocaleString()}
                             {dailyRate>0 && <span style={{color:"#64748b",fontSize:13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
                           </span>
-                          <button onClick={()=>onMarkBunsim(c)} title="분심 진행중 — 원클릭 보류 (데이터 보존, 입금 시 정상 처리)"
-                            style={{padding:"6px 10px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                            ⚖ 분심
-                          </button>
-                          <button onClick={()=>onExclude(c)} title="기타 사유로 발송만 보류 (데이터 보존)"
-                            style={{padding:"6px 10px",background:"#fff",color:"#64748b",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer"}}>
-                            보류
-                          </button>
+                          {renderStatusSelect(c, null)}
                         </div>
                       </div>;
                     })}
@@ -1884,7 +1884,7 @@ function DokchokTab({ sb, contracts }) {
                 {ex.excluded_at && <span style={{marginLeft:10}}>보류 {ex.excluded_at.slice(0,10)}</span>}
               </div>
             </div>
-            <button onClick={()=>onRestore(c.id)} style={{padding:"6px 12px",background:"#10b981",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>복구</button>
+            {renderStatusSelect(c, ex.reason)}
           </div>;
         })}
       </div>
