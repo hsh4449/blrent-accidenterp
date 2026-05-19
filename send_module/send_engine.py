@@ -75,16 +75,18 @@ def load_excluded_ids(sb) -> set:
 # 2) 본문 빌드
 # ============================================================
 def _items_block(items: list) -> str:
-    """담당자에게 보낼 청구건 번호목록 텍스트 블록"""
-    lines = []
+    """담당자에게 보낼 청구건 상세 블록 (사용자 지정 포맷 2026-05-19)"""
+    blocks = []
     for i, c in enumerate(items, 1):
-        lines.append(f'{i}) {c.get("customer_name") or ""} ({c.get("customer_number") or "-"})')
-        lines.append(f'   대차 {c.get("vehicle_number", "")} {c.get("vehicle_model") or ""}')
-        period = f'{c.get("start_date") or "?"}~{c.get("end_date") or "?"}'
-        billed = c.get('billing_date') or '?'
-        amount = fmt_won(c.get('billing_amount', 0))
-        lines.append(f'   기간 {period} / 청구 {billed} / {amount}')
-    return '\n'.join(lines)
+        block = [
+            f'{i}) {c.get("customer_number") or "-"}/ {c.get("customer_vehicle") or "-"}/ {c.get("customer_name") or "-"}',
+            f'접수번호 {c.get("receipt_no") or "-"}',
+            f'대여기간 {c.get("start_date") or "?"} ~ {c.get("end_date") or "?"}',
+            f'청구일 {c.get("billing_date") or "-"}',
+            f'청구액 {fmt_won(c.get("billing_amount", 0))}',
+        ]
+        blocks.append('\n'.join(block))
+    return '\n\n'.join(blocks)
 
 
 def build_manager_message(template: str, items: list) -> tuple[str, int]:

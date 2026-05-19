@@ -1569,10 +1569,12 @@ function DokchokTab({ sb, contracts }) {
     const manager_name = items[0].insuranceManagerName || "담당자";
     const total = items.reduce((s, c) => s + (Number(c.billingAmount) || 0), 0);
     const itemsBlock = items.map((c, i) =>
-      `${i + 1}) ${c.customerName || ""} (${c.customerNumber || "-"})\n` +
-      `   대차 ${c.vehicleNumber || ""} ${c.vehicleModel || ""}\n` +
-      `   기간 ${c.startDate || "?"}~${c.endDate || "?"} / 청구 ${c.billingDate || "?"} / ${Number(c.billingAmount || 0).toLocaleString()}원`
-    ).join("\n");
+      `${i + 1}) ${c.customerNumber || "-"}/ ${c.customerVehicle || "-"}/ ${c.customerName || "-"}\n` +
+      `접수번호 ${c.receiptNo || "-"}\n` +
+      `대여기간 ${c.startDate || "?"} ~ ${c.endDate || "?"}\n` +
+      `청구일 ${c.billingDate || "-"}\n` +
+      `청구액 ${Number(c.billingAmount || 0).toLocaleString()}원`
+    ).join("\n\n");
     return templateDraft
       .replaceAll("{insurer}", insurer)
       .replaceAll("{manager_name}", manager_name)
