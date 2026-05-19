@@ -13,12 +13,17 @@ dry_run=True 면 실제 발송 없이 페이로드만 반환 (사고 방지).
 ============================================================
 """
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 
 from db import get_client, KST
 from solapi_sender import _auth_header, byte_len, API_URL, SOLAPI_FROM
+
+
+# 청구일로부터 N일 이상 경과한 건만 자동발송 대상
+# (ERP UI DokchokTab.MIN_OVERDUE_DAYS 와 같은 값 유지)
+MIN_OVERDUE_DAYS = 3
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -50,17 +55,22 @@ def load_unpaid_contracts(sb):
       - status = '청구완료'
       - deposit_date IS NULL
       - is_deleted != true  (휴지통 제외)
-      - billing_date >= cutoff (설정 시)
+      - billing_date <= today - MIN_OVERDUE_DAYS  (청구 후 N일 이상 경과)
+      - billing_date >= cutoff (설정 시, 옛 청구건 제외)
     """
     settings = sb.table('accident_send_settings').select(
         'cutoff_billing_date'
     ).eq('id', 1).single().execute().data
     cutoff = settings.get('cutoff_billing_date') if settings else None
 
+    today = datetime.now(KST).date()
+    overdue_threshold = (today - timedelta(days=MIN_OVERDUE_DAYS)).isoformat()
+
     q = (sb.table('accident_rentals').select('*')
          .eq('status', '청구완료')
          .is_('deposit_date', 'null')
-         .neq('is_deleted', True))
+         .neq('is_deleted', True)
+         .lte('billing_date', overdue_threshold))
     if cutoff:
         q = q.gte('billing_date', cutoff)
     return q.execute().data or []
