@@ -1652,13 +1652,18 @@ function DokchokTab({ sb, contracts }) {
     await reload();
   };
 
-  // 상태 변경 — 요청중(=excluded 제거) / 분심진행중 / 보류
-  // 데이터(accident_rentals) 는 항상 그대로. excluded 테이블의 reason 만 바뀜.
+  // 상태 변경 — 요청중 / 분심진행중 / 보류 / 입금완료
   const onChangeStatus = async (c, newValue) => {
+    if (newValue === "입금완료") {
+      // accident_rentals 본 테이블 update (별도 핸들러)
+      return onMarkPaid(c);
+    }
     if (newValue === "요청중") {
+      // excluded 제거 → 발송 대상 복귀
       const { error } = await sb.from("accident_excluded_contracts").delete().eq("contract_id", c.id);
       if (error) { alert("변경 실패: " + error.message); return; }
     } else {
+      // 분심진행중 / 보류 → excluded 마커 upsert (accident_rentals 는 손 안 댐)
       const { error } = await sb.from("accident_excluded_contracts").upsert({
         contract_id: c.id, reason: newValue, excluded_by: "ui:erp",
         excluded_at: new Date().toISOString(),
@@ -1668,10 +1673,11 @@ function DokchokTab({ sb, contracts }) {
     await reload();
   };
   // 상태 select 공통 스타일
-  const STATUS_OPTIONS = ["요청중", "분심진행중", "보류"];
+  const STATUS_OPTIONS = ["요청중", "분심진행중", "보류", "입금완료"];
   const statusStyle = (v) => {
     if (v === "분심진행중") return { bg:"#7c3aed", color:"#fff", border:"#7c3aed" };
     if (v === "보류") return { bg:"#94a3b8", color:"#fff", border:"#94a3b8" };
+    if (v === "입금완료") return { bg:"#10b981", color:"#fff", border:"#10b981" };
     return { bg:"#fff", color:"#0f172a", border:"#cbd5e1" }; // 요청중
   };
   const renderStatusSelect = (c, currentReason) => {
@@ -1885,10 +1891,6 @@ function DokchokTab({ sb, contracts }) {
                             ₩{(c.billingAmount||0).toLocaleString()}
                             {dailyRate>0 && <span style={{color:"#64748b",fontSize:13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
                           </span>
-                          <button onClick={()=>onMarkPaid(c)} title="입금완료 처리 — deposit_date + status='입금완료'"
-                            style={{padding:"6px 10px",background:"#10b981",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                            💰 입금완료
-                          </button>
                           {renderStatusSelect(c, null)}
                         </div>
                       </div>;
@@ -1928,10 +1930,6 @@ function DokchokTab({ sb, contracts }) {
                 {ex.excluded_at && <span style={{marginLeft:10}}>보류 {ex.excluded_at.slice(0,10)}</span>}
               </div>
             </div>
-            <button onClick={()=>onMarkPaid(c)} title="입금완료 처리"
-              style={{padding:"6px 10px",background:"#10b981",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>
-              💰 입금완료
-            </button>
             {renderStatusSelect(c, ex.reason)}
           </div>;
         })}
