@@ -89,22 +89,10 @@ CREATE TABLE IF NOT EXISTS accident_excluded_contracts (
 
 
 -- ============================================================
--- RLS — anon 키로 ERP UI 가 직접 r/w 함.
--- 기존 accident_rentals/accident_fleet 등은 RLS off 상태지만, 신규 테이블은
--- 명시적 open policy 로 시작 (필요 시 추후 정책 강화 가능).
--- 발송 자체는 service_role 키로 백엔드에서 수행 (RLS 우회).
+-- RLS — 끄고 운영 (의도된 정책, 사용자 2026-05-19 명시)
+-- 사유: 외부인 사용 X, 사용자 3~4명 수준, 하드코딩은 본인만.
+-- 기존 jiip_*/accident_rentals 등과 동일 패턴으로 통일.
 -- ============================================================
-ALTER TABLE accident_send_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE accident_sms_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE accident_excluded_contracts ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS p_settings_all  ON accident_send_settings;
-DROP POLICY IF EXISTS p_logs_all      ON accident_sms_logs;
-DROP POLICY IF EXISTS p_excluded_all  ON accident_excluded_contracts;
-
-CREATE POLICY p_settings_all ON accident_send_settings
-    FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY p_logs_all ON accident_sms_logs
-    FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY p_excluded_all ON accident_excluded_contracts
-    FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE accident_send_settings       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE accident_sms_logs            DISABLE ROW LEVEL SECURITY;
+ALTER TABLE accident_excluded_contracts  DISABLE ROW LEVEL SECURITY;

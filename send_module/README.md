@@ -51,13 +51,13 @@ SOLAPI_API_SECRET=...
 SOLAPI_FROM=010-2418-8272           # 사고대차 전용 발신번호
 ```
 
-⚠ **발신번호는 jiip-claims 와 다름** (사용자 지정):
-- 사고대차 (이 모듈) : `010-2418-8272`
-- jiip-claims        : `010-5602-4417`
+**Solapi 계정/발신번호 매트릭스** (사용자 확정 2026-05-19):
+- Solapi 계정: **jiip-claims 와 동일 계정** → `SOLAPI_API_KEY` / `SOLAPI_API_SECRET` 공유
+- 발신번호: **분리** (수신자 입장에서 발신자 구분 + 발송이력 추적 분리)
+  - 사고대차 (이 모듈) : `010-2418-8272`
+  - jiip-claims        : `010-5602-4417`
 
-같은 Vultr 서버에 jiip-claims 와 함께 배포하는 경우에도, 발신번호는 반드시 분리합니다.
-Solapi API_KEY/SECRET 이 jiip 와 같은 계정인지는 사용자 확인 필요 — Solapi 콘솔에서
-두 발신번호가 같은 계정에 등록되어 있다면 KEY/SECRET 만 공유 가능.
+같은 Vultr 서버에 함께 배포해도 `SOLAPI_FROM` 만 다르게 설정.
 
 ---
 
