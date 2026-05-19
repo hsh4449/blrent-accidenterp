@@ -89,9 +89,10 @@ CREATE TABLE IF NOT EXISTS accident_excluded_contracts (
 
 
 -- ============================================================
--- RLS — anon 키로 ERP UI 가 직접 r/w 함 (다른 테이블과 동일 정책)
--- contracts 테이블이 이미 RLS open 인 환경이라 동일하게 처리.
--- 발송 자체는 service_role 키로 백엔드에서 수행.
+-- RLS — anon 키로 ERP UI 가 직접 r/w 함.
+-- 기존 accident_rentals/accident_fleet 등은 RLS off 상태지만, 신규 테이블은
+-- 명시적 open policy 로 시작 (필요 시 추후 정책 강화 가능).
+-- 발송 자체는 service_role 키로 백엔드에서 수행 (RLS 우회).
 -- ============================================================
 ALTER TABLE accident_send_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accident_sms_logs ENABLE ROW LEVEL SECURITY;

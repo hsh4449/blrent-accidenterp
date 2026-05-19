@@ -45,15 +45,22 @@ def fmt_won(n) -> str:
 # ============================================================
 def load_unpaid_contracts(sb):
     """
-    contracts 테이블에서 미입금 대상 조회.
-    조건: status='청구완료' AND deposit_date IS NULL AND billing_date >= cutoff
+    accident_rentals 테이블에서 미입금 대상 조회.
+    조건:
+      - status = '청구완료'
+      - deposit_date IS NULL
+      - is_deleted != true  (휴지통 제외)
+      - billing_date >= cutoff (설정 시)
     """
     settings = sb.table('accident_send_settings').select(
         'cutoff_billing_date'
     ).eq('id', 1).single().execute().data
     cutoff = settings.get('cutoff_billing_date') if settings else None
 
-    q = sb.table('contracts').select('*').eq('status', '청구완료').is_('deposit_date', 'null')
+    q = (sb.table('accident_rentals').select('*')
+         .eq('status', '청구완료')
+         .is_('deposit_date', 'null')
+         .neq('is_deleted', True))
     if cutoff:
         q = q.gte('billing_date', cutoff)
     return q.execute().data or []
