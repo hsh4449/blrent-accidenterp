@@ -1739,6 +1739,35 @@ function DokchokTab({ sb, contracts }) {
     {/* 4행: 발송 예정 (담당자별 그룹 + 청구건 상세) */}
     <div style={cardSt}>
       <div style={{...labelSt,marginBottom:12}}>발송 예정 (담당자별 그룹) — {groups.groups.length}명 · {unpaid.length}건 · {total.toLocaleString()}원</div>
+
+      {/* 우리 대여차량별 미입금 건수 */}
+      {(() => {
+        const byVeh = new Map();
+        for (const c of unpaid) {
+          const key = c.vehicleNumber || "(미상)";
+          if (!byVeh.has(key)) byVeh.set(key, { num: key, model: c.vehicleModel || "", count: 0, total: 0 });
+          const v = byVeh.get(key);
+          v.count += 1;
+          v.total += Number(c.billingAmount) || 0;
+        }
+        const arr = [...byVeh.values()].sort((a,b)=>b.count-a.count || b.total-a.total);
+        if (!arr.length) return null;
+        return <div style={{marginBottom:14,padding:"10px 14px",background:"#f1f5f9",borderRadius:8}}>
+          <div style={{fontSize:11,color:"#0f172a",marginBottom:6,fontWeight:600}}>🚗 우리 대여차량별 미입금 — {arr.length}대</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {arr.map(v => <span key={v.num} style={{
+              padding:"4px 10px",background:"#ffffff",border:"1px solid #cbd5e1",borderRadius:14,fontSize:12,
+              display:"inline-flex",alignItems:"center",gap:6,fontVariantNumeric:"tabular-nums"
+            }}>
+              <span style={{fontWeight:700,color:"#18181b"}}>{v.model || "(차종)"}</span>
+              <span style={{color:"#475569"}}>{v.num}</span>
+              <span style={{padding:"1px 6px",background:"#fee2e2",color:"#991b1b",borderRadius:8,fontWeight:700}}>{v.count}건</span>
+              <span style={{color:"#0f172a",fontWeight:600}}>₩{v.total.toLocaleString()}</span>
+            </span>)}
+          </div>
+        </div>;
+      })()}
+
       {groups.groups.length === 0
         ? <div style={{padding:30,textAlign:"center",color:"#0f172a",fontSize:13}}>발송 대상 없음</div>
         : <div style={{display:"flex",flexDirection:"column",gap:14}}>
