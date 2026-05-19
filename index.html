@@ -705,7 +705,7 @@ function App() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
-            {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["trash",`🗑 휴지통${deletedContracts.length>0?` (${deletedContracts.length})`:""}`]].map(([k,l])=>(
+            {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["dokchok","독촉발송"],["trash",`🗑 휴지통${deletedContracts.length>0?` (${deletedContracts.length})`:""}`]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{
                 padding:"9px 18px",
                 borderRadius:8,
@@ -1371,6 +1371,9 @@ function App() {
           </div>;
         })()}
 
+        {/* ── DOKCHOK (미입금 자동 독촉 SMS) ── */}
+        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} />}
+
         {/* ── TRASH ── */}
         {tab==="trash" && <div>
           <div style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:8 }}>
@@ -1499,6 +1502,272 @@ function EditForm({ init, vehs, onSave, onCancel }) {
     </div>
   </div>;
 }
+
+// ============================================================
+// DokchokTab — 미입금 자동 독촉 SMS 컨트롤 패널
+// ============================================================
+// 백엔드: blrent-accidenterp/send_module/  (Python, Vultr cron)
+// DB    : accident_send_settings (id=1), accident_sms_logs, accident_excluded_contracts
+// 안전장치 (3중):
+//   1) send_engine.MASTER_KILL_SWITCH = True (코드 상수)
+//   2) accident_send_settings.send_armed (1회용 무장)
+//   3) Vultr crontab LOCKED-BY-USER 코멘트
+// ============================================================
+function DokchokTab({ sb, contracts }) {
+  const [settings, setSettings] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [templateDraft, setTemplateDraft] = useState("");
+  const [cutoffDraft, setCutoffDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // 1) 설정 + 로그 로드
+  const reload = useCallback(async () => {
+    const { data: s } = await sb.from("accident_send_settings").select("*").eq("id", 1).single();
+    setSettings(s);
+    setTemplateDraft(s?.message_template || "");
+    setCutoffDraft(s?.cutoff_billing_date || "");
+    const { data: l } = await sb.from("accident_sms_logs").select("*").order("sent_at", { ascending: false }).limit(30);
+    setLogs(l || []);
+  }, [sb]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  // 2) 미입금 대상 (UI props.contracts 에서 필터)
+  const unpaid = useMemo(() => contracts.filter(c =>
+    c.status === "청구완료" && !c.depositDate
+    && (!settings?.cutoff_billing_date || (c.billingDate || "") >= settings.cutoff_billing_date)
+  ), [contracts, settings]);
+
+  // 3) 담당자별 그룹핑
+  const groups = useMemo(() => {
+    const map = new Map();
+    const noContact = [];
+    for (const c of unpaid) {
+      const phone = (c.insuranceManagerPhone || "").replace(/-/g, "").trim();
+      if (!phone) { noContact.push(c); continue; }
+      if (!map.has(phone)) map.set(phone, []);
+      map.get(phone).push(c);
+    }
+    return { groups: [...map.entries()], noContact };
+  }, [unpaid]);
+
+  // 4) 본문 미리보기 (첫 그룹 기준)
+  const previewText = useMemo(() => {
+    if (!groups.groups.length || !templateDraft) return "";
+    const [, items] = groups.groups[0];
+    const today = new Date().toISOString().slice(0, 10);
+    const insurer = items[0].insurer || "";
+    const manager_name = items[0].insuranceManagerName || "담당자";
+    const total = items.reduce((s, c) => s + (Number(c.billingAmount) || 0), 0);
+    const itemsBlock = items.map((c, i) =>
+      `${i + 1}) ${c.customerName || ""} (${c.customerNumber || "-"})\n` +
+      `   대차 ${c.vehicleNumber || ""} ${c.vehicleModel || ""}\n` +
+      `   기간 ${c.startDate || "?"}~${c.endDate || "?"} / 청구 ${c.billingDate || "?"} / ${Number(c.billingAmount || 0).toLocaleString()}원`
+    ).join("\n");
+    return templateDraft
+      .replaceAll("{insurer}", insurer)
+      .replaceAll("{manager_name}", manager_name)
+      .replaceAll("{today}", today)
+      .replaceAll("{count}", String(items.length))
+      .replaceAll("{total}", `${total.toLocaleString()}원`)
+      .replaceAll("{items_block}", itemsBlock);
+  }, [groups, templateDraft]);
+
+  // 5) 저장 (자동발송 토글 / cutoff / 템플릿 / 무장)
+  const saveField = async (patch) => {
+    setSaving(true);
+    const { error } = await sb.from("accident_send_settings")
+      .update({ ...patch, updated_at: new Date().toISOString(), updated_by: "ui:erp" })
+      .eq("id", 1);
+    setSaving(false);
+    if (error) { alert("저장 실패: " + error.message); return; }
+    await reload();
+  };
+
+  const onToggleAuto = () => saveField({ auto_send_enabled: !settings.auto_send_enabled });
+  const onSaveTemplate = () => saveField({ message_template: templateDraft });
+  const onSaveCutoff = () => saveField({ cutoff_billing_date: cutoffDraft || null });
+  const onArm = () => {
+    if (!confirm("⚠ 1회용 무장하시겠습니까?\n\n다음 자동발송 시 실 SMS 가 발송되며,\n발송 직후 자동으로 비활성화됩니다.\n\n(코드 상수 MASTER_KILL_SWITCH 가 False 여야만 실제로 발송됩니다)")) return;
+    saveField({ send_armed: true, armed_at: new Date().toISOString(), armed_by: "ui:erp" });
+  };
+  const onDisarm = () => saveField({ send_armed: false, armed_at: null, armed_by: null });
+
+  if (!settings) return <div style={{padding:40,textAlign:"center",color:"#0f172a"}}>로딩 중...</div>;
+
+  const ss = settings;
+  const total = unpaid.reduce((s, c) => s + (Number(c.billingAmount) || 0), 0);
+
+  // 공통 스타일
+  const cardSt = { background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:"18px 20px" };
+  const labelSt = { fontSize:12, color:"#0f172a", marginBottom:6, fontWeight:600 };
+  const btnPrimary = { padding:"7px 16px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:7, fontSize:12, fontWeight:700, cursor:"pointer" };
+  const btnDanger = { padding:"9px 22px", background:"#dc2626", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:800, cursor:"pointer" };
+  const btnGray = { padding:"7px 16px", background:"#e2e8f0", color:"#0f172a", border:"1px solid #cbd5e1", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer" };
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+    {/* 헤더 */}
+    <div style={{display:"flex",alignItems:"baseline",gap:14}}>
+      <h3 style={{margin:0,fontSize:18,color:"#18181b"}}>📨 미입금 자동 독촉 SMS</h3>
+      <span style={{fontSize:13,color:"#0f172a"}}>매일 08:30 KST · 같은 담당자 3일 간격 · 솔라피 LMS</span>
+    </div>
+
+    {/* ⚠ 상시 경고 배너 — 코드 상수 마스터 킬스위치 */}
+    <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"14px 18px",color:"#7f1d1d",fontSize:13,lineHeight:1.6}}>
+      <b>🚨 현재 발송 차단 상태 (코드 상수 MASTER_KILL_SWITCH = True)</b><br/>
+      백엔드(<code>send_module/</code>)의 모든 발송 경로가 강제 dry_run 으로 전환됩니다.<br/>
+      실 발송 활성화: ① 사용자(황성현)의 <b>"킬스위치 해제"</b> 명시 지시 → 코드 상수 False 변경/push<br/>
+      ② Vultr crontab <code>LOCKED-BY-USER</code> 코멘트 해제 ③ ENV(SOLAPI_*) 설정 ④ 아래 [1회용 무장] 클릭
+    </div>
+
+    {/* 1행: 자동발송 ON/OFF + 무장 + 최근 발송일 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
+      <div style={cardSt}>
+        <div style={labelSt}>자동발송 스위치</div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={onToggleAuto} disabled={saving} style={{
+            padding:"9px 22px",
+            background: ss.auto_send_enabled ? "#10b981" : "#94a3b8",
+            color:"#fff", border:"none", borderRadius:8,
+            fontSize:13, fontWeight:800, cursor:"pointer"
+          }}>{ss.auto_send_enabled ? "ON" : "OFF"}</button>
+          <span style={{fontSize:12,color:"#0f172a"}}>
+            {ss.auto_send_enabled ? "매일 08:30 cron 진입 (게이트 통과 시 발송)" : "cron 진입해도 즉시 종료"}
+          </span>
+        </div>
+      </div>
+
+      <div style={cardSt}>
+        <div style={labelSt}>1회용 무장 (send_armed)</div>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          {ss.send_armed
+            ? <>
+                <span style={{padding:"6px 12px",background:"#fef3c7",color:"#92400e",borderRadius:6,fontSize:12,fontWeight:700}}>⚡ ARMED</span>
+                <button onClick={onDisarm} style={btnGray}>해제</button>
+                <span style={{fontSize:11,color:"#0f172a"}}>{ss.armed_at?.slice(0,16).replace("T"," ")} · {ss.armed_by}</span>
+              </>
+            : <>
+                <button onClick={onArm} style={btnDanger}>1회용 무장</button>
+                <span style={{fontSize:11,color:"#0f172a"}}>발송 직후 자동 해제</span>
+              </>
+          }
+        </div>
+      </div>
+
+      <div style={cardSt}>
+        <div style={labelSt}>마지막 자동발송</div>
+        <div style={{fontSize:18,fontWeight:700,color:"#0f172a"}}>{ss.last_auto_send_date || "-"}</div>
+        <div style={{fontSize:11,color:"#0f172a",marginTop:4}}>다음 가능일: {ss.last_auto_send_date
+          ? new Date(new Date(ss.last_auto_send_date).getTime() + 3*86400000).toISOString().slice(0,10)
+          : "(즉시 가능)"}</div>
+      </div>
+    </div>
+
+    {/* 2행: cutoff + 미입금 통계 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:14}}>
+      <div style={cardSt}>
+        <div style={labelSt}>cutoff_billing_date (이 날짜 이전 청구 제외)</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input type="date" value={cutoffDraft || ""} onChange={e=>setCutoffDraft(e.target.value)}
+            style={{padding:"7px 10px",border:"1px solid #cbd5e1",borderRadius:6,fontSize:13}}/>
+          <button onClick={onSaveCutoff} disabled={saving} style={btnPrimary}>저장</button>
+          {cutoffDraft && <button onClick={()=>{setCutoffDraft("");saveField({cutoff_billing_date:null});}} style={btnGray}>비우기</button>}
+        </div>
+      </div>
+
+      <div style={cardSt}>
+        <div style={labelSt}>현재 발송 대상</div>
+        <div style={{display:"flex",gap:24,alignItems:"baseline"}}>
+          <div><span style={{fontSize:24,fontWeight:800,color:"#dc2626"}}>{unpaid.length}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>건 미입금</span></div>
+          <div><span style={{fontSize:24,fontWeight:800,color:"#0f172a"}}>{groups.groups.length}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>명 담당자</span></div>
+          <div><span style={{fontSize:24,fontWeight:800,color:"#10b981"}}>{total.toLocaleString()}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>원 합계</span></div>
+          {groups.noContact.length > 0 && <div style={{color:"#dc2626",fontSize:12,fontWeight:600}}>⚠ 담당자번호 없음 {groups.noContact.length}건 (자동 제외)</div>}
+        </div>
+      </div>
+    </div>
+
+    {/* 3행: 본문 템플릿 편집 + 미리보기 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+      <div style={cardSt}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={labelSt}>본문 템플릿</div>
+          <button onClick={onSaveTemplate} disabled={saving || templateDraft===ss.message_template} style={btnPrimary}>저장</button>
+        </div>
+        <textarea value={templateDraft} onChange={e=>setTemplateDraft(e.target.value)}
+          style={{width:"100%",minHeight:280,padding:10,border:"1px solid #cbd5e1",borderRadius:6,fontSize:12,fontFamily:"monospace",resize:"vertical"}}/>
+        <div style={{marginTop:8,padding:"8px 10px",background:"#f1f5f9",borderRadius:6,fontSize:11,color:"#0f172a",lineHeight:1.6}}>
+          <b>변수:</b> <code>{"{insurer}"}</code>, <code>{"{manager_name}"}</code>, <code>{"{today}"}</code>, <code>{"{count}"}</code>, <code>{"{total}"}</code>, <code>{"{items_block}"}</code>
+        </div>
+      </div>
+
+      <div style={cardSt}>
+        <div style={labelSt}>미리보기 (첫 담당자 기준)</div>
+        <pre style={{margin:0,padding:12,background:"#0f172a",color:"#e2e8f0",borderRadius:6,fontSize:11,lineHeight:1.6,whiteSpace:"pre-wrap",minHeight:280,overflow:"auto"}}>{previewText || "(발송 대상 없음)"}</pre>
+      </div>
+    </div>
+
+    {/* 4행: 발송 대상 담당자별 리스트 */}
+    <div style={cardSt}>
+      <div style={{...labelSt,marginBottom:12}}>발송 예정 (담당자별 그룹) {groups.groups.length}건</div>
+      {groups.groups.length === 0
+        ? <div style={{padding:30,textAlign:"center",color:"#0f172a",fontSize:13}}>발송 대상 없음</div>
+        : <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {groups.groups.map(([phone, items]) => {
+              const total = items.reduce((s,c)=>s+(Number(c.billingAmount)||0), 0);
+              return <div key={phone} style={{border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <span style={{fontWeight:700,color:"#18181b"}}>{items[0].insuranceManagerName || "(이름없음)"}</span>
+                  <span style={{marginLeft:8,color:"#0f172a",fontSize:12}}>{items[0].insurer || "(보험사미상)"} · {phone.replace(/(\d{3})(\d{4})(\d{4})/,"$1-$2-$3")}</span>
+                </div>
+                <div style={{fontSize:12,color:"#0f172a"}}>
+                  <b style={{color:"#dc2626"}}>{items.length}건</b> · <b style={{color:"#10b981"}}>{total.toLocaleString()}원</b>
+                </div>
+              </div>;
+            })}
+          </div>}
+    </div>
+
+    {/* 5행: 발송 이력 (최근 30건) */}
+    <div style={cardSt}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={labelSt}>발송 이력 (최근 30건)</div>
+        <button onClick={reload} style={btnGray}>새로고침</button>
+      </div>
+      {logs.length === 0
+        ? <div style={{padding:30,textAlign:"center",color:"#0f172a",fontSize:13}}>발송 이력 없음</div>
+        : <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{background:"#f1f5f9",textAlign:"left"}}>
+                  {["일시","유형","수신","담당자","보험사","건수","금액","상태"].map(h=>
+                    <th key={h} style={{padding:"7px 8px",borderBottom:"1px solid #cbd5e1",fontWeight:700,color:"#0f172a"}}>{h}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map(l => <tr key={l.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+                  <td style={{padding:"7px 8px",color:"#0f172a"}}>{l.sent_at?.slice(0,16).replace("T"," ")}</td>
+                  <td style={{padding:"7px 8px"}}><span style={{padding:"2px 6px",background:l.trigger_type==="auto"?"#dbeafe":"#fef3c7",color:l.trigger_type==="auto"?"#1e40af":"#92400e",borderRadius:4,fontSize:10,fontWeight:700}}>{l.trigger_type}</span></td>
+                  <td style={{padding:"7px 8px",color:"#0f172a",fontFamily:"monospace"}}>{l.recipient_phone}</td>
+                  <td style={{padding:"7px 8px",color:"#0f172a"}}>{l.recipient_name || "-"}</td>
+                  <td style={{padding:"7px 8px",color:"#0f172a"}}>{l.insurer || "-"}</td>
+                  <td style={{padding:"7px 8px",color:"#0f172a"}}>{l.contract_ids?.length || 0}</td>
+                  <td style={{padding:"7px 8px",color:"#0f172a",fontVariantNumeric:"tabular-nums"}}>{(l.total_amount||0).toLocaleString()}</td>
+                  <td style={{padding:"7px 8px"}}>
+                    {l.solapi_status_code && l.solapi_status_code < 400
+                      ? <span style={{color:"#10b981",fontWeight:700}}>✓ {l.solapi_status_code}</span>
+                      : <span style={{color:"#dc2626",fontWeight:700}}>✗ {l.solapi_status_code || "?"}</span>}
+                  </td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>}
+    </div>
+
+  </div>;
+}
+
 
         // Render the app
         const root = ReactDOM.createRoot(document.getElementById('root'));
