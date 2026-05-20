@@ -1932,9 +1932,14 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
       <div style={cardSt}>
         <div style={labelSt}>마지막 자동발송</div>
         <div style={{fontSize:18,fontWeight:700,color:"#0f172a"}}>{ss.last_auto_send_date || "-"}</div>
-        <div style={{fontSize:11,color:"#0f172a",marginTop:4}}>다음 가능일: {ss.last_auto_send_date
-          ? new Date(new Date(ss.last_auto_send_date).getTime() + 3*86400000).toISOString().slice(0,10)
-          : "(즉시 가능)"}</div>
+        <div style={{fontSize:11,color:"#0f172a",marginTop:4}}>다음 가능일: {(() => {
+          if (!ss.last_auto_send_date) return "(즉시 가능)";
+          // SEND_INTERVAL_DAYS = 1, 일요일이면 다음 평일로 skip
+          let d = new Date(ss.last_auto_send_date + "T00:00:00");
+          d.setDate(d.getDate() + 1);
+          while (d.getDay() === 0) d.setDate(d.getDate() + 1);
+          return d.toISOString().slice(0,10);
+        })()}</div>
       </div>
     </div>
 
