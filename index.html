@@ -751,6 +751,34 @@ function App() {
     }
   }, [rawContracts, deletedContracts]);
 
+  // 영구 삭제 — accident_rentals 에서 row 자체 DELETE. 복구 불가.
+  const doPurge = useCallback(async (id, label) => {
+    if (!confirm(`⚠ 영구 삭제하시겠습니까?\n\n${label || id}\n\n이 작업은 되돌릴 수 없습니다.\n같은 IMS 번호로 다시 크롤되면 다시 들어옵니다.`)) return;
+    try {
+      const { error } = await supabaseClient.from('accident_rentals').delete().eq('id', id);
+      if (error) throw error;
+      setDeletedContracts(deletedContracts.filter(c => c.id !== id));
+      setToast({msg:"영구 삭제됨",type:"success"});
+    } catch(e) {
+      setToast({msg:"영구 삭제 실패: "+e.message,type:"error"});
+    }
+  }, [deletedContracts]);
+
+  // 휴지통 비우기 — 현재 보이는 deletedContractsView 행 전부 DELETE
+  const doEmptyTrash = useCallback(async (ids) => {
+    if (!ids.length) return;
+    if (!confirm(`⚠ 휴지통 ${ids.length}건 모두 영구 삭제하시겠습니까?\n\n복구할 수 없습니다.\n(IMS 크롤이 다시 가져올 수 있는 건은 다음 크롤에 재등록됩니다)`)) return;
+    try {
+      const { error } = await supabaseClient.from('accident_rentals').delete().in('id', ids);
+      if (error) throw error;
+      const idSet = new Set(ids);
+      setDeletedContracts(deletedContracts.filter(c => !idSet.has(c.id)));
+      setToast({msg:`${ids.length}건 영구 삭제됨`,type:"success"});
+    } catch(e) {
+      setToast({msg:"휴지통 비우기 실패: "+e.message,type:"error"});
+    }
+  }, [deletedContracts]);
+
   if(loading) return <div style={{minHeight:"100vh",background:"#f8fafc",display:"flex",alignItems:"center",justifyContent:"center",color:"#18181b",fontFamily:"'Pretendard',sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>BL</div><div style={{fontSize:13,color:"#0f172a"}}>로딩 중...</div></div></div>;
 
   return (
@@ -1530,8 +1558,14 @@ function App() {
           <div style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:8 }}>
             <div>
               <h3 style={{ margin:0, fontSize:18, color:"#18181b" }}>🗑 휴지통</h3>
-              <div style={{ fontSize:13, color:"#0f172a", marginTop:6 }}>삭제된 계약 {deletedContractsView.length}건 · 복구 버튼 누르면 원래대로 돌아옵니다.</div>
+              <div style={{ fontSize:13, color:"#0f172a", marginTop:6 }}>삭제된 계약 {deletedContractsView.length}건 · [복구] 원래대로 / [영구삭제] 복구불가</div>
             </div>
+            {deletedContractsView.length > 0 && (
+              <button onClick={()=>doEmptyTrash(deletedContractsView.map(c=>c.id))}
+                style={{padding:"8px 16px",background:"#fef2f2",color:"#991b1b",border:"1px solid #fecaca",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                🗑 휴지통 비우기 ({deletedContractsView.length}건)
+              </button>
+            )}
           </div>
           {deletedContractsView.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#0f172a",fontSize:14,background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12}}>휴지통이 비어있습니다.</div> :
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -1549,7 +1583,10 @@ function App() {
                     <span><span style={{color:"#0f172a"}}>삭제일 </span>{c.deletedAt ? c.deletedAt.slice(0,10) : "-"}</span>
                   </div>
                 </div>
-                <button onClick={()=>doRestore(c.id)} style={{padding:"10px 18px",background:"#10b981",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>복구</button>
+                <div style={{ display:"flex", gap:8, flexShrink:0, alignSelf: isMobile ? "flex-end" : "auto" }}>
+                  <button onClick={()=>doRestore(c.id)} style={{padding:"10px 16px",background:"#10b981",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>복구</button>
+                  <button onClick={()=>doPurge(c.id, `${c.customerName||""} · ${c.vehicleNumber||""} · 청구${c.billingDate||"-"}`)} style={{padding:"10px 16px",background:"#fff",color:"#991b1b",border:"1px solid #fca5a5",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>영구삭제</button>
+                </div>
               </div>
             ))}
           </div>}
