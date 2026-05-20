@@ -1,7 +1,7 @@
 -- 사고대차 미입금 자동 독촉 SMS 시스템 (blrent-accidenterp)
 -- 2026-05-19 황성현
 --
--- 설계 출처: blrent-jiip-claims (지입 미입금 시스템 2026-05-17 사고 이후 패턴)
+-- 설계: 2026-05-17 SMS 대량 오발송 사고 이후 도입한 3중 잠금 패턴.
 -- 안전장치 3중:
 --   1) 코드 상수 send_engine.MASTER_KILL_SWITCH = True
 --   2) DB accident_send_settings.send_armed (1회용 무장)
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS accident_excluded_contracts (
 -- ============================================================
 -- RLS — 끄고 운영 (의도된 정책, 사용자 2026-05-19 명시)
 -- 사유: 외부인 사용 X, 사용자 3~4명 수준, 하드코딩은 본인만.
--- 기존 jiip_*/accident_rentals 등과 동일 패턴으로 통일.
+-- accident_rentals 등 기존 테이블과 동일 패턴으로 통일.
 -- ============================================================
 ALTER TABLE accident_send_settings       DISABLE ROW LEVEL SECURITY;
 ALTER TABLE accident_sms_logs            DISABLE ROW LEVEL SECURITY;

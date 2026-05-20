@@ -4,8 +4,6 @@
 직접 REST 호출 (HMAC-SHA256 인증).
 - API: POST https://api.solapi.com/messages/v4/send-many/detail
 - 90 byte (EUC-KR 환산) 초과 시 LMS
-
-(blrent-jiip-claims/solapi_sender.py 와 동일 패턴)
 """
 import os
 import hmac
