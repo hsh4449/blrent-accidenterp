@@ -192,11 +192,14 @@ def send_plan(plan: dict, *, owner: str, dry_run: bool, trigger_type: str, trigg
     """
     plan 의 messages 를 실제 발송 + 로그. owner='hq'|'jiip' 도메인 별 독립.
 
-    안전 게이트 순서:
+    안전 게이트:
         1. 메시지 0건이면 즉시 종료
-        2. MASTER_KILL_SWITCH=True → 강제 dry_run
-        3. accident_send_settings(owner=...).send_armed=false → 강제 dry_run
-        4. 실 발송 (owner 별 발신번호) → 솔라피 호출 → 로그(owner 태그) → send_armed 자동 false 복귀
+        2. MASTER_KILL_SWITCH=True → 강제 dry_run (코드 레벨 안전장치)
+        3. 실 발송 (owner 별 발신번호) → 솔라피 호출 → 로그(owner 태그)
+
+    참고: send_armed (1회용 무장) 게이트는 2026-05-20 사용자 결정으로 폐기.
+    auto_send_enabled (자동발송 스위치 ON/OFF) 단일 게이트로 운영.
+    OFF 면 auto_send.py 에서 owner 진입 자체가 차단되므로 send_plan 까지 안 옴.
     """
     if sb is None:
         sb = get_client()
@@ -205,21 +208,10 @@ def send_plan(plan: dict, *, owner: str, dry_run: bool, trigger_type: str, trigg
     if not msgs:
         return {'sent': 0, 'failed': 0, 'dry_run': dry_run, 'count': 0}
 
-    # 1차: MASTER KILL SWITCH
+    # MASTER KILL SWITCH (코드 레벨)
     if MASTER_KILL_SWITCH and not dry_run:
         print(f'[KILL_SWITCH] MASTER_KILL_SWITCH=True → 강제 dry_run (owner={owner}, triggered_by={triggered_by})')
         dry_run = True
-
-    # 2차: DB 게이트 (1회용 무장) — owner 별
-    armed = False
-    if not dry_run:
-        s = sb.table('accident_send_settings').select(
-            'send_armed,armed_by'
-        ).eq('owner', owner).single().execute().data
-        armed = bool((s or {}).get('send_armed'))
-        if not armed:
-            print(f'[LOCK] send_armed=false (owner={owner}) → 강제 dry_run (triggered_by={triggered_by})')
-            dry_run = True
 
     if dry_run:
         return {
@@ -227,7 +219,6 @@ def send_plan(plan: dict, *, owner: str, dry_run: bool, trigger_type: str, trigg
             'count': len(msgs), 'messages': msgs,
             'owner': owner,
             'blocked_by_kill_switch': MASTER_KILL_SWITCH,
-            'blocked_by_lock': (not armed and not MASTER_KILL_SWITCH),
         }
 
     # 실 발송 (owner 별 발신번호)
@@ -282,16 +273,6 @@ def send_plan(plan: dict, *, owner: str, dry_run: bool, trigger_type: str, trigg
         })
     if log_rows:
         sb.table('accident_sms_logs').insert(log_rows).execute()
-
-    # 1회용 무장 자동 해제 (owner 별)
-    sb.table('accident_send_settings').update({
-        'send_armed': False,
-        'armed_at': None,
-        'armed_by': None,
-        'updated_at': datetime.now(KST).isoformat(),
-        'updated_by': f'auto-disarm:{triggered_by}',
-    }).eq('owner', owner).execute()
-    print(f'[LOCK] owner={owner} 발송 후 send_armed 자동 false 복귀')
 
     return {
         'sent': sent, 'failed': failed, 'owner': owner,

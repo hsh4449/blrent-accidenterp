@@ -11,15 +11,21 @@ ERP 컨트롤 UI: `/ (사고대차관리)` → 우상단 **"독촉발송"** 탭.
 
 ---
 
-## 안전장치 (3중 잠금)
+## 안전장치 (2중 잠금)
 
-| # | 위치 | 기본값 | 해제 방법 |
+| # | 위치 | 기본값 | 운영 방법 |
 |---|---|---|---|
-| 1 | 코드 상수 `send_engine.MASTER_KILL_SWITCH` | `True` | 사용자 `"킬스위치 해제"` 명시 → `False` 변경 + git push |
-| 2 | DB `accident_send_settings.send_armed` | `false` | ERP UI 의 [1회용 무장] 클릭 (발송 직후 자동 `false` 복귀) |
-| 3 | Vultr crontab `auto_send` 라인 | `# LOCKED-BY-USER` 코멘트 | crontab 직접 수정 |
+| 1 | 코드 상수 `send_engine.MASTER_KILL_SWITCH` | `True` (사고 시) / `False` (일반 운영) | 사용자 `"사고대차 킬스위치 해제"` 정확 문구 시에만 `False` 변경 + push |
+| 2 | DB `accident_send_settings(owner).auto_send_enabled` | `false` | ERP UI 의 [자동발송 스위치] ON/OFF 토글 |
 
-3개 게이트가 모두 풀려야 실 발송됨.
+(과거 3중 잠금의 send_armed "1번만 발송하기" 게이트는 2026-05-20 사용자 결정으로 폐기.
+ON/OFF 단일 토글로 단순화. send_armed 컬럼은 DB 에 남아있으나 코드는 참조하지 않음.)
+
+자동발송 스위치 ON 인 동안:
+- 매일 KST 08:30 cron 진입
+- 일요일이면 자동 종료 (`SKIP_WEEKDAYS={6}`)
+- 미입금 0건이면 종료
+- 그 외엔 자동 발송 (사용자 추가 확인 불필요)
 
 ---
 

@@ -1774,14 +1774,15 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
     await reload();
   };
 
-  const onToggleAuto = () => saveField({ auto_send_enabled: !settings.auto_send_enabled });
+  const onToggleAuto = () => {
+    const turningOn = !settings.auto_send_enabled;
+    if (turningOn) {
+      if (!confirm(`자동발송을 ${owner==='jiip' ? '신동석 지입' : '본사'} 도메인에 켭니다.\n\n• 매일 08:30 KST (일요일 제외) 에 자동으로 SMS 가 발송됩니다.\n• 끄려면 다시 ON 버튼을 눌러 OFF 로 전환하세요.\n\n(코드 상수 MASTER_KILL_SWITCH 가 False 여야 실제로 발송됩니다)`)) return;
+    }
+    saveField({ auto_send_enabled: turningOn });
+  };
   const onSaveTemplate = () => saveField({ message_template: templateDraft });
   const onSaveCutoff = () => saveField({ cutoff_billing_date: cutoffDraft || null });
-  const onArm = () => {
-    if (!confirm("⚠ 다음 자동발송 시 1번만 발송할까요?\n\n• 다음 cron 진입 시 실 SMS 1회만 발송됩니다.\n• 발송 직후 자동으로 다시 잠금 상태로 돌아갑니다.\n\n(코드 상수 MASTER_KILL_SWITCH 가 False 여야 실제로 발송됩니다)")) return;
-    saveField({ send_armed: true, armed_at: new Date().toISOString(), armed_by: "ui:erp" });
-  };
-  const onDisarm = () => saveField({ send_armed: false, armed_at: null, armed_by: null });
 
   // 입금완료 처리 — accident_rentals 본 테이블 직접 update
   // (발송예정 row 에서 [💰 입금완료] 버튼 클릭 시)
@@ -1889,17 +1890,16 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
 
     {/* ⚠ 상시 경고 배너 — 코드 상수 마스터 킬스위치 */}
     <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"14px 18px",color:"#7f1d1d",fontSize:13,lineHeight:1.6}}>
-      <b>🚨 현재 발송 차단 상태 (코드 상수 MASTER_KILL_SWITCH = True)</b><br/>
-      백엔드(<code>send_module/</code>)의 모든 발송 경로가 강제 dry_run 으로 전환됩니다.<br/>
-      실 발송 활성화: ① 사용자(황성현)의 <b>"킬스위치 해제"</b> 명시 지시 → 코드 상수 False 변경/push<br/>
-      ② Vultr crontab <code>LOCKED-BY-USER</code> 코멘트 해제 ③ ENV(SOLAPI_*) 설정 ④ 아래 [1번만 발송하기] 클릭
+      <b>🚨 코드 레벨 발송 차단 (MASTER_KILL_SWITCH)</b><br/>
+      평소엔 False(풀림) 상태로 운영. True 가 되면 즉시 모든 발송이 강제 dry_run 으로 전환됩니다.<br/>
+      해제 trigger: 사용자(황성현)의 <b>"사고대차 킬스위치 해제"</b> 정확 문구 지시 시에만 코드 변경/push.
     </div>
 
-    {/* 1행: 자동발송 ON/OFF + 무장 + 최근 발송일 */}
-    <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",gap:14}}>
+    {/* 1행: 자동발송 ON/OFF + 최근 발송일 */}
+    <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",gap:14}}>
       <div style={cardSt}>
         <div style={labelSt}>자동발송 스위치</div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <button onClick={onToggleAuto} disabled={saving} style={{
             padding:"9px 22px",
             background: ss.auto_send_enabled ? "#10b981" : "#94a3b8",
@@ -1907,25 +1907,8 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
             fontSize:13, fontWeight:800, cursor:"pointer"
           }}>{ss.auto_send_enabled ? "ON" : "OFF"}</button>
           <span style={{fontSize:12,color:"#0f172a"}}>
-            {ss.auto_send_enabled ? "매일 08:30 cron 진입 (게이트 통과 시 발송)" : "cron 진입해도 즉시 종료"}
+            {ss.auto_send_enabled ? "매일 08:30 자동발송 (일요일 제외)" : "발송 정지 — OFF 동안 cron 진입해도 종료"}
           </span>
-        </div>
-      </div>
-
-      <div style={cardSt}>
-        <div style={labelSt}>1번만 발송하기 (send_armed)</div>
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          {ss.send_armed
-            ? <>
-                <span style={{padding:"6px 12px",background:"#fef3c7",color:"#92400e",borderRadius:6,fontSize:12,fontWeight:700}}>⚡ 발송 대기 중</span>
-                <button onClick={onDisarm} style={btnGray}>해제</button>
-                <span style={{fontSize:11,color:"#0f172a"}}>{ss.armed_at?.slice(0,16).replace("T"," ")} · {ss.armed_by}</span>
-              </>
-            : <>
-                <button onClick={onArm} style={btnDanger}>1번만 발송하기</button>
-                <span style={{fontSize:11,color:"#0f172a"}}>발송 직후 자동 해제</span>
-              </>
-          }
         </div>
       </div>
 
