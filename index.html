@@ -635,8 +635,13 @@ function App() {
     });
     const vStats = {};
     contracts.forEach(c => { const k=c.vehicleNumber; if(!k) return; if(!vStats[k]) vStats[k]={model:c.vehicleModel,cnt:0,bill:0,dep:0,rental:0,days:0}; vStats[k].cnt++; vStats[k].bill+=(c.billingAmount||0); vStats[k].dep+=(c.rentalFee||0); vStats[k].rental+=(c.rentalFee||0); vStats[k].days+=daysBetween(c.startDate,c.endDate); });
+    // fleet 에 등록된 차량은 사고대차 청구건이 0건이어도 vStats 에 빈 row 로 포함.
+    // (사용자모드 17대 모두 카드에 보이게. 본사 fleet 14대도 동일.)
+    Object.entries(fleet).forEach(([num, info]) => {
+      if (!vStats[num]) vStats[num] = { model: info?.model || '', cnt:0, bill:0, dep:0, rental:0, days:0 };
+    });
     return { active, pending, totalBill, totalDep, totalRentalFee, monthly, vStats, total:contracts.length, depCount:deposited.length };
-  }, [contracts]);
+  }, [contracts, fleet]);
 
   const sortedMonths = useMemo(() => Object.entries(stats.monthly).sort((a,b)=>a[0].localeCompare(b[0])), [stats.monthly]);
   const maxMA = useMemo(() => Math.max(...sortedMonths.map(([,d])=>d.bill),1), [sortedMonths]);
@@ -683,8 +688,20 @@ function App() {
       if(!vs[k]) vs[k]={model:c.vehicleModel,number:k,entries:[]};
       vs[k].entries.push({...c, bs:Math.max(1,st<f?1:st.getDate()), be:Math.min(dim,en>la?dim:en.getDate())});
     });
-    return {dim,vs:Object.values(vs),y,m};
-  }, [contracts, schedMonth]);
+    // fleet 에 등록된 차량은 이 달에 entries 가 없어도 빈 row 로 표시.
+    // (사용자모드 17대 모두 보이게. 본사모드도 동일.)
+    Object.entries(fleet).forEach(([num, info]) => {
+      if (!vs[num]) vs[num] = { model: info?.model || '', number: num, entries: [] };
+    });
+    const ordered = Object.values(vs).sort((a, b) => {
+      // entries 있는 차량 먼저, 그 안에서 차량번호 정렬
+      const ae = a.entries.length > 0 ? 0 : 1;
+      const be = b.entries.length > 0 ? 0 : 1;
+      if (ae !== be) return ae - be;
+      return (a.number || '').localeCompare(b.number || '');
+    });
+    return {dim,vs:ordered,y,m};
+  }, [contracts, fleet, schedMonth]);
 
   const doSave = useCallback(async d => {
     try {
@@ -885,7 +902,7 @@ function App() {
               const _openEdit = (c) => { setEditData(c); setEditModal(true); };
               const _emptyTag = (txt, c) => <span onClick={(e)=>{e.stopPropagation();_openEdit(c);}} style={{ background:"#7f1d1d44", color:"#ef4444", padding:"3px 10px", borderRadius:5, cursor:"pointer", fontSize:13, fontWeight:600 }}>{txt}</span>;
               const _selectStyle = { padding:"6px 10px", background:"#f8fafc", border:"1px solid #cbd5e1", borderRadius:7, color:"#18181b", fontSize:14, cursor:"pointer", fontWeight:600 };
-              return <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:24 }}>
+              return <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding: isMobile ? 12 : 24 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, gap:12, flexWrap:"wrap" }}>
                   <h4 style={{ margin:0, fontSize:17, fontWeight:700 }}>차량별 현황 <span style={{fontSize:13,color:"#0f172a",fontWeight:400,marginLeft:8}}>상태 · 총 미입금 · {_monthLabel} 입금 · ▾ 펼치면 미입금 상세</span></h4>
                   <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -932,53 +949,63 @@ function App() {
                     const fleetColor = { sold:'#dc2626', paused:'#a16207', other_use:'#7c3aed' }[fleetStatus];
                     return (
                       <div key={num} style={{ background:"#f8fafc", borderRadius:10, overflow:"hidden", opacity: isInactiveFleet ? 0.65 : 1 }}>
-                        <div style={{ display:"flex", alignItems:"center", padding:"16px 20px", gap:20 }}>
+                        <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", padding: isMobile ? "10px 12px" : "16px 20px", gap: isMobile ? 10 : 20 }}>
                           {/* 좌: 차량 정보 */}
-                          <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0, minWidth:170 }}>
-                            <span style={{ width:12, height:12, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
-                            <div>
-                              <div style={{fontSize:18,fontWeight:700, display:"flex", alignItems:"center", gap:6}}>
-                                {d.model}
-                                {isInactiveFleet && <span style={{fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:4, background:fleetColor+"22", color:fleetColor, letterSpacing:0}}>{fleetLabel}</span>}
+                          <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0, minWidth: isMobile ? 0 : 170, justifyContent: isMobile ? "space-between" : "flex-start" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                              <span style={{ width:12, height:12, borderRadius:"50%", background:v?.color||"#888", flexShrink:0 }}/>
+                              <div style={{ minWidth:0 }}>
+                                <div style={{fontSize: isMobile ? 16 : 18,fontWeight:700, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
+                                  {d.model}
+                                  {isInactiveFleet && <span style={{fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:4, background:fleetColor+"22", color:fleetColor, letterSpacing:0}}>{fleetLabel}</span>}
+                                </div>
+                                <div style={{fontSize: isMobile ? 12 : 14,color:"#0f172a",marginTop:2}}>{num}</div>
                               </div>
-                              <div style={{fontSize:14,color:"#0f172a",marginTop:2}}>{num}</div>
                             </div>
+                            {/* 모바일: 펼침 버튼을 차량 정보 줄 오른쪽으로 */}
+                            {isMobile && (
+                              <button onClick={()=>{
+                                setUnpaidExpanded(prev => { const ns = new Set(prev); if (ns.has(num)) ns.delete(num); else ns.add(num); return ns; });
+                              }} style={{padding:"6px 10px",background:isOpen?"#e2e8f0":"#3b82f6",color:isOpen?"#aaa":"#fff",border:"none",borderRadius:6,fontSize:14,fontWeight:700,cursor:"pointer",lineHeight:1,minWidth:40,flexShrink:0}}>{isOpen?"▴":"▾"}</button>
+                            )}
                           </div>
                           {/* 중: 통계 4개 가로로 펼침 */}
-                          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"space-around", flexWrap:"wrap", gap:"12px 24px" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:90 }}>
-                              <span style={{padding:"4px 12px",borderRadius:6,background:isActive?"#f59e0b22":"#cbd5e1",color:isActive?"#f59e0b":"#888",fontWeight:700,fontSize:14}}>{isActive?"배차중":"대기"}</span>
+                          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent: isMobile ? "space-between" : "space-around", flexWrap:"wrap", gap: isMobile ? "8px 10px" : "12px 24px" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:8, minWidth: isMobile ? 0 : 90 }}>
+                              <span style={{padding: isMobile ? "3px 8px" : "4px 12px",borderRadius:6,background:isActive?"#f59e0b22":"#cbd5e1",color:isActive?"#f59e0b":"#888",fontWeight:700,fontSize: isMobile ? 11 : 14}}>{isActive?"배차중":"대기"}</span>
                             </div>
-                            <div style={{ textAlign:"center", minWidth:80 }}>
-                              <div style={{fontSize:11,color:"#0f172a",marginBottom:3}}>총 미입금</div>
-                              <div style={{fontSize:20,fontWeight:700,color:unpaidCount>0?"#ef4444":"#666",fontVariantNumeric:"tabular-nums"}}>{unpaidCount}<span style={{color:"#0f172a",fontSize:12,marginLeft:2,fontWeight:400}}>건</span></div>
+                            <div style={{ textAlign:"center", minWidth: isMobile ? 0 : 80 }}>
+                              <div style={{fontSize: isMobile ? 10 : 11,color:"#0f172a",marginBottom:3}}>총 미입금</div>
+                              <div style={{fontSize: isMobile ? 15 : 20,fontWeight:700,color:unpaidCount>0?"#ef4444":"#666",fontVariantNumeric:"tabular-nums"}}>{unpaidCount}<span style={{color:"#0f172a",fontSize:11,marginLeft:2,fontWeight:400}}>건</span></div>
                             </div>
-                            <div style={{ textAlign:"center", minWidth:80 }}>
-                              <div style={{fontSize:11,color:"#0f172a",marginBottom:3}}>{_monthLabel} 계약</div>
-                              <div style={{fontSize:18,fontWeight:700,color:dispatchedCount>0?"#3b82f6":"#666",fontVariantNumeric:"tabular-nums"}}>{dispatchedCount}<span style={{color:"#0f172a",fontSize:12,marginLeft:2,fontWeight:400}}>건</span></div>
+                            <div style={{ textAlign:"center", minWidth: isMobile ? 0 : 80 }}>
+                              <div style={{fontSize: isMobile ? 10 : 11,color:"#0f172a",marginBottom:3}}>{_monthLabel} 계약</div>
+                              <div style={{fontSize: isMobile ? 14 : 18,fontWeight:700,color:dispatchedCount>0?"#3b82f6":"#666",fontVariantNumeric:"tabular-nums"}}>{dispatchedCount}<span style={{color:"#0f172a",fontSize:11,marginLeft:2,fontWeight:400}}>건</span></div>
                             </div>
-                            <div style={{ textAlign:"center", minWidth:90 }}>
-                              <div style={{fontSize:11,color:"#0f172a",marginBottom:3}}>가동</div>
-                              <div style={{fontSize:18,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>
+                            <div style={{ textAlign:"center", minWidth: isMobile ? 0 : 90 }}>
+                              <div style={{fontSize: isMobile ? 10 : 11,color:"#0f172a",marginBottom:3}}>가동</div>
+                              <div style={{fontSize: isMobile ? 13 : 18,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>
                                 <span style={{color:daysRun>0?"#f59e0b":"#666"}}>{daysRun}</span>
-                                <span style={{color:"#0f172a",fontSize:14,margin:"0 2px",fontWeight:400}}>/</span>
-                                <span style={{color:"#0f172a",fontSize:14,fontWeight:600}}>{daysTotal}</span>
-                                <span style={{color:"#0f172a",fontSize:12,marginLeft:2,fontWeight:400}}>일</span>
+                                <span style={{color:"#0f172a",fontSize: isMobile ? 11 : 14,margin:"0 2px",fontWeight:400}}>/</span>
+                                <span style={{color:"#0f172a",fontSize: isMobile ? 11 : 14,fontWeight:600}}>{daysTotal}</span>
+                                <span style={{color:"#0f172a",fontSize:11,marginLeft:2,fontWeight:400}}>일</span>
                               </div>
                             </div>
-                            <div style={{ textAlign:"center", minWidth:140 }}>
-                              <div style={{fontSize:11,color:"#0f172a",marginBottom:3}}>{_monthLabel} 입금</div>
-                              <div style={{fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>
-                                <span style={{color:monthDepCount>0?"#10b981":"#666"}}>{monthDepCount}</span><span style={{color:"#0f172a",fontSize:12,marginLeft:2,fontWeight:400}}>건</span>
+                            <div style={{ textAlign:"center", minWidth: isMobile ? 0 : 140, gridColumn: isMobile ? "1 / -1" : "auto" }}>
+                              <div style={{fontSize: isMobile ? 10 : 11,color:"#0f172a",marginBottom:3}}>{_monthLabel} 입금</div>
+                              <div style={{fontSize: isMobile ? 12 : 16,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>
+                                <span style={{color:monthDepCount>0?"#10b981":"#666"}}>{monthDepCount}</span><span style={{color:"#0f172a",fontSize:11,marginLeft:2,fontWeight:400}}>건</span>
                                 <span style={{color:"#0f172a",margin:"0 6px"}}>·</span>
-                                <span style={{color:monthDepAmount>0?"#10b981":"#666",fontSize:16}}>₩{fmt(monthDepAmount)}</span>
+                                <span style={{color:monthDepAmount>0?"#10b981":"#666",fontSize: isMobile ? 12 : 16}}>₩{fmt(monthDepAmount)}</span>
                               </div>
                             </div>
                           </div>
-                          {/* 우: 펼침 버튼 */}
-                          <button onClick={()=>{
-                            setUnpaidExpanded(prev => { const ns = new Set(prev); if (ns.has(num)) ns.delete(num); else ns.add(num); return ns; });
-                          }} style={{padding:"10px 14px",background:isOpen?"#e2e8f0":"#3b82f6",color:isOpen?"#aaa":"#fff",border:"none",borderRadius:8,fontSize:20,fontWeight:700,cursor:"pointer",lineHeight:1,minWidth:52,flexShrink:0}}>{isOpen?"▴":"▾"}</button>
+                          {/* 우: 펼침 버튼 (PC 전용 — 모바일은 차량 정보 줄에 인라인) */}
+                          {!isMobile && (
+                            <button onClick={()=>{
+                              setUnpaidExpanded(prev => { const ns = new Set(prev); if (ns.has(num)) ns.delete(num); else ns.add(num); return ns; });
+                            }} style={{padding:"10px 14px",background:isOpen?"#e2e8f0":"#3b82f6",color:isOpen?"#aaa":"#fff",border:"none",borderRadius:8,fontSize:20,fontWeight:700,cursor:"pointer",lineHeight:1,minWidth:52,flexShrink:0}}>{isOpen?"▴":"▾"}</button>
+                          )}
                         </div>
                         {isOpen && <div style={{ padding:"0 14px 14px" }}>
                           {unpaidItems.length === 0 ? <div style={{padding:18,textAlign:"center",color:"#0f172a",fontSize:14,background:"#ffffff",borderRadius:10}}>미청구·미입금 계약 없음</div> :
@@ -1002,7 +1029,7 @@ function App() {
                                     <button onClick={()=>doDelete(c.id)} style={{ padding:"7px 16px", background:"#ef4444", color:"#fff", border:"none", borderRadius:7, fontSize:13, cursor:"pointer", fontWeight:700 }}>삭제</button>
                                   </div>
                                 </div>
-                                <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"8px 20px", color:"#0f172a", fontSize:14 }}>
+                                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap:"8px 20px", color:"#0f172a", fontSize: isMobile ? 13 : 14 }}>
                                   <div><span style={{color:"#0f172a"}}>대여 </span>{c.startDate||"-"} ~ {c.endDate||"-"}</div>
                                   <div>
                                     {c.status === "청구완료"
@@ -2011,24 +2038,24 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
                       const overdueDays = c.billingDate ? daysBetween(c.billingDate, todayDate.toISOString().slice(0,10)) : 0;
                       const dailyRate = rentDays > 0 ? Math.round((c.billingAmount||0) / rentDays) : 0;
                       const overdueColor = overdueDays >= 30 ? {bg:"#fee2e2",fg:"#991b1b"} : overdueDays >= 14 ? {bg:"#fed7aa",fg:"#9a3412"} : {bg:"#fef3c7",fg:"#854d0e"};
-                      return <div key={c.id} style={{padding:"12px 16px",background:"#f8fafc",border:"1px solid #e2e8f0",borderLeft:`3px solid ${color}`,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:14}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",marginBottom:6}}>
-                            <span style={{fontSize:15,fontWeight:700,color:"#18181b"}}>{c.customerVehicle || "(차종 없음)"}</span>
-                            <span style={{fontSize:13,fontWeight:700,color:"#1e40af",background:"#dbeafe",padding:"2px 9px",borderRadius:5,letterSpacing:0.2}}>{c.customerNumber || "-"}</span>
-                            <span style={{fontSize:12,color:"#64748b",fontWeight:500}}>· {c.customerName || "이름없음"}</span>
-                            <span style={{fontSize:11,color:"#0f172a",background:"#f1f5f9",padding:"2px 7px",borderRadius:4,fontWeight:600,marginLeft:4}}>대차 {c.vehicleNumber || "-"} {c.vehicleModel || ""}</span>
+                      return <div key={c.id} style={{padding: isMobile ? "10px 12px" : "12px 16px",background:"#f8fafc",border:"1px solid #e2e8f0",borderLeft:`3px solid ${color}`,borderRadius:8,display:"flex",flexDirection: isMobile ? "column" : "row",justifyContent: isMobile ? "flex-start" : "space-between",alignItems: isMobile ? "stretch" : "center",gap: isMobile ? 8 : 14}}>
+                        <div style={{flex:1,minWidth:0,width:"100%"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
+                            <span style={{fontSize: isMobile ? 14 : 15,fontWeight:700,color:"#18181b",whiteSpace:"nowrap"}}>{c.customerVehicle || "(차종 없음)"}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:"#1e40af",background:"#dbeafe",padding:"2px 9px",borderRadius:5,letterSpacing:0.2,whiteSpace:"nowrap"}}>{c.customerNumber || "-"}</span>
+                            <span style={{fontSize:12,color:"#64748b",fontWeight:500,whiteSpace:"nowrap"}}>· {c.customerName || "이름없음"}</span>
+                            <span style={{fontSize:11,color:"#0f172a",background:"#f1f5f9",padding:"2px 7px",borderRadius:4,fontWeight:600,whiteSpace:"nowrap"}}>대차 {c.vehicleNumber || "-"} {c.vehicleModel || ""}</span>
                           </div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:"6px 10px",fontSize:13}}>
-                            <span style={{background:"#dbeafe",color:"#1e40af",padding:"3px 10px",borderRadius:12,fontWeight:600}}>대여 {c.startDate||"?"} ~ {c.endDate||"?"}{rentDays>0 && ` · ${rentDays}일`}</span>
-                            <span style={{background:"#fef3c7",color:"#854d0e",padding:"3px 10px",borderRadius:12,fontWeight:600}}>청구 {c.billingDate||"?"}</span>
-                            {c.billingDate && <span style={{background:overdueColor.bg,color:overdueColor.fg,padding:"3px 10px",borderRadius:12,fontWeight:700}}>⏱ 청구 후 {overdueDays}일 경과</span>}
+                          <div style={{display:"flex",flexWrap:"wrap",gap:"6px 8px",fontSize: isMobile ? 12 : 13}}>
+                            <span style={{background:"#dbeafe",color:"#1e40af",padding:"3px 10px",borderRadius:12,fontWeight:600,whiteSpace:"nowrap"}}>대여 {c.startDate||"?"} ~ {c.endDate||"?"}{rentDays>0 && ` · ${rentDays}일`}</span>
+                            <span style={{background:"#fef3c7",color:"#854d0e",padding:"3px 10px",borderRadius:12,fontWeight:600,whiteSpace:"nowrap"}}>청구 {c.billingDate||"?"}</span>
+                            {c.billingDate && <span style={{background:overdueColor.bg,color:overdueColor.fg,padding:"3px 10px",borderRadius:12,fontWeight:700,whiteSpace:"nowrap"}}>⏱ 청구 후 {overdueDays}일 경과</span>}
                           </div>
                         </div>
-                        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                          <span style={{color:"#dc2626",fontWeight:800,fontSize:18,fontVariantNumeric:"tabular-nums"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,justifyContent: isMobile ? "space-between" : "flex-end",width: isMobile ? "100%" : "auto",borderTop: isMobile ? "1px dashed #e2e8f0" : "none",paddingTop: isMobile ? 6 : 0}}>
+                          <span style={{color:"#dc2626",fontWeight:800,fontSize: isMobile ? 16 : 18,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>
                             ₩{(c.billingAmount||0).toLocaleString()}
-                            {dailyRate>0 && <span style={{color:"#64748b",fontSize:13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
+                            {dailyRate>0 && <span style={{color:"#64748b",fontSize: isMobile ? 11 : 13,fontWeight:500,marginLeft:5}}>(일:{dailyRate.toLocaleString()})</span>}
                           </span>
                           {renderStatusSelect(c, null)}
                         </div>
