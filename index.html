@@ -226,7 +226,7 @@ const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#0
 
 // "사용자" 4자리 코드 입력 시 owner='jiip' (신동석부장 지입차) 만 표시하는 제한 뷰로 전환.
 // 차량 추가/제거는 Supabase accident_fleet.owner='jiip' 행에서 관리. crawler.py JIIP_VEHICLES 도 함께 갱신.
-const USER_VIEW_CODE = "0000";
+const USER_VIEW_CODE = "4417";
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -318,7 +318,7 @@ function Modal({ open, onClose, title, children, width=560 }) {
   return (
     <div style={{ position:"fixed", inset:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={onClose}>
       <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.5)", backdropFilter:"blur(4px)" }}/>
-      <div onClick={e=>e.stopPropagation()} style={{ position:"relative", background:"#1a1a2e", border:"1px solid #cbd5e1", borderRadius:16, width, maxWidth:"95vw", maxHeight:"90vh", overflow:"auto", padding:28, boxShadow:"0 24px 48px rgba(0,0,0,.4)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ position:"relative", background:"#1a1a2e", border:"1px solid #cbd5e1", borderRadius:16, width: "100%", maxWidth: `min(${width}px, 95vw)`, maxHeight:"90vh", overflow:"auto", padding: "20px 18px", boxShadow:"0 24px 48px rgba(0,0,0,.4)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <h3 style={{ margin:0, fontSize:18, color:"#18181b" }}>{title}</h3>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#0f172a", fontSize:22, cursor:"pointer", lineHeight:1 }}>x</button>
@@ -386,6 +386,19 @@ function App() {
     try { return localStorage.getItem('blrent_user_mode') === '1'; } catch { return false; }
   });
   const [userCodeInput, setUserCodeInput] = useState("");
+  // 모바일 감지 — 768px 이하면 모바일 레이아웃. matchMedia 로 리사이즈/회전 즉시 반영.
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handle = e => setIsMobile(e.matches);
+    mq.addEventListener ? mq.addEventListener('change', handle) : mq.addListener(handle);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener('change', handle) : mq.removeListener(handle);
+    };
+  }, []);
   const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", searchField:"customerNumber", depositMonth:"all" });
   const [selected, setSelected] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -729,97 +742,108 @@ function App() {
       {toast && <Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
       <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={onImport}/>
 
-      <header style={{ borderBottom:"1px solid #e2e8f0", padding:"10px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", background:"#f1f5f9" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-          <div style={{ background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", borderRadius:8, width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, color:"#fff" }}>BL</div>
-          <span style={{ fontSize:14, fontWeight:700 }}>사고대차 관리</span>
-          <span style={{ fontSize:11, color:"#0f172a" }}>{contracts.length}건</span>
+      <header style={{ borderBottom:"1px solid #e2e8f0", padding: isMobile ? "8px 12px" : "10px 20px", display:"flex", alignItems: isMobile ? "stretch" : "center", justifyContent:"space-between", background:"#f1f5f9", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 8 : 0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+            <div style={{ background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", borderRadius:8, width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, color:"#fff", flexShrink:0 }}>BL</div>
+            <span style={{ fontSize:14, fontWeight:700, whiteSpace:"nowrap" }}>사고대차 관리</span>
+            <span style={{ fontSize:11, color:"#0f172a", whiteSpace:"nowrap" }}>{contracts.length}건</span>
+          </div>
+          {/* 모바일: 사용자 코드 입력 인라인 (제목 줄 오른쪽) */}
+          {isMobile && (
+            <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="사용자"
+                value={userMode ? "" : userCodeInput}
+                onChange={e => {
+                  const v = e.target.value.replace(/\D/g,"").slice(0,4);
+                  setUserCodeInput(v);
+                  if (v === USER_VIEW_CODE) {
+                    setUserMode(true);
+                    try { localStorage.setItem('blrent_user_mode', '1'); } catch {}
+                    setUserCodeInput("");
+                    setToast({msg:"사용자 모드 진입", type:"success"});
+                  }
+                }}
+                disabled={userMode}
+                style={{ width:60, padding:"5px 6px", borderRadius:6, border:"1px solid #cbd5e1", fontSize:11, textAlign:"center", letterSpacing:1.5, background: userMode ? "#e2e8f0" : "#fff", color:"#0f172a", outline:"none", fontFamily:"monospace" }}
+              />
+              {userMode && (
+                <button
+                  onClick={() => { setUserMode(false); try { localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
+                  style={{ padding:"4px 8px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:10, color:"#334155", cursor:"pointer" }}
+                >해제</button>
+              )}
+            </div>
+          )}
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
+          <nav style={{ display:"flex", gap:1, marginLeft: isMobile ? 0 : 8, overflowX: isMobile ? "auto" : "visible", WebkitOverflowScrolling:"touch", flex: isMobile ? 1 : "0 1 auto", scrollbarWidth:"thin" }}>
             {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["dokchok","독촉발송"],["trash",`🗑 휴지통${deletedContractsView.length>0?` (${deletedContractsView.length})`:""}`]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{
-                padding:"9px 18px",
+                padding: isMobile ? "7px 12px" : "9px 18px",
                 borderRadius:8,
                 border: tab===k ? "1px solid #cbd5e1" : "1px solid transparent",
                 cursor:"pointer",
-                fontSize:13.5,
+                fontSize: isMobile ? 12 : 13.5,
                 fontWeight: tab===k ? 700 : 600,
                 background: tab===k ? "#ffffff" : "transparent",
                 color: tab===k ? "#0f172a" : "#334155",
                 boxShadow: tab===k ? "0 1px 3px rgba(15,23,42,0.08)" : "none",
-                transition:"all 0.15s"
+                transition:"all 0.15s",
+                whiteSpace:"nowrap",
+                flexShrink:0,
               }}>{l}</button>
             ))}
           </nav>
-          {/* 사용자 모드: 4자리 코드 입력. 정답 시 owner='jiip' 만 보이는 제한 뷰로 전환. */}
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:10, paddingLeft:10, borderLeft:"1px solid #cbd5e1" }}>
-            <span style={{ fontSize:11, color:"#475569" }}>사용자</span>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              placeholder="••••"
-              value={userMode ? "" : userCodeInput}
-              onChange={e => {
-                const v = e.target.value.replace(/\D/g,"").slice(0,4);
-                setUserCodeInput(v);
-                if (v === USER_VIEW_CODE) {
-                  setUserMode(true);
-                  try { localStorage.setItem('blrent_user_mode', '1'); } catch {}
-                  setUserCodeInput("");
-                  setToast({msg:"사용자 모드 진입 — 우리 차량만 표시", type:"success"});
-                }
-              }}
-              disabled={userMode}
-              style={{
-                width:60,
-                padding:"6px 8px",
-                borderRadius:6,
-                border:"1px solid #cbd5e1",
-                fontSize:12,
-                textAlign:"center",
-                letterSpacing:2,
-                background: userMode ? "#e2e8f0" : "#fff",
-                color:"#0f172a",
-                outline:"none",
-                fontFamily:"monospace",
-              }}
-            />
-            {userMode && (
-              <button
-                onClick={() => {
-                  setUserMode(false);
-                  try { localStorage.removeItem('blrent_user_mode'); } catch {}
-                  setUserCodeInput("");
-                  setToast({msg:"전체 모드로 복귀", type:"success"});
+          {/* PC: 사용자 코드 입력 (네비 오른쪽) — 모바일에선 위 줄에 있으니 숨김 */}
+          {!isMobile && (
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:10, paddingLeft:10, borderLeft:"1px solid #cbd5e1" }}>
+              <span style={{ fontSize:11, color:"#475569" }}>사용자</span>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="••••"
+                value={userMode ? "" : userCodeInput}
+                onChange={e => {
+                  const v = e.target.value.replace(/\D/g,"").slice(0,4);
+                  setUserCodeInput(v);
+                  if (v === USER_VIEW_CODE) {
+                    setUserMode(true);
+                    try { localStorage.setItem('blrent_user_mode', '1'); } catch {}
+                    setUserCodeInput("");
+                    setToast({msg:"사용자 모드 진입", type:"success"});
+                  }
                 }}
-                style={{
-                  padding:"5px 9px",
-                  borderRadius:6,
-                  border:"1px solid #cbd5e1",
-                  background:"#fff",
-                  fontSize:11,
-                  color:"#334155",
-                  cursor:"pointer",
-                }}
-                title="전체 차량 모드로 복귀"
-              >해제</button>
-            )}
-          </div>
+                disabled={userMode}
+                style={{ width:60, padding:"6px 8px", borderRadius:6, border:"1px solid #cbd5e1", fontSize:12, textAlign:"center", letterSpacing:2, background: userMode ? "#e2e8f0" : "#fff", color:"#0f172a", outline:"none", fontFamily:"monospace" }}
+              />
+              {userMode && (
+                <button
+                  onClick={() => { setUserMode(false); try { localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
+                  style={{ padding:"5px 9px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:11, color:"#334155", cursor:"pointer" }}
+                  title="전체 차량 모드로 복귀"
+                >해제</button>
+              )}
+            </div>
+          )}
         </div>
       </header>
       {userMode && (
-        <div style={{ background:"#ecfdf5", borderBottom:"1px solid #a7f3d0", padding:"6px 20px", fontSize:12, color:"#065f46", display:"flex", alignItems:"center", gap:8 }}>
+        <div style={{ background:"#ecfdf5", borderBottom:"1px solid #a7f3d0", padding: isMobile ? "5px 12px" : "6px 20px", fontSize:12, color:"#065f46", display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontWeight:700 }}>신동석님 안녕하세요</span>
         </div>
       )}
 
-      <main style={{ padding:"20px 24px", maxWidth:1320, margin:"0 auto" }}>
+      <main style={{ padding: isMobile ? "12px 10px" : "20px 24px", maxWidth:1320, margin:"0 auto" }}>
 
         {/* ── DASHBOARD ── */}
         {tab==="dashboard" && <div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14, marginBottom:24 }}>
+          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fit,minmax(220px,1fr))", gap: isMobile ? 8 : 14, marginBottom: isMobile ? 14 : 24 }}>
             {(() => {
               const _ym = vehicleViewYm;
               const _monthLabel = `${parseInt(_ym.split("-")[1])}월`;
@@ -835,12 +859,12 @@ function App() {
                 {l:`${_monthLabel} 입금`, v:`₩${fmt(_monthDepAmount)}`, u:"", sub:`${_monthDeps.length}건`, a:"#10b981"},
               ];
             })().map((s,i)=>(
-              <div key={i} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:"22px 24px", borderLeft:`4px solid ${s.a}` }}>
-                <div style={{ fontSize:14, color:"#0f172a", marginBottom:8, fontWeight:500, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
+              <div key={i} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding: isMobile ? "12px 14px" : "22px 24px", borderLeft:`4px solid ${s.a}` }}>
+                <div style={{ fontSize: isMobile ? 12 : 14, color:"#0f172a", marginBottom: isMobile ? 4 : 8, fontWeight:500, display:"flex", justifyContent:"space-between", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                   <span>{s.l}</span>
-                  {s.sub && <span style={{ fontSize:11, color:"#64748b", fontWeight:500 }}>{s.sub}</span>}
+                  {s.sub && <span style={{ fontSize: isMobile ? 10 : 11, color:"#64748b", fontWeight:500 }}>{s.sub}</span>}
                 </div>
-                <div style={{ fontSize:30, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{s.v}{s.u && <span style={{ fontSize:14, color:"#0f172a", marginLeft:4 }}>{s.u}</span>}</div>
+                <div style={{ fontSize: isMobile ? 20 : 30, fontWeight:700, fontVariantNumeric:"tabular-nums", wordBreak:"break-all" }}>{s.v}{s.u && <span style={{ fontSize: isMobile ? 11 : 14, color:"#0f172a", marginLeft:4 }}>{s.u}</span>}</div>
               </div>
             ))}
           </div>
@@ -1472,7 +1496,7 @@ function App() {
         })()}
 
         {/* ── DOKCHOK (미입금 자동 독촉 SMS) ── */}
-        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} />}
+        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} isMobile={isMobile} userMode={userMode} />}
 
         {/* ── TRASH ── */}
         {tab==="trash" && <div>
@@ -1560,8 +1584,9 @@ function EditForm({ init, vehs, onSave, onCancel, defaultOwner }) {
     insuranceManagerName:"",insuranceManagerPhone:""
   });
   const u = (k,v) => setF(p=>({...p,[k]:v}));
+  const isMobileForm = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
   return <div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 14px"}}>
+    <div style={{display:"grid",gridTemplateColumns: isMobileForm ? "1fr" : "1fr 1fr",gap:"0 14px"}}>
       <Field label="상태"><select value={f.status} onChange={e=>u("status",e.target.value)} style={SS}>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select></Field>
       <Field label="IMS번호"><input value={f.id} onChange={e=>u("id",e.target.value)} style={IS}/></Field>
       <Field label="배차자"><input value={f.dispatcher} onChange={e=>u("dispatcher",e.target.value)} style={IS}/></Field>
@@ -1613,7 +1638,7 @@ function EditForm({ init, vehs, onSave, onCancel, defaultOwner }) {
 //   2) accident_send_settings.send_armed (1회용 무장)
 //   3) Vultr crontab LOCKED-BY-USER 코멘트
 // ============================================================
-function DokchokTab({ sb, contracts }) {
+function DokchokTab({ sb, contracts, isMobile, userMode }) {
   const [settings, setSettings] = useState(null);
   const [logs, setLogs] = useState([]);
   const [excluded, setExcluded] = useState({}); // {contract_id: {reason, excluded_at, excluded_by}}
@@ -1811,7 +1836,7 @@ function DokchokTab({ sb, contracts }) {
     </div>
 
     {/* 1행: 자동발송 ON/OFF + 무장 + 최근 발송일 */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
+    <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",gap:14}}>
       <div style={cardSt}>
         <div style={labelSt}>자동발송 스위치</div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -1854,7 +1879,7 @@ function DokchokTab({ sb, contracts }) {
     </div>
 
     {/* 2행: cutoff + 미입금 통계 */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:14}}>
+    <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr",gap:14}}>
       <div style={cardSt}>
         <div style={labelSt}>cutoff_billing_date (이 날짜 이전 청구 제외)</div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -1867,17 +1892,17 @@ function DokchokTab({ sb, contracts }) {
 
       <div style={cardSt}>
         <div style={labelSt}>현재 발송 대상</div>
-        <div style={{display:"flex",gap:24,alignItems:"baseline"}}>
-          <div><span style={{fontSize:24,fontWeight:800,color:"#dc2626"}}>{unpaid.length}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>건 미입금</span></div>
-          <div><span style={{fontSize:24,fontWeight:800,color:"#0f172a"}}>{groups.groups.length}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>명 담당자</span></div>
-          <div><span style={{fontSize:24,fontWeight:800,color:"#10b981"}}>{total.toLocaleString()}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>원 합계</span></div>
+        <div style={{display:"flex",gap: isMobile ? 12 : 24,alignItems:"baseline",flexWrap:"wrap"}}>
+          <div><span style={{fontSize: isMobile ? 18 : 24,fontWeight:800,color:"#dc2626"}}>{unpaid.length}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>건 미입금</span></div>
+          <div><span style={{fontSize: isMobile ? 18 : 24,fontWeight:800,color:"#0f172a"}}>{groups.groups.length}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>명 담당자</span></div>
+          <div><span style={{fontSize: isMobile ? 18 : 24,fontWeight:800,color:"#10b981"}}>{total.toLocaleString()}</span><span style={{fontSize:13,marginLeft:4,color:"#0f172a"}}>원 합계</span></div>
           {groups.noContact.length > 0 && <div style={{color:"#dc2626",fontSize:12,fontWeight:600}}>⚠ 담당자번호 없음 {groups.noContact.length}건 (자동 제외)</div>}
         </div>
       </div>
     </div>
 
     {/* 3행: 본문 템플릿 편집 + 미리보기 */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+    <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",gap:14}}>
       <div style={cardSt}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={labelSt}>본문 템플릿</div>
