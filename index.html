@@ -400,7 +400,10 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("dashboard");
   // 사용자 모드: 4자리 코드(USER_VIEW_CODE) 입력 시 활성화. 활성 시 OUR_VEHICLES 만 표시.
-  const [userMode, setUserMode] = useState(false);
+  // 새로고침해도 유지되도록 localStorage에 저장.
+  const [userMode, setUserMode] = useState(() => {
+    try { return localStorage.getItem('blrent_user_mode') === '1'; } catch { return false; }
+  });
   const [userCodeInput, setUserCodeInput] = useState("");
   const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", searchField:"customerNumber", depositMonth:"all" });
   const [selected, setSelected] = useState(null);
@@ -778,6 +781,7 @@ function App() {
                 setUserCodeInput(v);
                 if (v === USER_VIEW_CODE) {
                   setUserMode(true);
+                  try { localStorage.setItem('blrent_user_mode', '1'); } catch {}
                   setUserCodeInput("");
                   setToast({msg:"사용자 모드 진입 — 우리 차량만 표시", type:"success"});
                 }
@@ -799,7 +803,12 @@ function App() {
             />
             {userMode && (
               <button
-                onClick={() => { setUserMode(false); setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
+                onClick={() => {
+                  setUserMode(false);
+                  try { localStorage.removeItem('blrent_user_mode'); } catch {}
+                  setUserCodeInput("");
+                  setToast({msg:"전체 모드로 복귀", type:"success"});
+                }}
                 style={{
                   padding:"5px 9px",
                   borderRadius:6,
