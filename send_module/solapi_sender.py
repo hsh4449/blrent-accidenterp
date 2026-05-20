@@ -13,7 +13,25 @@ from datetime import datetime, timezone
 
 SOLAPI_API_KEY = os.environ.get('SOLAPI_API_KEY', '')
 SOLAPI_API_SECRET = os.environ.get('SOLAPI_API_SECRET', '')
-SOLAPI_FROM = os.environ.get('SOLAPI_FROM', '')
+
+# owner 별 발신번호 분리 (2026-05-20):
+#   본사 사고대차    : 010-2418-8272 (SOLAPI_FROM_HQ)
+#   신동석 지입차    : 010-5602-4417 (SOLAPI_FROM_JIIP)
+# 둘 다 회사 공용 Solapi 계정에 발신번호로 등록되어 있어야 함.
+# legacy SOLAPI_FROM 도 fallback 으로 유지 (HQ 용).
+SOLAPI_FROM_HQ   = os.environ.get('SOLAPI_FROM_HQ',   os.environ.get('SOLAPI_FROM', ''))
+SOLAPI_FROM_JIIP = os.environ.get('SOLAPI_FROM_JIIP', '')
+
+
+def from_number_for(owner: str) -> str:
+    """owner = 'hq' or 'jiip' → 발신번호 (E.164 미적용, 하이픈 포함 가능)."""
+    if owner == 'jiip':
+        return SOLAPI_FROM_JIIP
+    return SOLAPI_FROM_HQ
+
+
+# Legacy alias (외부 import 호환). 단일 from 이 필요한 곳은 from_number_for(owner) 사용.
+SOLAPI_FROM = SOLAPI_FROM_HQ
 
 API_URL = 'https://api.solapi.com/messages/v4/send-many/detail'
 

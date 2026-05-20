@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import requests
 
 from db import get_client, KST
-from solapi_sender import _auth_header, byte_len, API_URL, SOLAPI_FROM
+from solapi_sender import _auth_header, byte_len, API_URL, from_number_for
 
 
 # 청구일로부터 N일 이상 경과한 건만 자동발송 대상
@@ -49,25 +49,27 @@ def fmt_won(n) -> str:
 # ============================================================
 # 1) 미입금 대상 로드
 # ============================================================
-def load_unpaid_contracts(sb):
+def load_unpaid_contracts(sb, owner: str):
     """
-    accident_rentals 테이블에서 미입금 대상 조회.
+    accident_rentals 테이블에서 owner='hq'|'jiip' 별 미입금 대상 조회.
     조건:
+      - owner 일치
       - status = '청구완료'
       - deposit_date IS NULL
       - is_deleted != true  (휴지통 제외)
       - billing_date <= today - MIN_OVERDUE_DAYS  (청구 후 N일 이상 경과)
-      - billing_date >= cutoff (설정 시, 옛 청구건 제외)
+      - billing_date >= cutoff (해당 owner settings 의 cutoff_billing_date)
     """
     settings = sb.table('accident_send_settings').select(
         'cutoff_billing_date'
-    ).eq('id', 1).single().execute().data
+    ).eq('owner', owner).single().execute().data
     cutoff = settings.get('cutoff_billing_date') if settings else None
 
     today = datetime.now(KST).date()
     overdue_threshold = (today - timedelta(days=MIN_OVERDUE_DAYS)).isoformat()
 
     q = (sb.table('accident_rentals').select('*')
+         .eq('owner', owner)
          .eq('status', '청구완료')
          .is_('deposit_date', 'null')
          .neq('is_deleted', True)
@@ -77,8 +79,11 @@ def load_unpaid_contracts(sb):
     return q.execute().data or []
 
 
-def load_excluded_ids(sb) -> set:
-    rows = sb.table('accident_excluded_contracts').select('contract_id').execute().data or []
+def load_excluded_ids(sb, owner: str) -> set:
+    rows = (sb.table('accident_excluded_contracts')
+              .select('contract_id')
+              .eq('owner', owner)
+              .execute().data or [])
     return {r['contract_id'] for r in rows}
 
 
@@ -119,7 +124,7 @@ def build_manager_message(template: str, items: list) -> tuple[str, int]:
 # ============================================================
 # 3) 발송 계획 (실 발송 안 함)
 # ============================================================
-def build_message_plan(sb, contracts: list, excluded_ids: set,
+def build_message_plan(sb, owner: str, contracts: list, excluded_ids: set,
                        *, target_phones=None, target_contract_ids=None) -> dict:
     """
     Returns: {
@@ -130,7 +135,7 @@ def build_message_plan(sb, contracts: list, excluded_ids: set,
     """
     settings = sb.table('accident_send_settings').select(
         'message_template'
-    ).eq('id', 1).single().execute().data
+    ).eq('owner', owner).single().execute().data
     template = (settings or {}).get('message_template') or ''
 
     pool = [c for c in contracts if c['id'] not in excluded_ids]
@@ -183,15 +188,15 @@ def _post_solapi(payload_msgs: list) -> tuple[int, dict]:
     return resp.status_code, body
 
 
-def send_plan(plan: dict, *, dry_run: bool, trigger_type: str, triggered_by: str, sb=None) -> dict:
+def send_plan(plan: dict, *, owner: str, dry_run: bool, trigger_type: str, triggered_by: str, sb=None) -> dict:
     """
-    plan 의 messages 를 실제 발송 + 로그.
+    plan 의 messages 를 실제 발송 + 로그. owner='hq'|'jiip' 도메인 별 독립.
 
     안전 게이트 순서:
         1. 메시지 0건이면 즉시 종료
         2. MASTER_KILL_SWITCH=True → 강제 dry_run
-        3. accident_send_settings.send_armed=false → 강제 dry_run
-        4. 실 발송 → 솔라피 호출 → 로그 → send_armed 자동 false 복귀
+        3. accident_send_settings(owner=...).send_armed=false → 강제 dry_run
+        4. 실 발송 (owner 별 발신번호) → 솔라피 호출 → 로그(owner 태그) → send_armed 자동 false 복귀
     """
     if sb is None:
         sb = get_client()
@@ -202,34 +207,43 @@ def send_plan(plan: dict, *, dry_run: bool, trigger_type: str, triggered_by: str
 
     # 1차: MASTER KILL SWITCH
     if MASTER_KILL_SWITCH and not dry_run:
-        print(f'[KILL_SWITCH] MASTER_KILL_SWITCH=True → 강제 dry_run (triggered_by={triggered_by})')
+        print(f'[KILL_SWITCH] MASTER_KILL_SWITCH=True → 강제 dry_run (owner={owner}, triggered_by={triggered_by})')
         dry_run = True
 
-    # 2차: DB 게이트 (1회용 무장)
+    # 2차: DB 게이트 (1회용 무장) — owner 별
     armed = False
     if not dry_run:
         s = sb.table('accident_send_settings').select(
             'send_armed,armed_by'
-        ).eq('id', 1).single().execute().data
+        ).eq('owner', owner).single().execute().data
         armed = bool((s or {}).get('send_armed'))
         if not armed:
-            print(f'[LOCK] send_armed=false → 강제 dry_run (triggered_by={triggered_by})')
+            print(f'[LOCK] send_armed=false (owner={owner}) → 강제 dry_run (triggered_by={triggered_by})')
             dry_run = True
 
     if dry_run:
         return {
             'sent': 0, 'failed': 0, 'dry_run': True,
             'count': len(msgs), 'messages': msgs,
+            'owner': owner,
             'blocked_by_kill_switch': MASTER_KILL_SWITCH,
             'blocked_by_lock': (not armed and not MASTER_KILL_SWITCH),
         }
 
-    # 실 발송
+    # 실 발송 (owner 별 발신번호)
+    from_number = from_number_for(owner).replace('-', '')
+    if not from_number:
+        print(f'[ERROR] owner={owner} 발신번호 미설정 (SOLAPI_FROM_{owner.upper()}) — 발송 중단')
+        return {
+            'sent': 0, 'failed': len(msgs), 'dry_run': True,
+            'count': len(msgs), 'owner': owner,
+            'blocked_by_missing_from': True,
+        }
     payload_msgs = []
     for m in msgs:
         pm = {
             'to': m['phone'],
-            'from': SOLAPI_FROM.replace('-', ''),
+            'from': from_number,
             'text': m['text'],
             'type': m['msg_type'],
         }
@@ -238,7 +252,7 @@ def send_plan(plan: dict, *, dry_run: bool, trigger_type: str, triggered_by: str
         payload_msgs.append(pm)
 
     status_code, body = _post_solapi(payload_msgs)
-    print(f'[SOLAPI] HTTP {status_code}')
+    print(f'[SOLAPI] owner={owner} HTTP {status_code}')
 
     sent = failed = 0
     if status_code < 400:
@@ -252,6 +266,7 @@ def send_plan(plan: dict, *, dry_run: bool, trigger_type: str, triggered_by: str
     log_rows = []
     for m in msgs:
         log_rows.append({
+            'owner': owner,
             'trigger_type': trigger_type,
             'triggered_by': triggered_by,
             'recipient_phone': m['phone'],
@@ -268,17 +283,17 @@ def send_plan(plan: dict, *, dry_run: bool, trigger_type: str, triggered_by: str
     if log_rows:
         sb.table('accident_sms_logs').insert(log_rows).execute()
 
-    # 1회용 무장 자동 해제 (실 발송 시도 직후, 성공/실패 무관)
+    # 1회용 무장 자동 해제 (owner 별)
     sb.table('accident_send_settings').update({
         'send_armed': False,
         'armed_at': None,
         'armed_by': None,
         'updated_at': datetime.now(KST).isoformat(),
         'updated_by': f'auto-disarm:{triggered_by}',
-    }).eq('id', 1).execute()
-    print('[LOCK] 발송 후 send_armed 자동 false 복귀')
+    }).eq('owner', owner).execute()
+    print(f'[LOCK] owner={owner} 발송 후 send_armed 자동 false 복귀')
 
     return {
-        'sent': sent, 'failed': failed,
+        'sent': sent, 'failed': failed, 'owner': owner,
         'count': len(msgs), 'group_id': group_id, 'status_code': status_code,
     }

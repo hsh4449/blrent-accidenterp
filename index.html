@@ -1639,6 +1639,11 @@ function EditForm({ init, vehs, onSave, onCancel, defaultOwner }) {
 //   3) Vultr crontab LOCKED-BY-USER 코멘트
 // ============================================================
 function DokchokTab({ sb, contracts, isMobile, userMode }) {
+  // owner: 'hq' (본사모드) / 'jiip' (사용자모드, 신동석부장 지입)
+  // 모든 settings/logs/excluded 쿼리·쓰기에 owner 필터를 적용해 본사/지입 발송 시스템이 독립적으로 작동.
+  const owner = userMode ? 'jiip' : 'hq';
+  const fromNumber = userMode ? '010-5602-4417' : '010-2418-8272';
+
   const [settings, setSettings] = useState(null);
   const [logs, setLogs] = useState([]);
   const [excluded, setExcluded] = useState({}); // {contract_id: {reason, excluded_at, excluded_by}}
@@ -1647,12 +1652,12 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
   const [saving, setSaving] = useState(false);
   const [locallyPaid, setLocallyPaid] = useState(new Set()); // 입금완료 처리한 contract id (페이지 새로고침 전까지 발송예정에서 제외)
 
-  // 1) 설정 + 로그 + 제외목록 로드
+  // 1) 설정 + 로그 + 제외목록 로드 — 모두 owner 필터
   const reload = useCallback(async () => {
     const [{ data: s }, { data: l }, { data: ex }] = await Promise.all([
-      sb.from("accident_send_settings").select("*").eq("id", 1).single(),
-      sb.from("accident_sms_logs").select("*").order("sent_at", { ascending: false }).limit(30),
-      sb.from("accident_excluded_contracts").select("*"),
+      sb.from("accident_send_settings").select("*").eq("owner", owner).single(),
+      sb.from("accident_sms_logs").select("*").eq("owner", owner).order("sent_at", { ascending: false }).limit(30),
+      sb.from("accident_excluded_contracts").select("*").eq("owner", owner),
     ]);
     setSettings(s);
     setTemplateDraft(s?.message_template || "");
@@ -1661,7 +1666,7 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
     const exMap = {};
     (ex || []).forEach(r => { exMap[r.contract_id] = r; });
     setExcluded(exMap);
-  }, [sb]);
+  }, [sb, owner]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -1720,12 +1725,12 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
       .replaceAll("{items_block}", itemsBlock);
   }, [groups, templateDraft]);
 
-  // 5) 저장 (자동발송 토글 / cutoff / 템플릿 / 무장)
+  // 5) 저장 (자동발송 토글 / cutoff / 템플릿 / 무장) — owner 별
   const saveField = async (patch) => {
     setSaving(true);
     const { error } = await sb.from("accident_send_settings")
-      .update({ ...patch, updated_at: new Date().toISOString(), updated_by: "ui:erp" })
-      .eq("id", 1);
+      .update({ ...patch, updated_at: new Date().toISOString(), updated_by: `ui:erp:${owner}` })
+      .eq("owner", owner);
     setSaving(false);
     if (error) { alert("저장 실패: " + error.message); return; }
     await reload();
@@ -1777,12 +1782,13 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
     }
     if (newValue === "요청중") {
       // excluded 제거 → 발송 대상 복귀
-      const { error } = await sb.from("accident_excluded_contracts").delete().eq("contract_id", c.id);
+      const { error } = await sb.from("accident_excluded_contracts")
+        .delete().eq("contract_id", c.id).eq("owner", owner);
       if (error) { alert("변경 실패: " + error.message); return; }
     } else {
       // 분심진행중 / 보류 → excluded 마커 upsert (accident_rentals 는 손 안 댐)
       const { error } = await sb.from("accident_excluded_contracts").upsert({
-        contract_id: c.id, reason: newValue, excluded_by: "ui:erp",
+        contract_id: c.id, owner, reason: newValue, excluded_by: `ui:erp:${owner}`,
         excluded_at: new Date().toISOString(),
       }, { onConflict: "contract_id" });
       if (error) { alert("변경 실패: " + error.message); return; }
@@ -1822,9 +1828,25 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
     {/* 헤더 */}
-    <div style={{display:"flex",alignItems:"baseline",gap:14}}>
+    <div style={{display:"flex",alignItems:"baseline",gap:14,flexWrap:"wrap"}}>
       <h3 style={{margin:0,fontSize:18,color:"#18181b"}}>📨 미입금 자동 독촉 SMS</h3>
       <span style={{fontSize:13,color:"#0f172a"}}>매일 08:30 KST · 청구 후 {MIN_OVERDUE_DAYS}일 경과 건 · 같은 담당자 3일 간격 · 솔라피 LMS</span>
+    </div>
+
+    {/* owner 배지 — 현재 보고 있는 발송 시스템 (본사 hq / 신동석 jiip) */}
+    <div style={{
+      display:"inline-flex", alignItems:"center", gap:10, padding:"8px 14px",
+      borderRadius:10, alignSelf:"flex-start",
+      background: userMode ? "#ecfdf5" : "#eff6ff",
+      border: `1px solid ${userMode ? "#a7f3d0" : "#bfdbfe"}`,
+      color: userMode ? "#065f46" : "#1e40af",
+      fontSize:12, fontWeight:600
+    }}>
+      <span>도메인: <b>{userMode ? "신동석 지입 (jiip)" : "본사 (hq)"}</b></span>
+      <span style={{color: userMode ? "#10b981" : "#3b82f6"}}>·</span>
+      <span>발신번호 <b>{fromNumber}</b></span>
+      <span style={{color: userMode ? "#10b981" : "#3b82f6"}}>·</span>
+      <span style={{fontWeight:500}}>설정/로그/제외목록 모두 이 도메인 한정</span>
     </div>
 
     {/* ⚠ 상시 경고 배너 — 코드 상수 마스터 킬스위치 */}
