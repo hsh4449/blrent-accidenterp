@@ -1888,13 +1888,6 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
       <span style={{fontWeight:500}}>설정/로그/제외목록 모두 이 도메인 한정</span>
     </div>
 
-    {/* ⚠ 상시 경고 배너 — 코드 상수 마스터 킬스위치 */}
-    <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"14px 18px",color:"#7f1d1d",fontSize:13,lineHeight:1.6}}>
-      <b>🚨 코드 레벨 발송 차단 (MASTER_KILL_SWITCH)</b><br/>
-      평소엔 False(풀림) 상태로 운영. True 가 되면 즉시 모든 발송이 강제 dry_run 으로 전환됩니다.<br/>
-      해제 trigger: 사용자(황성현)의 <b>"사고대차 킬스위치 해제"</b> 정확 문구 지시 시에만 코드 변경/push.
-    </div>
-
     {/* 1행: 자동발송 ON/OFF + 최근 발송일 */}
     <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",gap:14}}>
       <div style={cardSt}>
