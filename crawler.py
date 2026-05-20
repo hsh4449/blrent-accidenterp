@@ -464,14 +464,20 @@ def main():
     unique = list(seen.values())
     print(f'\n[TOTAL] {len(unique)}건 (중복 제거)')
 
-    # DB에서 이미 입금완료 + deposit_date 있는 건 제외 (재크롤 방지)
-    settled = supabase_client.table('accident_rentals').select('id').eq('status', '입금완료').not_.is_('deposit_date', 'null').execute()
-    settled_ids = {r['id'] for r in settled.data}
+    # DB에서 이미 입금완료 + deposit_date + rental_fee>0 있는 건 제외 (재크롤 방지)
+    # 단, rental_fee=0 인 입금완료 건은 = 사용자가 독촉문자 차단 위해 강제로 입금완료로 잡은 케이스
+    # → 실제 입금금액(IMS deposit_cost)으로 rental_fee 채워야 하므로 매 크롤 재시도.
+    settled = supabase_client.table('accident_rentals').select('id, rental_fee').eq('status', '입금완료').not_.is_('deposit_date', 'null').execute()
+    settled_ids = {r['id'] for r in (settled.data or []) if (r.get('rental_fee') or 0) > 0}
     before = len(unique)
     unique = [c for c in unique if c['id'] not in settled_ids]
     skipped = before - len(unique)
     if skipped:
-        print(f'[SKIP] 입금완료 {skipped}건 제외')
+        print(f'[SKIP] 입금완료(rental_fee>0) {skipped}건 제외')
+    # rental_fee=0 인 입금완료 건은 재시도 대상으로 포함됨
+    retry_zero = sum(1 for c in unique if any(s.get('id')==c['id'] and (s.get('rental_fee') or 0)==0 for s in (settled.data or [])))
+    if retry_zero:
+        print(f'[RETRY] rental_fee=0 인 입금완료 {retry_zero}건 — IMS 값으로 갱신 시도')
 
     # 같은 차량 배차중 중복 정리 — start_date 가장 최근만 유지, 나머지 청구전으로
     # (한 차에 두 명 동시 대여 불가 → IMS의 cleanup 누락 데이터 보정)
