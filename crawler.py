@@ -18,16 +18,43 @@ IMS_PW = os.environ['IMS_PW']
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SUPABASE_KEY = os.environ['SUPABASE_KEY']
 
+# 본사 사고대차 차량 (owner='hq' 로 태그)
 VEHICLE_NUMBERS = [
     '9579', '8089', '9470', '7725', '9879',
     '9894', '7950', '7940', '4926', '7034',
     '3910', '5080', '6078', '7986',
 ]
 
+# 신동석부장 지입차 17대 (owner='jiip' 로 태그)
+# - 사고대차 ERP 사용자 모드 (코드 0000) 에서만 노출됨
+# - 청구일 < JIIP_BILLING_CUTOFF 인 건은 upsert 제외 (이전 이력 무시 정책)
+JIIP_VEHICLES = [
+    '4286', '8993', '9194', '9256', '9334',
+    '9340', '9341', '9388', '9433', '9558',
+    '8433', '9666', '9759', '9755', '9754',
+    '9878', '9893',
+]
+JIIP_BILLING_CUTOFF = '2025-12-20'  # 이전 청구는 수집 안 함
+
+# 끝 4자리 → owner 매핑 (한 행 단위로 owner 태그 결정).
+SUFFIX_TO_OWNER = (
+    {s: 'hq'   for s in VEHICLE_NUMBERS}
+    | {s: 'jiip' for s in JIIP_VEHICLES}
+)
+ALL_SUFFIXES = list(SUFFIX_TO_OWNER.keys())
+
 # IMS 응답의 차종명이 실제와 다른 경우 차량번호 끝번호 → 모델명 강제 매핑
 MODEL_OVERRIDE = {
     '7940': 'GLE 쿠페',
 }
+
+
+def owner_for_vehicle_number(rent_car_number):
+    """차량번호 (예: '106호9433') 끝 4자리로 owner 결정. 매칭 안되면 None."""
+    for sfx, ow in SUFFIX_TO_OWNER.items():
+        if rent_car_number.endswith(sfx):
+            return ow
+    return None
 
 STATUS_MAP = {
     'dispatch': '배차중',
@@ -133,10 +160,18 @@ def make_replacement_note(c, our_numbers):
 
 
 def convert_claim(c, our_numbers):
-    """IMS claim → DB row. 메인 차량이 우리 차량 아니면 None 반환 (스킵)"""
+    """IMS claim → DB row. 메인 차량이 우리 차량 아니면 None 반환 (스킵)
+
+    owner 컬럼:
+      - rent_car_number 끝 4자리 → SUFFIX_TO_OWNER 매핑으로 'hq' / 'jiip' 결정
+    JIIP cutoff:
+      - owner='jiip' 이고 billing_date < JIIP_BILLING_CUTOFF 인 건은 None 반환
+        (이전 청구 이력은 ERP에 가져오지 않음)
+    """
     rent_car = c.get('rent_car_number') or ''
     if not any(rent_car.endswith(n) for n in our_numbers):
         return None
+    row_owner = owner_for_vehicle_number(rent_car) or 'hq'
 
     car_model = c.get('car_model') or ''
     for suffix, override in MODEL_OVERRIDE.items():
@@ -171,6 +206,11 @@ def convert_claim(c, our_numbers):
     start_date, start_time = parse_datetime(raw_start)
     end_date, end_time = parse_datetime(raw_end)
     billing_date, billing_time = parse_datetime(c.get('claim_at'))
+
+    # 지입차 cutoff: 청구일 < JIIP_BILLING_CUTOFF 이면 수집 안 함.
+    # billing_date 가 비어있는 (=청구전) 건은 지입차도 일단 수집.
+    if row_owner == 'jiip' and billing_date and billing_date < JIIP_BILLING_CUTOFF:
+        return None
 
     # 입금일: claim_done_at
     deposit_date, _ = parse_datetime(c.get('claim_done_at'))
@@ -242,6 +282,7 @@ def convert_claim(c, our_numbers):
 
     row = {
         'id': str(c.get('id', '')),
+        'owner': row_owner,
         'status': status,
         'dispatcher': c.get('rent_manager_name') or '-',
         'start_date': start_date,
@@ -375,13 +416,13 @@ def search_vehicle(session, car_number):
 
         skipped_other = 0
         for c in claims:
-            row = convert_claim(c, VEHICLE_NUMBERS)
+            row = convert_claim(c, ALL_SUFFIXES)
             if row is None:
                 skipped_other += 1
                 continue
             contracts.append(row)
             # 두 우리차 교체 케이스: 부 우리차도 별도 행으로 분리
-            for extra in build_extra_rows(c, VEHICLE_NUMBERS, row):
+            for extra in build_extra_rows(c, ALL_SUFFIXES, row):
                 contracts.append(extra)
 
         msg = f'  page {page}/{total_pages}: {len(claims)}건'
@@ -407,8 +448,11 @@ def main():
     supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
     all_contracts = []
-    for car_num in VEHICLE_NUMBERS:
-        print(f'[SEARCH] {car_num}')
+    print(f'[SCOPE] 본사 {len(VEHICLE_NUMBERS)}대 + 지입 {len(JIIP_VEHICLES)}대 = {len(ALL_SUFFIXES)}대 검색')
+    print(f'[SCOPE] 지입 cutoff: 청구일 >= {JIIP_BILLING_CUTOFF}')
+    for car_num in ALL_SUFFIXES:
+        owner_tag = SUFFIX_TO_OWNER.get(car_num, '?')
+        print(f'[SEARCH] {car_num} ({owner_tag})')
         results = search_vehicle(session, car_num)
         print(f'  → {len(results)}건')
         all_contracts.extend(results)
