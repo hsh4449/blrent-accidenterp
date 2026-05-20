@@ -2,8 +2,10 @@ name: IMS 사고대차 일일 크롤링
 
 on:
   schedule:
-    # 매시 정각 (UTC=KST, hour 무관). GitHub Actions cron은 5~15분 지연 가능
-    - cron: '0 * * * *'
+    # KST 09:00 ~ 17:00 매시 정각 (UTC 00:00 ~ 08:00, KST = UTC+9)
+    # 9개 시각: KST 09, 10, 11, 12, 13, 14, 15, 16, 17
+    # GitHub Actions cron 은 5~15분 지연 가능.
+    - cron: '0 0-8 * * *'
   workflow_dispatch: # 수동 실행도 가능
 
 jobs:
