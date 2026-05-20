@@ -1935,10 +1935,14 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
         <div style={{fontSize:11,color:"#0f172a",marginTop:4}}>다음 가능일: {(() => {
           if (!ss.last_auto_send_date) return "(즉시 가능)";
           // SEND_INTERVAL_DAYS = 1, 일요일이면 다음 평일로 skip
+          // toISOString 은 UTC 라 KST 자정이 전날로 잘림 → 로컬 날짜로 직접 포맷
           let d = new Date(ss.last_auto_send_date + "T00:00:00");
           d.setDate(d.getDate() + 1);
           while (d.getDay() === 0) d.setDate(d.getDate() + 1);
-          return d.toISOString().slice(0,10);
+          const y = d.getFullYear();
+          const m = String(d.getMonth()+1).padStart(2,'0');
+          const day = String(d.getDate()).padStart(2,'0');
+          return `${y}-${m}-${day}`;
         })()}</div>
       </div>
     </div>
