@@ -1,7 +1,7 @@
 # send_module — 사고대차 미입금 자동 독촉 SMS
 
 매일 KST **08:30** Vultr cron 진입 → `contracts.status='청구완료' AND deposit_date IS NULL` 인 건들을
-보험사 담당자별로 묶어 솔라피 LMS 발송. 같은 담당자한테는 최소 **3일 간격**.
+보험사 담당자별로 묶어 솔라피 LMS 발송. **매일 1회 (일요일 제외)** — 본사(hq)/지입(jiip) 둘 다 동일.
 
 ERP 컨트롤 UI: `/ (사고대차관리)` → 우상단 **"독촉발송"** 탭.
 
@@ -30,7 +30,7 @@ send_module/
 ├── db.py                # Supabase 클라이언트 + KST 헬퍼
 ├── solapi_sender.py     # HMAC-SHA256 인증 헬퍼
 ├── send_engine.py       # 미입금 조회 → 그룹핑 → 본문 빌드 → 발송 + 로그 (MASTER_KILL_SWITCH)
-├── auto_send.py         # cron 진입점 (자동발송 게이트 + 3일 간격)
+├── auto_send.py         # cron 진입점 (자동발송 게이트 + 일요일 제외 + 매일 1회)
 ├── run.sh               # bash 래퍼 (.env 로드 + venv 활성화)
 ├── requirements.txt
 ├── .env.example         # 환경변수 템플릿
@@ -114,5 +114,5 @@ SOLAPI_FROM=010-2418-8272           # 사고대차 전용 발신번호
 
 - **"항상 dry_run 으로 끝남"** → 정상. `MASTER_KILL_SWITCH=True` 또는 `send_armed=false` 게이트.
 - **"담당자 번호 없음 N건"** → ERP 에서 보험사 담당자 연락처 입력 필요. 자동발송에선 자동 제외.
-- **"같은 사람한테 매일 안 가는데?"** → 의도된 동작. `last_auto_send_date` 기준 **3일 간격** (`auto_send.SEND_INTERVAL_DAYS=3`).
+- **"같은 사람한테 매일 가야하나?"** → 네, 매일(`SEND_INTERVAL_DAYS=1`). 단 일요일은 `SKIP_WEEKDAYS={6}` 로 자동 제외. 본사/지입 모두 동일.
 - **로그 위치** → DB `accident_sms_logs` 테이블 + Vultr `/var/log/accident_auto_send.log`.
