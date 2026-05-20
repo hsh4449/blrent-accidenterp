@@ -223,6 +223,29 @@ const STATUS_COLORS = {
 
 const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#06b6d4","#f97316","#84cc16","#a855f7","#14b8a6","#e11d48"];
 // 본사 보유차량은 Supabase `accident_fleet` 테이블에서 동적으로 불러옴 (차량 관리 탭에서 추가/변경)
+
+// "사용자" 4자리 코드 입력 시 진입하는 제한 뷰. 아래 차량만 모든 탭/카드/통계에서 보임.
+// 추가/제거는 이 배열만 수정. (2026-05-20 셋업)
+const USER_VIEW_CODE = "0000";
+const OUR_VEHICLES = new Set([
+  "154하4286",
+  "106호8993",
+  "106호9194",
+  "106호9256",
+  "106호9334",
+  "106호9340",
+  "106호9341",
+  "106호9388",
+  "106호9433",
+  "106호9558",
+  "07호8433",
+  "106호9666",
+  "106호9759",
+  "106호9755",
+  "106호9754",
+  "106호9878",
+  "106호9893",
+]);
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -373,9 +396,12 @@ function FleetAddForm({ onAdd }) {
 
 // ════════════════════════════════════════
 function App() {
-  const [contracts, setContracts] = useState([]);
+  const [rawContracts, setRawContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("dashboard");
+  // 사용자 모드: 4자리 코드(USER_VIEW_CODE) 입력 시 활성화. 활성 시 OUR_VEHICLES 만 표시.
+  const [userMode, setUserMode] = useState(false);
+  const [userCodeInput, setUserCodeInput] = useState("");
   const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", searchField:"customerNumber", depositMonth:"all" });
   const [selected, setSelected] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -394,9 +420,27 @@ function App() {
   });
   // accident_fleet: { vehicleNumber: { model, status, note } }
   // status: 'active' | 'sold' | 'paused' | 'other_use'
-  const [fleet, setFleet] = useState({});
+  const [rawFleet, setRawFleet] = useState({});
   const [showInactiveFleet, setShowInactiveFleet] = useState(false);
   const fileRef = useRef(null);
+
+  // 사용자 모드일 때만 OUR_VEHICLES로 필터. 평소엔 raw 그대로.
+  const contracts = useMemo(
+    () => userMode ? rawContracts.filter(c => OUR_VEHICLES.has(c.vehicleNumber)) : rawContracts,
+    [rawContracts, userMode]
+  );
+  const fleet = useMemo(() => {
+    if (!userMode) return rawFleet;
+    const out = {};
+    for (const [num, info] of Object.entries(rawFleet)) {
+      if (OUR_VEHICLES.has(num)) out[num] = info;
+    }
+    return out;
+  }, [rawFleet, userMode]);
+  const deletedContractsView = useMemo(
+    () => userMode ? deletedContracts.filter(c => OUR_VEHICLES.has(c.vehicleNumber)) : deletedContracts,
+    [deletedContracts, userMode]
+  );
 
   useEffect(() => {
     (async () => {
@@ -411,17 +455,17 @@ function App() {
         if (e2) throw e2;
         if (e3) throw e3;
         const allRentals = rentals.map(fromDbRow);
-        setContracts(allRentals.filter(c => !c.isDeleted));
+        setRawContracts(allRentals.filter(c => !c.isDeleted));
         setDeletedContracts(allRentals.filter(c => c.isDeleted));
         const mf = {};
         (fixed||[]).forEach(r => { mf[`${r.vehicle_number}|${r.year_month}`] = { installment: r.installment||0, insurance: r.insurance||0, etc_cost: r.etc_cost||0, etc_note: r.etc_note||"" }; });
         setMonthlyFixed(mf);
         const fm = {};
         (fleetData||[]).forEach(r => { fm[r.vehicle_number] = { model: r.model, status: r.status, note: r.note || '' }; });
-        setFleet(fm);
+        setRawFleet(fm);
       } catch(e) {
         console.error('Supabase load error:', e);
-        setContracts(INITIAL_DATA);
+        setRawContracts(INITIAL_DATA);
       }
       setLoading(false);
     })();
@@ -443,9 +487,9 @@ function App() {
   }, [fleet, showInactiveFleet]);
 
   const saveFleet = useCallback(async (vehicleNumber, patch) => {
-    const prev = fleet[vehicleNumber] || { model: '', status: 'active', note: '' };
+    const prev = rawFleet[vehicleNumber] || { model: '', status: 'active', note: '' };
     const next = { ...prev, ...patch };
-    setFleet(p => ({ ...p, [vehicleNumber]: next }));
+    setRawFleet(p => ({ ...p, [vehicleNumber]: next }));
     const payload = {
       vehicle_number: vehicleNumber,
       model: next.model,
@@ -462,17 +506,17 @@ function App() {
     const vn = (vehicleNumber||'').trim();
     const mod = (model||'').trim();
     if (!vn || !mod) { setToast({msg:"차량번호와 모델은 필수입니다", type:"error"}); return false; }
-    if (fleet[vn]) { setToast({msg:"이미 등록된 차량입니다", type:"error"}); return false; }
+    if (rawFleet[vn]) { setToast({msg:"이미 등록된 차량입니다", type:"error"}); return false; }
     await saveFleet(vn, { model: mod, status: 'active', note: '' });
     setToast({msg:`${vn} 추가됨`, type:"success"});
     return true;
-  }, [fleet, saveFleet]);
+  }, [rawFleet, saveFleet]);
 
   const deleteFleet = useCallback(async (vehicleNumber) => {
     if (!confirm(`${vehicleNumber}을(를) 차량 목록에서 삭제할까요?\n(과거 계약/통계 데이터는 그대로 유지됩니다)`)) return;
     const { error } = await supabaseClient.from('accident_fleet').delete().eq('vehicle_number', vehicleNumber);
     if (error) { setToast({msg:"삭제 실패: "+error.message, type:"error"}); return; }
-    setFleet(p => { const n = {...p}; delete n[vehicleNumber]; return n; });
+    setRawFleet(p => { const n = {...p}; delete n[vehicleNumber]; return n; });
     setToast({msg:"삭제됨", type:"success"});
   }, []);
 
@@ -491,7 +535,7 @@ function App() {
     if (error) { console.error(error); setToast({msg:"저장 실패: "+error.message, type:"error"}); }
   }, [monthlyFixed]);
 
-  const save = useCallback(async d => { setContracts(d); }, []);
+  const save = useCallback(async d => { setRawContracts(d); }, []);
 
   // Dynamic vehicles from data
   const vehicles = useMemo(() => {
@@ -526,13 +570,13 @@ function App() {
       const wb = XLSX.read(buf, { type:"array", cellDates:true });
       const inc = parseIMSExcel(wb);
       if (!inc.length) { setToast({msg:"파싱할 수 있는 데이터가 없습니다. IMS 엑셀 형식을 확인해주세요.",type:"error"}); return; }
-      const {merged,added,updated} = mergeContracts(contracts, inc);
+      const {merged,added,updated} = mergeContracts(rawContracts, inc);
       const { error } = await supabaseClient.from('accident_rentals').upsert(merged.map(toDbRow));
       if (error) throw error;
-      setContracts(merged);
+      setRawContracts(merged);
       setToast({msg:`완료: 신규 ${added}건, 업데이트 ${updated}건 (총 ${merged.length}건)`, type:"success"});
     } catch(err) { setToast({msg:"파일 오류: "+err.message, type:"error"}); }
-  }, [contracts, save]);
+  }, [rawContracts, save]);
 
   // Stats
   const stats = useMemo(() => {
@@ -645,14 +689,14 @@ function App() {
     try {
       const { error } = await supabaseClient.from('accident_rentals').upsert(toDbRow(d));
       if (error) throw error;
-      const updated = contracts.filter(c=>c.id!==d.id).concat(d);
-      setContracts(updated);
+      const updated = rawContracts.filter(c=>c.id!==d.id).concat(d);
+      setRawContracts(updated);
       setEditModal(false); setEditData(null);
       setToast({msg:"저장 완료",type:"success"});
     } catch(e) {
       setToast({msg:"저장 실패: "+e.message,type:"error"});
     }
-  }, [contracts]);
+  }, [rawContracts]);
   const doDelete = useCallback(async id => {
     if(!confirm("휴지통으로 보낼까요?")) return;
     try {
@@ -661,15 +705,15 @@ function App() {
         .update({ is_deleted: true, deleted_at: nowIso })
         .eq('id', id);
       if (error) throw error;
-      const target = contracts.find(c => c.id === id);
-      setContracts(contracts.filter(c=>c.id!==id));
+      const target = rawContracts.find(c => c.id === id);
+      setRawContracts(rawContracts.filter(c=>c.id!==id));
       if (target) setDeletedContracts([{...target, isDeleted:true, deletedAt:nowIso}, ...deletedContracts]);
       setSelected(null);
       setToast({msg:"휴지통으로 이동",type:"success"});
     } catch(e) {
       setToast({msg:"삭제 실패: "+e.message,type:"error"});
     }
-  }, [contracts, deletedContracts]);
+  }, [rawContracts, deletedContracts]);
 
   const doRestore = useCallback(async id => {
     try {
@@ -681,13 +725,13 @@ function App() {
       setDeletedContracts(deletedContracts.filter(c => c.id !== id));
       if (target) {
         const restored = {...target, isDeleted:false, deletedAt:null};
-        setContracts([restored, ...contracts].sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||'')));
+        setRawContracts([restored, ...rawContracts].sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||'')));
       }
       setToast({msg:"복구됨",type:"success"});
     } catch(e) {
       setToast({msg:"복구 실패: "+e.message,type:"error"});
     }
-  }, [contracts, deletedContracts]);
+  }, [rawContracts, deletedContracts]);
 
   if(loading) return <div style={{minHeight:"100vh",background:"#f8fafc",display:"flex",alignItems:"center",justifyContent:"center",color:"#18181b",fontFamily:"'Pretendard',sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>BL</div><div style={{fontSize:13,color:"#0f172a"}}>로딩 중...</div></div></div>;
 
@@ -705,7 +749,7 @@ function App() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <nav style={{ display:"flex", gap:1, marginLeft:8 }}>
-            {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["dokchok","독촉발송"],["trash",`🗑 휴지통${deletedContracts.length>0?` (${deletedContracts.length})`:""}`]].map(([k,l])=>(
+            {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["dokchok","독촉발송"],["trash",`🗑 휴지통${deletedContractsView.length>0?` (${deletedContractsView.length})`:""}`]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{
                 padding:"9px 18px",
                 borderRadius:8,
@@ -720,8 +764,63 @@ function App() {
               }}>{l}</button>
             ))}
           </nav>
+          {/* 사용자 모드: 4자리 코드 입력. 정답 시 OUR_VEHICLES만 보이는 제한 뷰로 전환. */}
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:10, paddingLeft:10, borderLeft:"1px solid #cbd5e1" }}>
+            <span style={{ fontSize:11, color:"#475569" }}>사용자</span>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="••••"
+              value={userMode ? "" : userCodeInput}
+              onChange={e => {
+                const v = e.target.value.replace(/\D/g,"").slice(0,4);
+                setUserCodeInput(v);
+                if (v === USER_VIEW_CODE) {
+                  setUserMode(true);
+                  setUserCodeInput("");
+                  setToast({msg:"사용자 모드 진입 — 우리 차량만 표시", type:"success"});
+                }
+              }}
+              disabled={userMode}
+              style={{
+                width:60,
+                padding:"6px 8px",
+                borderRadius:6,
+                border:"1px solid #cbd5e1",
+                fontSize:12,
+                textAlign:"center",
+                letterSpacing:2,
+                background: userMode ? "#e2e8f0" : "#fff",
+                color:"#0f172a",
+                outline:"none",
+                fontFamily:"monospace",
+              }}
+            />
+            {userMode && (
+              <button
+                onClick={() => { setUserMode(false); setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
+                style={{
+                  padding:"5px 9px",
+                  borderRadius:6,
+                  border:"1px solid #cbd5e1",
+                  background:"#fff",
+                  fontSize:11,
+                  color:"#334155",
+                  cursor:"pointer",
+                }}
+                title="전체 차량 모드로 복귀"
+              >해제</button>
+            )}
+          </div>
         </div>
       </header>
+      {userMode && (
+        <div style={{ background:"#ecfdf5", borderBottom:"1px solid #a7f3d0", padding:"6px 20px", fontSize:12, color:"#065f46", display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontWeight:700 }}>사용자 모드</span>
+          <span>· 우리 차량 {OUR_VEHICLES.size}대 ({contracts.length}건) 만 표시 중 · 헤더의 [해제] 또는 코드창 옆 버튼으로 종료</span>
+        </div>
+      )}
 
       <main style={{ padding:"20px 24px", maxWidth:1320, margin:"0 auto" }}>
 
@@ -1387,12 +1486,12 @@ function App() {
           <div style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:8 }}>
             <div>
               <h3 style={{ margin:0, fontSize:18, color:"#18181b" }}>🗑 휴지통</h3>
-              <div style={{ fontSize:13, color:"#0f172a", marginTop:6 }}>삭제된 계약 {deletedContracts.length}건 · 복구 버튼 누르면 원래대로 돌아옵니다.</div>
+              <div style={{ fontSize:13, color:"#0f172a", marginTop:6 }}>삭제된 계약 {deletedContractsView.length}건 · 복구 버튼 누르면 원래대로 돌아옵니다.</div>
             </div>
           </div>
-          {deletedContracts.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#0f172a",fontSize:14,background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12}}>휴지통이 비어있습니다.</div> :
+          {deletedContractsView.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#0f172a",fontSize:14,background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12}}>휴지통이 비어있습니다.</div> :
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {deletedContracts.slice().sort((a,b)=>(b.deletedAt||"").localeCompare(a.deletedAt||"")).map(c => (
+            {deletedContractsView.slice().sort((a,b)=>(b.deletedAt||"").localeCompare(a.deletedAt||"")).map(c => (
               <div key={c.id} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
                 <div style={{ minWidth:0, flex:"1 1 auto" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
