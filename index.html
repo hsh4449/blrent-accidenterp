@@ -366,10 +366,10 @@ function FleetAddForm({ onAdd }) {
   };
   const onKey = e => { if (e.key === 'Enter') submit(); };
   return (
-    <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", padding:"14px 16px", background:"#f8fafc", border:"1px dashed #cbd5e1", borderRadius:10 }}>
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", padding:"12px 14px", background:"#f8fafc", border:"1px dashed #cbd5e1", borderRadius:10 }}>
       <span style={{ fontSize:13, fontWeight:700, color:"#0f172a" }}>+ 차량 추가</span>
-      <input value={num} onChange={e=>setNum(e.target.value)} onKeyDown={onKey} placeholder="차량번호 (예: 106호9340)" style={{ padding:"7px 12px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, fontSize:13, color:"#18181b", minWidth:200 }}/>
-      <input value={model} onChange={e=>setModel(e.target.value)} onKeyDown={onKey} placeholder="모델 (예: CLE 클래스)" style={{ padding:"7px 12px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, fontSize:13, color:"#18181b", minWidth:200 }}/>
+      <input value={num} onChange={e=>setNum(e.target.value)} onKeyDown={onKey} placeholder="차량번호 (예: 106호9340)" style={{ padding:"7px 12px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, fontSize:13, color:"#18181b", flex:"1 1 160px", minWidth:140 }}/>
+      <input value={model} onChange={e=>setModel(e.target.value)} onKeyDown={onKey} placeholder="모델 (예: CLE 클래스)" style={{ padding:"7px 12px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, fontSize:13, color:"#18181b", flex:"1 1 160px", minWidth:140 }}/>
       <button onClick={submit} style={{ padding:"7px 16px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:7, fontSize:13, fontWeight:700, cursor:"pointer" }}>추가</button>
     </div>
   );
@@ -1118,8 +1118,8 @@ function App() {
           const totalDays = vehicleList.reduce((s,v)=>s+v.days,0);
 
           return <div>
-            <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:24 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, gap:12, flexWrap:"wrap" }}>
+            <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding: isMobile ? 12 : 24 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems: isMobile ? "stretch" : "center", marginBottom:18, gap:12, flexWrap:"wrap", flexDirection: isMobile ? "column" : "row" }}>
                 <div>
                   <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:"#18181b" }}>입금 완료 <span style={{fontSize:13,color:"#0f172a",fontWeight:400,marginLeft:8}}>{_monthLabel} 입금된 건만 차량별로</span></h3>
                   <div style={{ fontSize:14, color:"#0f172a", marginTop:8 }}>
@@ -1145,14 +1145,14 @@ function App() {
                   {vehicleList.map(v => {
                     const vColor = (vehicles.find(x=>x.number===v.num)?.color) || "#3b82f6";
                     return (
-                    <div key={v.num} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderLeft:`5px solid ${vColor}`, borderRadius:10, padding:"14px 18px", boxShadow:"0 1px 2px rgba(0,0,0,0.04)" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, gap:12 }}>
-                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div key={v.num} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderLeft:`5px solid ${vColor}`, borderRadius:10, padding: isMobile ? "12px 14px" : "14px 18px", boxShadow:"0 1px 2px rgba(0,0,0,0.04)" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems: isMobile ? "stretch" : "center", marginBottom:12, gap:8, flexDirection: isMobile ? "column" : "row", flexWrap:"wrap" }}>
+                        <div style={{display:"flex",alignItems:"center",gap:8, flexWrap:"wrap"}}>
                           <span style={{ width:12, height:12, borderRadius:"50%", background:vColor, flexShrink:0 }}/>
-                          <span style={{fontSize:17,fontWeight:700,color:"#18181b"}}>{v.model || "(차종 없음)"}</span>
-                          <span style={{fontSize:14,color:"#0f172a",background:"#f1f5f9",padding:"2px 10px",borderRadius:12,fontWeight:600}}>{v.num}</span>
+                          <span style={{fontSize: isMobile ? 15 : 17,fontWeight:700,color:"#18181b"}}>{v.model || "(차종 없음)"}</span>
+                          <span style={{fontSize: isMobile ? 12 : 14,color:"#0f172a",background:"#f1f5f9",padding:"2px 10px",borderRadius:12,fontWeight:600}}>{v.num}</span>
                         </div>
-                        <div style={{ fontSize:14, fontVariantNumeric:"tabular-nums", background:"#dcfce7", color:"#166534", padding:"6px 14px", borderRadius:20, fontWeight:700 }}>
+                        <div style={{ fontSize: isMobile ? 12 : 14, fontVariantNumeric:"tabular-nums", background:"#dcfce7", color:"#166534", padding: isMobile ? "4px 10px" : "6px 14px", borderRadius:20, fontWeight:700, alignSelf: isMobile ? "flex-start" : "auto", whiteSpace:"nowrap" }}>
                           {v.items.length}건 · {v.days}일 · ₩{fmt(v.amount)}
                         </div>
                       </div>
@@ -1161,21 +1161,21 @@ function App() {
                           const cDays = daysBetween(c.startDate, c.endDate);
                           const cDaily = cDays > 0 ? Math.round((c.rentalFee||0) / cDays) : 0;
                           return (
-                          <div key={c.id} style={{ padding:"12px 16px", background:"#f8fafc", border:"1px solid #e2e8f0", borderLeft:`3px solid ${vColor}`, borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
+                          <div key={c.id} style={{ padding: isMobile ? "10px 12px" : "12px 16px", background:"#f8fafc", border:"1px solid #e2e8f0", borderLeft:`3px solid ${vColor}`, borderRadius:8, display:"flex", flexDirection: isMobile ? "column" : "row", justifyContent: isMobile ? "flex-start" : "space-between", alignItems: isMobile ? "stretch" : "center", gap: isMobile ? 8 : 14 }}>
                             <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", marginBottom:6 }}>
-                                <span style={{ fontSize:15, fontWeight:700, color:"#18181b" }}>{c.customerVehicle || "(차종 없음)"}</span>
-                                <span style={{ fontSize:13, fontWeight:700, color:"#1e40af", background:"#dbeafe", padding:"2px 9px", borderRadius:5, letterSpacing:0.2 }}>{c.customerNumber || "-"}</span>
-                                <span style={{ fontSize:12, color:"#64748b", fontWeight:500 }}>· {c.customerName || "이름 없음"}</span>
+                              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:6 }}>
+                                <span style={{ fontSize: isMobile ? 14 : 15, fontWeight:700, color:"#18181b", whiteSpace:"nowrap" }}>{c.customerVehicle || "(차종 없음)"}</span>
+                                <span style={{ fontSize:13, fontWeight:700, color:"#1e40af", background:"#dbeafe", padding:"2px 9px", borderRadius:5, letterSpacing:0.2, whiteSpace:"nowrap" }}>{c.customerNumber || "-"}</span>
+                                <span style={{ fontSize:12, color:"#64748b", fontWeight:500, whiteSpace:"nowrap" }}>· {c.customerName || "이름 없음"}</span>
                               </div>
-                              <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 10px", fontSize:13 }}>
-                                <span style={{ background:"#dbeafe", color:"#1e40af", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>대여 {c.startDate||"-"} ~ {c.endDate||"-"}{cDays>0 && ` · ${cDays}일`}</span>
-                                <span style={{ background:"#fef3c7", color:"#854d0e", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>청구 {c.billingDate||"-"}</span>
-                                <span style={{ background:"#dcfce7", color:"#166534", padding:"3px 10px", borderRadius:12, fontWeight:700 }}>입금 {c.depositDate}</span>
-                                {c.insurer && c.insurer !== '-' && <span style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 10px", borderRadius:12, fontWeight:600 }}>{c.insurer}</span>}
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 8px", fontSize: isMobile ? 12 : 13 }}>
+                                <span style={{ background:"#dbeafe", color:"#1e40af", padding:"3px 10px", borderRadius:12, fontWeight:600, whiteSpace:"nowrap" }}>대여 {c.startDate||"-"} ~ {c.endDate||"-"}{cDays>0 && ` · ${cDays}일`}</span>
+                                <span style={{ background:"#fef3c7", color:"#854d0e", padding:"3px 10px", borderRadius:12, fontWeight:600, whiteSpace:"nowrap" }}>청구 {c.billingDate||"-"}</span>
+                                <span style={{ background:"#dcfce7", color:"#166534", padding:"3px 10px", borderRadius:12, fontWeight:700, whiteSpace:"nowrap" }}>입금 {c.depositDate}</span>
+                                {c.insurer && c.insurer !== '-' && <span style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 10px", borderRadius:12, fontWeight:600, whiteSpace:"nowrap" }}>{c.insurer}</span>}
                               </div>
                             </div>
-                            <span style={{ color:"#10b981", fontWeight:800, fontSize:18, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>₩{fmt(c.rentalFee)}{cDaily>0 && <span style={{color:"#64748b", fontSize:13, fontWeight:500, marginLeft:5}}>(일:{fmt(cDaily)})</span>}</span>
+                            <span style={{ color:"#10b981", fontWeight:800, fontSize: isMobile ? 16 : 18, fontVariantNumeric:"tabular-nums", flexShrink:0, alignSelf: isMobile ? "flex-end" : "auto", whiteSpace:"nowrap" }}>₩{fmt(c.rentalFee)}{cDaily>0 && <span style={{color:"#64748b", fontSize: isMobile ? 11 : 13, fontWeight:500, marginLeft:5}}>(일:{fmt(cDaily)})</span>}</span>
                           </div>
                           );
                         })}
@@ -1190,10 +1190,10 @@ function App() {
 
         {/* ── CONTRACTS ── */}
         {tab==="contracts" && <div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              <div style={{display:"flex", gap:0, alignItems:"stretch"}}>
-                <select value={filter.searchField} onChange={e=>setFilter(f=>({...f,searchField:e.target.value}))} style={{...SS,width:120, borderTopRightRadius:0, borderBottomRightRadius:0, borderRight:"none"}}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8, flexDirection: isMobile ? "column" : "row" }}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", width: isMobile ? "100%" : "auto" }}>
+              <div style={{display:"flex", gap:0, alignItems:"stretch", width: isMobile ? "100%" : "auto"}}>
+                <select value={filter.searchField} onChange={e=>setFilter(f=>({...f,searchField:e.target.value}))} style={{...SS,width: isMobile ? 110 : 120, borderTopRightRadius:0, borderBottomRightRadius:0, borderRight:"none", flexShrink:0}}>
                   <option value="customerNumber">고객차번호</option>
                   <option value="customerName">고객명</option>
                   <option value="customerVehicle">고객차종</option>
@@ -1203,16 +1203,16 @@ function App() {
                   <option value="insurer">보험사</option>
                   <option value="all">전체</option>
                 </select>
-                <input placeholder={`${({customerNumber:"고객 차량번호",customerName:"고객명",customerVehicle:"고객 차종",vehicleNumber:"대여차 번호",vehicleModel:"대여차 차종",id:"IMS번호",insurer:"보험사",all:"전체 (모든 필드)"})[filter.searchField]} 검색`} value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS,width:220, borderTopLeftRadius:0, borderBottomLeftRadius:0}}/>
+                <input placeholder={`${({customerNumber:"고객 차량번호",customerName:"고객명",customerVehicle:"고객 차종",vehicleNumber:"대여차 번호",vehicleModel:"대여차 차종",id:"IMS번호",insurer:"보험사",all:"전체 (모든 필드)"})[filter.searchField]} 검색`} value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS, flex: isMobile ? 1 : "0 0 220px", width: isMobile ? "auto" : 220, borderTopLeftRadius:0, borderBottomLeftRadius:0}}/>
               </div>
-              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width:120}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
-              <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width:180}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
-              <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value}))} style={{...SS,width:140}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
+              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 120, flex: isMobile ? 1 : "0 0 120px"}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
+              <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
+              <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 140, flex: isMobile ? 1 : "0 0 140px"}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
             </div>
-            <div style={{ display:"flex", gap:6 }}>
-              <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}}>+ 신규</button>
-              <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>엑셀</button>
-              <button onClick={()=>exportToExcel(filtered)} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer"}}>내보내기</button>
+            <div style={{ display:"flex", gap:6, width: isMobile ? "100%" : "auto" }}>
+              <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer", flex: isMobile ? 1 : "none"}}>+ 신규</button>
+              <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer", flex: isMobile ? 1 : "none"}}>엑셀</button>
+              <button onClick={()=>exportToExcel(filtered)} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer", flex: isMobile ? 1 : "none"}}>내보내기</button>
             </div>
           </div>
           <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden" }}>
@@ -1245,11 +1245,11 @@ function App() {
                 </tbody>
               </table>
             </div>
-            <div style={{padding:"14px 18px",borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{padding: isMobile ? "10px 12px" : "14px 18px",borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 8 : 0}}>
               <span style={{fontSize:13,fontWeight:600,color:"#0f172a"}}>{filtered.length}건</span>
-              <div style={{display:"flex",gap:20,alignItems:"center"}}>
-                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:2}}>청구금 합계</div><div style={{fontSize:16,fontWeight:800,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0))}원</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:2}}>대여료 합계</div><div style={{fontSize:16,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
+              <div style={{display:"flex",gap: isMobile ? 12 : 20,alignItems:"center", flexWrap:"wrap"}}>
+                <div style={{textAlign: isMobile ? "left" : "right"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:2}}>청구금 합계</div><div style={{fontSize: isMobile ? 14 : 16,fontWeight:800,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0))}원</div></div>
+                <div style={{textAlign: isMobile ? "left" : "right"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:2}}>대여료 합계</div><div style={{fontSize: isMobile ? 14 : 16,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
               </div>
             </div>
           </div>
@@ -1318,20 +1318,20 @@ function App() {
               </div>
 
               {/* 핵심 KPI 3카드 */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
-                <div style={{background:"linear-gradient(135deg,#ffffff,#e2e8f0)",border:"1px solid #cbd5e1",borderRadius:12,padding:22,borderLeft:`4px solid ${T.settle>=0?"#10b981":"#ef4444"}`}}>
+              <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)",gap:12,marginBottom:20}}>
+                <div style={{background:"linear-gradient(135deg,#ffffff,#e2e8f0)",border:"1px solid #cbd5e1",borderRadius:12,padding: isMobile ? 14 : 22,borderLeft:`4px solid ${T.settle>=0?"#10b981":"#ef4444"}`}}>
                   <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>총 정산액 ({monthLabel})</div>
-                  <div style={{fontSize:30,fontWeight:800,color:T.settle>=0?"#10b981":"#ef4444",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(T.settle)}<span style={{fontSize:14,color:"#0f172a",marginLeft:4}}>원</span></div>
+                  <div style={{fontSize: isMobile ? 22 : 30,fontWeight:800,color:T.settle>=0?"#10b981":"#ef4444",fontVariantNumeric:"tabular-nums",lineHeight:1,wordBreak:"break-all"}}>{fmt(T.settle)}<span style={{fontSize: isMobile ? 12 : 14,color:"#0f172a",marginLeft:4}}>원</span></div>
                   <div style={{fontSize:11,color:"#0f172a",marginTop:8}}>수입 {fmt(T.income)} − 지출 {fmt(T.income-T.settle)}</div>
                 </div>
-                <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:22,borderLeft:"4px solid #3b82f6"}}>
+                <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding: isMobile ? 14 : 22,borderLeft:"4px solid #3b82f6"}}>
                   <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>1대당 평균 정산</div>
-                  <div style={{fontSize:26,fontWeight:800,color:"#3b82f6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{fmt(perVehicle)}<span style={{fontSize:14,color:"#0f172a",marginLeft:4}}>원</span></div>
+                  <div style={{fontSize: isMobile ? 20 : 26,fontWeight:800,color:"#3b82f6",fontVariantNumeric:"tabular-nums",lineHeight:1,wordBreak:"break-all"}}>{fmt(perVehicle)}<span style={{fontSize: isMobile ? 12 : 14,color:"#0f172a",marginLeft:4}}>원</span></div>
                   <div style={{fontSize:11,color:"#0f172a",marginTop:8}}>활동차량 {activeVehicleCount}대 기준</div>
                 </div>
-                <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:22,borderLeft:"4px solid #8b5cf6"}}>
+                <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding: isMobile ? 14 : 22,borderLeft:"4px solid #8b5cf6"}}>
                   <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600,letterSpacing:"0.5px"}}>차량 대수</div>
-                  <div style={{fontSize:26,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{activeVehicleCount}<span style={{fontSize:14,color:"#0f172a",marginLeft:4}}>대</span></div>
+                  <div style={{fontSize: isMobile ? 20 : 26,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums",lineHeight:1}}>{activeVehicleCount}<span style={{fontSize: isMobile ? 12 : 14,color:"#0f172a",marginLeft:4}}>대</span></div>
                   <div style={{fontSize:11,color:"#0f172a",marginTop:8}}>전체 등록 {rows.length}대 · 계약 {T.cnt}건</div>
                 </div>
               </div>
@@ -1421,22 +1421,22 @@ function App() {
           </div>
           <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,overflow:"hidden"}}>
             <div style={{overflowX:"auto"}}>
-              <div style={{minWidth:sched.dim*36+170}}>
+              <div style={{minWidth:sched.dim*(isMobile?30:36)+(isMobile?130:170)}}>
                 <div style={{display:"flex",borderBottom:"1px solid #e2e8f0"}}>
-                  <div style={{minWidth:170,padding:"8px 14px",fontSize:11,color:"#0f172a",fontWeight:500,flexShrink:0}}>차량</div>
-                  {Array.from({length:sched.dim},(_,i)=>{const d=new Date(sched.y,sched.m-1,i+1);const dow=d.getDay();const td=new Date();const isToday=d.getFullYear()===td.getFullYear()&&d.getMonth()===td.getMonth()&&d.getDate()===td.getDate();
-                  return <div key={i} style={{minWidth:36,textAlign:"center",padding:"6px 0",fontSize:10,color:dow===0?"#ef4444":dow===6?"#3b82f6":"#888",borderLeft:"1px solid #1a1a35",background:isToday?"#e2e8f0":"transparent"}}><div style={{fontWeight:600}}>{i+1}</div><div>{["일","월","화","수","목","금","토"][dow]}</div></div>;})}
+                  <div style={{minWidth: isMobile ? 130 : 170,padding:"8px 14px",fontSize:11,color:"#0f172a",fontWeight:500,flexShrink:0}}>차량</div>
+                  {Array.from({length:sched.dim},(_,i)=>{const d=new Date(sched.y,sched.m-1,i+1);const dow=d.getDay();const td=new Date();const isToday=d.getFullYear()===td.getFullYear()&&d.getMonth()===td.getMonth()&&d.getDate()===td.getDate();const cellW=isMobile?30:36;
+                  return <div key={i} style={{minWidth:cellW,textAlign:"center",padding:"6px 0",fontSize:10,color:dow===0?"#ef4444":dow===6?"#3b82f6":"#888",borderLeft:"1px solid #1a1a35",background:isToday?"#e2e8f0":"transparent"}}><div style={{fontWeight:600}}>{i+1}</div><div>{["일","월","화","수","목","금","토"][dow]}</div></div>;})}
                 </div>
-                {sched.vs.filter(v=>isFleetVisible(v.number)).map(v=>{const vc=vehicles.find(x=>x.number===v.number);const fInfo=fleet[v.number];const fStatus=fInfo?.status||'active';const fLabel={sold:'매각',paused:'중단',other_use:'타용도'}[fStatus];const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed'}[fStatus];return(
+                {sched.vs.filter(v=>isFleetVisible(v.number)).map(v=>{const vc=vehicles.find(x=>x.number===v.number);const fInfo=fleet[v.number];const fStatus=fInfo?.status||'active';const fLabel={sold:'매각',paused:'중단',other_use:'타용도'}[fStatus];const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed'}[fStatus];const cellW=isMobile?30:36;return(
                   <div key={v.number} style={{display:"flex",borderBottom:"1px solid #1a1a35",minHeight:52,opacity:fStatus!=='active'?0.6:1}}>
-                    <div style={{minWidth:170,padding:"8px 14px",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{minWidth: isMobile ? 130 : 170,padding: isMobile ? "8px 10px" : "8px 14px",fontSize: isMobile ? 11 : 12,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
                       <span style={{width:8,height:8,borderRadius:"50%",background:vc?.color||"#888",flexShrink:0}}/>
-                      <div><div style={{fontWeight:600,fontSize:12,display:"flex",alignItems:"center",gap:5}}>{v.model}{fLabel&&<span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:fColor+"22",color:fColor}}>{fLabel}</span>}</div><div style={{fontSize:10,color:"#0f172a"}}>{v.number}</div></div>
+                      <div style={{minWidth:0}}><div style={{fontWeight:600,fontSize: isMobile ? 11 : 12,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.model}{fLabel&&<span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:fColor+"22",color:fColor}}>{fLabel}</span>}</div><div style={{fontSize:10,color:"#0f172a"}}>{v.number}</div></div>
                     </div>
                     <div style={{position:"relative",display:"flex",flex:1}}>
-                      {Array.from({length:sched.dim},(_,i)=><div key={i} style={{minWidth:36,borderLeft:"1px solid #1a1a35"}}/>)}
+                      {Array.from({length:sched.dim},(_,i)=><div key={i} style={{minWidth:cellW,borderLeft:"1px solid #1a1a35"}}/>)}
                       {v.entries.map((e,i)=>{const sc=STATUS_COLORS[e.status]||STATUS_COLORS["입금완료"];return(
-                        <div key={i} onClick={()=>setSelected(e)} style={{position:"absolute",left:(e.bs-1)*36+2,width:(e.be-e.bs+1)*36-4,top:6+(i%2)*22,height:18,background:sc.dot+"cc",borderRadius:4,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,color:"#fff",overflow:"hidden",whiteSpace:"nowrap",padding:"0 4px"}} title={`${e.customerName} (${e.startDate}~${e.endDate||"진행중"})`}>{e.customerName}</div>
+                        <div key={i} onClick={()=>setSelected(e)} style={{position:"absolute",left:(e.bs-1)*cellW+2,width:(e.be-e.bs+1)*cellW-4,top:6+(i%2)*22,height:18,background:sc.dot+"cc",borderRadius:4,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,color:"#fff",overflow:"hidden",whiteSpace:"nowrap",padding:"0 4px"}} title={`${e.customerName} (${e.startDate}~${e.endDate||"진행중"})`}>{e.customerName}</div>
                       );})}
                     </div>
                   </div>
@@ -1469,7 +1469,7 @@ function App() {
             });
           const counts = rows.reduce((acc, r) => { acc[r.status] = (acc[r.status]||0)+1; return acc; }, {});
           return <div>
-            <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:24, marginBottom:16 }}>
+            <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding: isMobile ? 12 : 24, marginBottom:16 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16, flexWrap:"wrap", gap:14 }}>
                 <div>
                   <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:"#18181b" }}>차량 관리</h3>
@@ -1536,7 +1536,7 @@ function App() {
           {deletedContractsView.length === 0 ? <div style={{padding:60,textAlign:"center",color:"#0f172a",fontSize:14,background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12}}>휴지통이 비어있습니다.</div> :
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {deletedContractsView.slice().sort((a,b)=>(b.deletedAt||"").localeCompare(a.deletedAt||"")).map(c => (
-              <div key={c.id} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:14 }}>
+              <div key={c.id} style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:10, padding: isMobile ? "10px 12px" : "14px 16px", display:"flex", flexDirection: isMobile ? "column" : "row", justifyContent: isMobile ? "flex-start" : "space-between", alignItems: isMobile ? "stretch" : "center", gap: isMobile ? 10 : 14 }}>
                 <div style={{ minWidth:0, flex:"1 1 auto" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
                     <span style={{ fontWeight:700, color:"#18181b", fontSize:16 }}>{c.customerName || "(이름 없음)"}</span>
