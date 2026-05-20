@@ -1715,7 +1715,8 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
   const unpaid = useMemo(() => unpaidRaw.filter(c => !excluded[c.id]), [unpaidRaw, excluded]);
   const excludedRows = useMemo(() => unpaidRaw.filter(c => excluded[c.id]), [unpaidRaw, excluded]);
 
-  // 3) 담당자별 그룹핑
+  // 3) 담당자별 그룹핑 — 그룹 안 청구건은 청구일 오름차순(오래된 게 위),
+  //    그룹 자체는 그룹 내 가장 오래된 청구일 기준 오름차순(연체일 많은 그룹이 위).
   const groups = useMemo(() => {
     const map = new Map();
     const noContact = [];
@@ -1725,7 +1726,17 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
       if (!map.has(phone)) map.set(phone, []);
       map.get(phone).push(c);
     }
-    return { groups: [...map.entries()], noContact };
+    const sortedEntries = [...map.entries()]
+      .map(([phone, items]) => {
+        const oldest = items.reduce((m, c) => {
+          const b = c.billingDate || "9999-12-31";
+          return b < m ? b : m;
+        }, "9999-12-31");
+        return { phone, items, oldest };
+      })
+      .sort((a, b) => a.oldest.localeCompare(b.oldest))
+      .map(g => [g.phone, g.items]);
+    return { groups: sortedEntries, noContact };
   }, [unpaid]);
 
   // 4) 본문 미리보기 (첫 그룹 기준)
