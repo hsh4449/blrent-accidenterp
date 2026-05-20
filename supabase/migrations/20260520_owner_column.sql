@@ -38,13 +38,13 @@ CREATE INDEX IF NOT EXISTS idx_accident_fleet_owner
 -- ============================================================
 INSERT INTO accident_fleet (vehicle_number, model, status, owner, note, updated_at)
 VALUES
-    ('154하4286', '박스터(718) 4.0 Boxster GTS',        'active', 'jiip', NULL, NOW()),
+    ('154하4286', '박스터 718 4.0 GTS',                 'active', 'jiip', NULL, NOW()),
     ('106호8993', 'Mercedes-Benz E 200',                'active', 'jiip', NULL, NOW()),
     ('106호9194', 'Mustang 2.3L Convertible',           'active', 'jiip', NULL, NOW()),
     ('106호9256', '더 뉴아반떼 N 가솔린 2.0 터보 N DCT', 'active', 'jiip', NULL, NOW()),
     ('106호9334', 'Mercedes-Benz GLE 4504MATIC',        'active', 'jiip', NULL, NOW()),
     ('106호9340', 'Mercedes-Benz CLE 200 Cabriolet',    'active', 'jiip', NULL, NOW()),
-    ('106호9341', '뉴 GV80 가솔린 2.5 터보 AWD 5인승 기본형','active','jiip', NULL, NOW()),
+    ('106호9341', '뉴 GV80 가솔린 2.5',                'active', 'jiip', NULL, NOW()),
     ('106호9388', 'BMW X6 xDrive30d M Sport',           'active', 'jiip', NULL, NOW()),
     ('106호9433', 'BMW 520i',                           'active', 'jiip', NULL, NOW()),
     ('106호9558', 'BMW 520i',                           'active', 'jiip', NULL, NOW()),
