@@ -1832,6 +1832,37 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
   const onSaveTemplate = () => saveField({ message_template: templateDraft });
   const onSaveCutoff = () => saveField({ cutoff_billing_date: cutoffDraft || null });
 
+  // 전체 즉시 발송 — owner 의 모든 미입금 대상에게 한 번에 LMS 발송
+  // (target_phones=null → process_manual_queue.py 가 전체 발송)
+  const [sendAllBusy, setSendAllBusy] = useState(false);
+  const onSendAllNow = async () => {
+    if (!groups.groups.length) {
+      alert("발송 대상이 없습니다.");
+      return;
+    }
+    const totalAll = groups.groups.reduce((s, [, items]) =>
+      s + items.reduce((ss, c) => ss + (Number(c.billingAmount) || 0), 0), 0);
+    const totalCount = groups.groups.reduce((s, [, items]) => s + items.length, 0);
+    if (!confirm(
+      `[전체 즉시 발송] ${owner === 'jiip' ? '신동석 지입' : '본사'} 도메인\n\n` +
+      `${groups.groups.length}명 담당자 · ${totalCount}건 · ₩${totalAll.toLocaleString()}\n\n` +
+      `현재 발송 예정 모든 담당자에게 지금 LMS 를 발송합니다.\n` +
+      `(약 1~2분 내 Vultr 큐 처리기가 실행됩니다)`
+    )) return;
+    setSendAllBusy(true);
+    const { error } = await sb.from('accident_manual_send_queue').insert({
+      owner, target_phones: null, requested_by: 'ui:erp:all',
+    });
+    if (error) {
+      setSendAllBusy(false);
+      alert('전체 발송 요청 실패: ' + error.message);
+      return;
+    }
+    alert(`전체 발송 요청 완료 — 약 1~2분 내 발송됩니다.\n(발송 이력 카드에서 결과 확인 가능)`);
+    // 1분 후 자동 재활성화 (같은 페이지에서 중복 클릭만 차단, 다른 PC 와는 분리)
+    setTimeout(() => setSendAllBusy(false), 60 * 1000);
+  };
+
   // 담당자별 수동 발송 — accident_manual_send_queue 에 INSERT
   // Vultr cron (*/2 * * * *) 의 process_manual_queue.py 가 처리 → send_engine → SMS 발송
   // 1시간 cooldown: 발송 후 1시간 동안 같은 phone 으로 재발송 차단
@@ -1958,23 +1989,39 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
       <span style={{fontWeight:500}}>설정/로그/제외목록 모두 이 도메인 한정</span>
     </div>
 
-    {/* 1행: 마지막 자동발송 (자동발송 토글은 2026-05-22 폐기 — 항상 ON. 담당자별 [📤 발송] 버튼으로 수동도 가능) */}
+    {/* 1행: 마지막 자동발송 + [전체발송] 버튼 */}
     <div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
       <div style={cardSt}>
-        <div style={labelSt}>마지막 자동발송</div>
-        <div style={{fontSize:18,fontWeight:700,color:"#0f172a"}}>{ss.last_auto_send_date || "-"}</div>
-        <div style={{fontSize:11,color:"#0f172a",marginTop:4}}>다음 가능일: {(() => {
-          if (!ss.last_auto_send_date) return "(즉시 가능)";
-          // SEND_INTERVAL_DAYS = 1, 일요일이면 다음 평일로 skip
-          // toISOString 은 UTC 라 KST 자정이 전날로 잘림 → 로컬 날짜로 직접 포맷
-          let d = new Date(ss.last_auto_send_date + "T00:00:00");
-          d.setDate(d.getDate() + 1);
-          while (d.getDay() === 0) d.setDate(d.getDate() + 1);
-          const y = d.getFullYear();
-          const m = String(d.getMonth()+1).padStart(2,'0');
-          const day = String(d.getDate()).padStart(2,'0');
-          return `${y}-${m}-${day}`;
-        })()}</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <div>
+            <div style={labelSt}>마지막 자동발송</div>
+            <div style={{fontSize:18,fontWeight:700,color:"#0f172a"}}>{ss.last_auto_send_date || "-"}</div>
+            <div style={{fontSize:11,color:"#0f172a",marginTop:4}}>다음 가능일: {(() => {
+              if (!ss.last_auto_send_date) return "(즉시 가능)";
+              let d = new Date(ss.last_auto_send_date + "T00:00:00");
+              d.setDate(d.getDate() + 1);
+              while (d.getDay() === 0) d.setDate(d.getDate() + 1);
+              const y = d.getFullYear();
+              const m = String(d.getMonth()+1).padStart(2,'0');
+              const day = String(d.getDate()).padStart(2,'0');
+              return `${y}-${m}-${day}`;
+            })()}</div>
+          </div>
+          <button
+            onClick={onSendAllNow}
+            disabled={sendAllBusy || !groups.groups.length}
+            title={sendAllBusy ? "방금 요청함 — 1분 후 다시 가능" : `발송 예정 ${groups.groups.length}명 담당자 전체에게 즉시 LMS`}
+            style={{
+              padding:"10px 22px",
+              background: (sendAllBusy || !groups.groups.length) ? "#cbd5e1" : "#dc2626",
+              color:"#fff", border:"none", borderRadius:8,
+              fontSize:14, fontWeight:800,
+              cursor: (sendAllBusy || !groups.groups.length) ? "not-allowed" : "pointer",
+              whiteSpace:"nowrap",
+            }}>
+            {sendAllBusy ? "요청됨" : "전체발송"}
+          </button>
+        </div>
       </div>
     </div>
 
