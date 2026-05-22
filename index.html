@@ -446,16 +446,20 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [{ data: rentals, error: e1 }, { data: fixed, error: e2 }, { data: fleetData, error: e3 }] = await Promise.all([
+        const [{ data: rentals, error: e1 }, { data: fixed, error: e2 }, { data: fleetData, error: e3 }, { data: excludedRows }] = await Promise.all([
           supabaseClient.from('accident_rentals').select('*').order('start_date', { ascending: false }),
           supabaseClient.from('vehicle_monthly_fixed').select('*'),
           supabaseClient.from('accident_fleet').select('*'),
+          supabaseClient.from('accident_excluded_contracts').select('contract_id,reason'),
         ]);
         // 휴지통 = is_deleted, 일반 계약 = 나머지 (한 번에 가져와서 분리)
         if (e1) throw e1;
         if (e2) throw e2;
         if (e3) throw e3;
-        const allRentals = rentals.map(fromDbRow);
+        // 독촉발송 보류 사유 머지 — 대시보드/상세에서 chip 으로 표시
+        const reasonByCid = {};
+        (excludedRows || []).forEach(r => { reasonByCid[r.contract_id] = r.reason; });
+        const allRentals = rentals.map(fromDbRow).map(c => ({ ...c, exclusionReason: reasonByCid[c.id] || null }));
         setRawContracts(allRentals.filter(c => !c.isDeleted));
         setDeletedContracts(allRentals.filter(c => c.isDeleted));
         const mf = {};
@@ -1051,6 +1055,14 @@ function App() {
                                     <span style={{ fontSize:13, color:"#64748b", fontWeight:500 }}>· {c.customerName || "이름 없음"}</span>
                                     <Badge status={c.status} />
                                     {c.status === '교체' && (!c.endDate || c.endDate >= _today.toISOString().slice(0,10)) && <Badge status="배차중" />}
+                                    {c.exclusionReason && (() => {
+                                      const isBunsim = c.exclusionReason.includes('분심');
+                                      return <span style={{
+                                        fontSize:12, fontWeight:700,
+                                        background: isBunsim ? '#7c3aed' : '#94a3b8',
+                                        color:'#fff', padding:'3px 10px', borderRadius:12,
+                                      }}>{isBunsim && '⚖ '}{c.exclusionReason}</span>;
+                                    })()}
                                   </div>
                                   <div style={{ display:"flex", gap:8 }}>
                                     <button onClick={()=>_openEdit(c)} style={{ padding:"7px 16px", background:"#3b82f6", color:"#fff", border:"none", borderRadius:7, fontSize:13, cursor:"pointer", fontWeight:700 }}>수정</button>
