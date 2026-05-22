@@ -1715,13 +1715,18 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
   const [cutoffDraft, setCutoffDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [locallyPaid, setLocallyPaid] = useState(new Set()); // 입금완료 처리한 contract id (페이지 새로고침 전까지 발송예정에서 제외)
+  const [recentSends, setRecentSends] = useState({}); // {phone: requestedAtIso} — 1시간 cooldown
+  const [tick, setTick] = useState(0); // 1분마다 ++ 해서 cooldown 카운트다운 자동 업데이트
 
-  // 1) 설정 + 로그 + 제외목록 로드 — 모두 owner 필터
+  // 1) 설정 + 로그 + 제외목록 + 최근 1시간 수동발송 큐 로드
   const reload = useCallback(async () => {
-    const [{ data: s }, { data: l }, { data: ex }] = await Promise.all([
+    const oneHourAgoIso = new Date(Date.now() - 60*60*1000).toISOString();
+    const [{ data: s }, { data: l }, { data: ex }, { data: q }] = await Promise.all([
       sb.from("accident_send_settings").select("*").eq("owner", owner).single(),
       sb.from("accident_sms_logs").select("*").eq("owner", owner).order("sent_at", { ascending: false }).limit(30),
       sb.from("accident_excluded_contracts").select("*").eq("owner", owner),
+      sb.from("accident_manual_send_queue").select("target_phones,requested_at")
+        .eq("owner", owner).gte("requested_at", oneHourAgoIso),
     ]);
     setSettings(s);
     setTemplateDraft(s?.message_template || "");
@@ -1730,9 +1735,22 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
     const exMap = {};
     (ex || []).forEach(r => { exMap[r.contract_id] = r; });
     setExcluded(exMap);
+    // 같은 phone 의 가장 최근 requested_at 만 유지
+    const rs = {};
+    (q || []).forEach(r => {
+      const ph = (r.target_phones || [])[0];
+      if (ph && (!rs[ph] || r.requested_at > rs[ph])) rs[ph] = r.requested_at;
+    });
+    setRecentSends(rs);
   }, [sb, owner]);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // 1분마다 tick 증가 → cooldown 남은시간 자동 갱신 (재렌더만 트리거)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // 2) 미입금 후보 (cutoff 적용, excluded 적용 전) — 제외섹션에서도 사용
   //    청구일로부터 MIN_OVERDUE_DAYS 일 이상 경과한 건만 발송 대상
@@ -1816,19 +1834,24 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
 
   // 담당자별 수동 발송 — accident_manual_send_queue 에 INSERT
   // Vultr cron (*/2 * * * *) 의 process_manual_queue.py 가 처리 → send_engine → SMS 발송
+  // 1시간 cooldown: 발송 후 1시간 동안 같은 phone 으로 재발송 차단
   const onManualSendForGroup = async (phone, managerName, count, total) => {
     const phoneFmt = (phone || '').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
     if (!confirm(
-      `[수동 발송] ${managerName || '담당자'} (${phoneFmt})\n\n` +
+      `[문자발송] ${managerName || '담당자'} (${phoneFmt})\n\n` +
       `${count}건 · ₩${total.toLocaleString()}\n\n` +
       `이 담당자에게 지금 LMS 를 발송합니다.\n` +
+      `발송 후 1시간 동안 같은 담당자에게 재발송할 수 없습니다.\n` +
       `(약 1~2분 내 Vultr 큐 처리기가 실행됩니다)`
     )) return;
+    const nowIso = new Date().toISOString();
     const { error } = await sb.from('accident_manual_send_queue').insert({
       owner, target_phones: [phone], requested_by: 'ui:erp',
     });
-    if (error) { alert('수동 발송 요청 실패: ' + error.message); return; }
-    alert(`수동 발송 요청 완료 — 약 1~2분 내 발송됩니다.\n(독촉발송 탭 새로고침 → "발송 이력" 에서 확인 가능)`);
+    if (error) { alert('문자발송 요청 실패: ' + error.message); return; }
+    // 즉시 cooldown 등록 (DB reload 안 기다림)
+    setRecentSends(prev => ({ ...prev, [phone]: nowIso }));
+    alert(`문자발송 요청 완료 — 약 1~2분 내 발송됩니다.\n같은 담당자 재발송은 1시간 후 가능합니다.`);
   };
 
   // 입금완료 처리 — accident_rentals 본 테이블 직접 update
@@ -2054,12 +2077,28 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
                       <span style={{fontSize:17,fontWeight:700,color:"#18181b"}}>{items[0].insuranceManagerName || "(이름없음)"}</span>
                       <span style={{fontSize:13,color:"#5b21b6",background:"#ede9fe",padding:"3px 10px",borderRadius:12,fontWeight:600}}>{items[0].insurer || "(보험사미상)"}</span>
                       <span style={{fontSize:13,color:"#0f172a",background:"#f1f5f9",padding:"3px 10px",borderRadius:12,fontWeight:600,fontFamily:"monospace"}}>{formattedPhone}</span>
-                      <button
-                        onClick={()=>onManualSendForGroup(phone, items[0].insuranceManagerName, items.length, groupTotal)}
-                        title="이 담당자에게 즉시 LMS 발송 (Vultr 큐 1~2분)"
-                        style={{padding:"4px 12px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                        📤 발송
-                      </button>
+                      {(() => {
+                        // tick 변수 참조로 1분마다 강제 재계산 (cooldown 카운트다운)
+                        void tick;
+                        const lastIso = recentSends[phone];
+                        const remainMin = lastIso
+                          ? Math.max(0, 60 - Math.floor((Date.now() - new Date(lastIso).getTime()) / 60000))
+                          : 0;
+                        const cooldown = remainMin > 0;
+                        return <button
+                          onClick={()=>onManualSendForGroup(phone, items[0].insuranceManagerName, items.length, groupTotal)}
+                          disabled={cooldown}
+                          title={cooldown ? `1시간 cooldown — ${remainMin}분 후 재발송 가능` : "이 담당자에게 LMS 발송 (Vultr 큐 1~2분)"}
+                          style={{
+                            padding:"4px 12px",
+                            background: cooldown ? "#cbd5e1" : "#3b82f6",
+                            color:"#fff", border:"none", borderRadius:6,
+                            fontSize:12, fontWeight:700,
+                            cursor: cooldown ? "not-allowed" : "pointer",
+                          }}>
+                          {cooldown ? `${remainMin}분 후` : "문자발송"}
+                        </button>;
+                      })()}
                     </div>
                     <div style={{fontSize:14,fontVariantNumeric:"tabular-nums",background:"#fee2e2",color:"#991b1b",padding:"6px 14px",borderRadius:20,fontWeight:700}}>
                       {items.length}건 · ₩{groupTotal.toLocaleString()}
