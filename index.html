@@ -977,8 +977,8 @@ function App() {
                     const fleetInfo = fleet[num];
                     const fleetStatus = fleetInfo?.status || 'active';
                     const isInactiveFleet = fleetStatus !== 'active';
-                    const fleetLabel = { sold:'매각', paused:'중단', other_use:'타용도' }[fleetStatus];
-                    const fleetColor = { sold:'#dc2626', paused:'#a16207', other_use:'#7c3aed' }[fleetStatus];
+                    const fleetLabel = { sold:'매각', paused:'중단', other_use:'타용도', monthly_rent:'월렌트', short_rent:'단기렌트', maintenance:'수리중' }[fleetStatus];
+                    const fleetColor = { sold:'#dc2626', paused:'#a16207', other_use:'#7c3aed', monthly_rent:'#2563eb', short_rent:'#14b8a6', maintenance:'#ea580c' }[fleetStatus];
                     return (
                       <div key={num} style={{ background:"#f8fafc", borderRadius:10, overflow:"hidden", opacity: isInactiveFleet ? 0.65 : 1 }}>
                         <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", padding: isMobile ? "10px 12px" : "16px 20px", gap: isMobile ? 10 : 20 }}>
@@ -1393,8 +1393,8 @@ function App() {
                     const fInfo=fleet[num];
                     const fStatus=fInfo?.status||'active';
                     const isInactiveRow=fStatus!=='active';
-                    const fLabel={sold:'매각',paused:'중단',other_use:'타용도'}[fStatus];
-                    const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed'}[fStatus];
+                    const fLabel={sold:'매각',paused:'중단',other_use:'타용도',monthly_rent:'월렌트',short_rent:'단기렌트',maintenance:'수리중'}[fStatus];
+                    const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed',monthly_rent:'#2563eb',short_rent:'#14b8a6',maintenance:'#ea580c'}[fStatus];
                     return (
                     <tr key={num} style={{borderBottom:"1px solid #f1f5f9",background:idx%2===0?"#ffffff":"#f8fafc",opacity:isInactiveRow?0.7:1}}>
                       <td style={{padding:"10px 10px"}}>
@@ -1467,7 +1467,7 @@ function App() {
                   {Array.from({length:sched.dim},(_,i)=>{const d=new Date(sched.y,sched.m-1,i+1);const dow=d.getDay();const td=new Date();const isToday=d.getFullYear()===td.getFullYear()&&d.getMonth()===td.getMonth()&&d.getDate()===td.getDate();const cellW=isMobile?30:36;
                   return <div key={i} style={{minWidth:cellW,textAlign:"center",padding:"6px 0",fontSize:10,color:dow===0?"#ef4444":dow===6?"#3b82f6":"#888",borderLeft:"1px solid #1a1a35",background:isToday?"#e2e8f0":"transparent"}}><div style={{fontWeight:600}}>{i+1}</div><div>{["일","월","화","수","목","금","토"][dow]}</div></div>;})}
                 </div>
-                {sched.vs.filter(v=>isFleetVisible(v.number)).map(v=>{const vc=vehicles.find(x=>x.number===v.number);const fInfo=fleet[v.number];const fStatus=fInfo?.status||'active';const fLabel={sold:'매각',paused:'중단',other_use:'타용도'}[fStatus];const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed'}[fStatus];const cellW=isMobile?30:36;return(
+                {sched.vs.filter(v=>isFleetVisible(v.number)).map(v=>{const vc=vehicles.find(x=>x.number===v.number);const fInfo=fleet[v.number];const fStatus=fInfo?.status||'active';const fLabel={sold:'매각',paused:'중단',other_use:'타용도',monthly_rent:'월렌트',short_rent:'단기렌트',maintenance:'수리중'}[fStatus];const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed',monthly_rent:'#2563eb',short_rent:'#14b8a6',maintenance:'#ea580c'}[fStatus];const cellW=isMobile?30:36;return(
                   <div key={v.number} style={{display:"flex",borderBottom:"1px solid #1a1a35",minHeight:52,opacity:fStatus!=='active'?0.6:1}}>
                     <div style={{minWidth: isMobile ? 130 : 170,padding: isMobile ? "8px 10px" : "8px 14px",fontSize: isMobile ? 11 : 12,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
                       <span style={{width:8,height:8,borderRadius:"50%",background:vc?.color||"#888",flexShrink:0}}/>
@@ -1493,10 +1493,13 @@ function App() {
         {/* ── FLEET (차량 관리) ── */}
         {tab==="fleet" && (() => {
           const STATUS_OPTIONS = [
-            { v:'active',    l:'운영중',   c:'#10b981' },
-            { v:'sold',      l:'매각',     c:'#dc2626' },
-            { v:'paused',    l:'사고대여 중단', c:'#a16207' },
-            { v:'other_use', l:'타용도',   c:'#7c3aed' },
+            { v:'active',        l:'운영중',       c:'#10b981' },
+            { v:'monthly_rent',  l:'월렌트',       c:'#2563eb' },
+            { v:'short_rent',    l:'단기렌트',     c:'#14b8a6' },
+            { v:'maintenance',   l:'수리중',       c:'#ea580c' },
+            { v:'sold',          l:'매각',         c:'#dc2626' },
+            { v:'paused',        l:'사고대여 중단', c:'#a16207' },
+            { v:'other_use',     l:'타용도',       c:'#7c3aed' },
           ];
           const rows = Object.entries(fleet)
             .map(([num, info]) => ({ num, ...info }))
