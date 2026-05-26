@@ -484,11 +484,14 @@ function App() {
   }, [fleet]);
   const fleetSet = useMemo(() => new Set(Object.keys(fleet)), [fleet]);
 
-  // 차량별 카드/스케줄에서 표시할지 여부: 등록 + active (showInactive 토글이면 inactive도)
+  // 차량별 카드/스케줄에서 표시할지 여부:
+  //   표시: active / monthly_rent / short_rent / maintenance
+  //   숨김 (showInactive 토글 시에만 표시): sold / paused / other_use
+  const VISIBLE_FLEET_STATUSES = new Set(['active', 'monthly_rent', 'short_rent', 'maintenance']);
   const isFleetVisible = useCallback((num) => {
     const f = fleet[num];
     if (!f) return false; // 미등록 차량은 숨김 (정산엔 별개로 다룸)
-    return showInactiveFleet || f.status === 'active';
+    return showInactiveFleet || VISIBLE_FLEET_STATUSES.has(f.status);
   }, [fleet, showInactiveFleet]);
 
   const saveFleet = useCallback(async (vehicleNumber, patch) => {
@@ -1004,7 +1007,11 @@ function App() {
                           {/* 중: 통계 4개 가로로 펼침 */}
                           <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent: isMobile ? "space-between" : "space-around", flexWrap:"wrap", gap: isMobile ? "8px 10px" : "12px 24px" }}>
                             <div style={{ display:"flex", alignItems:"center", gap:8, minWidth: isMobile ? 0 : 90 }}>
-                              <span style={{padding: isMobile ? "3px 8px" : "4px 12px",borderRadius:6,background:isActive?"#f59e0b22":"#cbd5e1",color:isActive?"#f59e0b":"#888",fontWeight:700,fontSize: isMobile ? 11 : 14}}>{isActive?"배차중":"대기"}</span>
+                              {isInactiveFleet ? (
+                                <span style={{padding: isMobile ? "3px 8px" : "4px 12px",borderRadius:6,background:fleetColor+"22",color:fleetColor,fontWeight:700,fontSize: isMobile ? 11 : 14}}>{fleetLabel}</span>
+                              ) : (
+                                <span style={{padding: isMobile ? "3px 8px" : "4px 12px",borderRadius:6,background:isActive?"#f59e0b22":"#cbd5e1",color:isActive?"#f59e0b":"#888",fontWeight:700,fontSize: isMobile ? 11 : 14}}>{isActive?"배차중":"대기"}</span>
+                              )}
                             </div>
                             <div style={{ textAlign:"center", minWidth: isMobile ? 0 : 80 }}>
                               <div style={{fontSize: isMobile ? 10 : 11,color:"#0f172a",marginBottom:3}}>총 미입금</div>
