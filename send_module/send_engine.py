@@ -22,7 +22,8 @@ from solapi_sender import _auth_header, byte_len, API_URL, from_number_for
 
 # 청구일로부터 N일 이상 경과한 건만 자동발송 대상
 # (ERP UI DokchokTab.MIN_OVERDUE_DAYS 와 같은 값 유지)
-MIN_OVERDUE_DAYS = 3
+# 1 = 청구 다음날 08:30 cron 부터 발송 가능 (2026-05-22 사용자 변경: 3 → 1)
+MIN_OVERDUE_DAYS = 1
 
 
 # ─────────────────────────────────────────────────────────────────────────

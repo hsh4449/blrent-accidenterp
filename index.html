@@ -1767,7 +1767,8 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
   // 2) 미입금 후보 (cutoff 적용, excluded 적용 전) — 제외섹션에서도 사용
   //    청구일로부터 MIN_OVERDUE_DAYS 일 이상 경과한 건만 발송 대상
   //    (백엔드 send_engine.MIN_OVERDUE_DAYS 와 같은 값 유지)
-  const MIN_OVERDUE_DAYS = 3;
+  //    1 = 청구 다음날 08:30 cron 부터 발송 가능
+  const MIN_OVERDUE_DAYS = 1;
   const unpaidRaw = useMemo(() => {
     const t = new Date(); t.setHours(0,0,0,0);
     const thr = new Date(t); thr.setDate(thr.getDate() - MIN_OVERDUE_DAYS);
@@ -1982,7 +1983,7 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
     {/* 헤더 */}
     <div style={{display:"flex",alignItems:"baseline",gap:14,flexWrap:"wrap"}}>
       <h3 style={{margin:0,fontSize:18,color:"#18181b"}}>📨 미입금 자동 독촉 SMS</h3>
-      <span style={{fontSize:13,color:"#0f172a"}}>매일 08:30 KST (일요일 제외) · 청구 후 {MIN_OVERDUE_DAYS}일 경과 건 · 본사·지입 모두 매일 1회 · 솔라피 LMS</span>
+      <span style={{fontSize:13,color:"#0f172a"}}>매일 08:30 KST (일요일 제외) · 청구 다음날부터 발송 · 본사·지입 모두 매일 1회 · 솔라피 LMS</span>
     </div>
 
     {/* owner 배지 — 현재 보고 있는 발송 시스템 (본사 hq / 신동석 jiip) */}
