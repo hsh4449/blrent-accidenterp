@@ -1,13 +1,10 @@
 name: IMS 사고대차 일일 크롤링
 
 on:
-  schedule:
-    # KST 09:17 ~ 17:17 매시 17분 (UTC 00:17 ~ 08:17, KST = UTC+9)
-    # 9개 시각: KST 09:17, 10:17, ..., 17:17
-    # 2026-05-22 — 0분 정각은 GitHub Actions 글로벌 runner 큐 밀림으로 자주 skip됨
-    # (실제 5-21 17:40 이후 17.9시간 통째로 skip 사례). 17분 으로 분산.
-    - cron: '17 0-8 * * *'
-  workflow_dispatch: # 수동 실행도 가능
+  # 2026-05-27 — schedule cron 비활성화 (Vultr cron 으로 이전).
+  # 사유: GitHub Actions schedule cron 이 5-21, 5-27 두 번이나 17~20시간 통째로 skip.
+  # 17분 분산해도 무력. Vultr crontab `17 0-8 * * *` 가 운영중. workflow_dispatch 만 백업 유지.
+  workflow_dispatch: # 수동 실행 (백업용)
 
 jobs:
   crawl:
