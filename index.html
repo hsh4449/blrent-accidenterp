@@ -1780,9 +1780,14 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
   //    1 = 청구 다음날 08:30 cron 부터 발송 가능
   const MIN_OVERDUE_DAYS = 1;
   const unpaidRaw = useMemo(() => {
-    const t = new Date(); t.setHours(0,0,0,0);
-    const thr = new Date(t); thr.setDate(thr.getDate() - MIN_OVERDUE_DAYS);
-    const thrIso = thr.toISOString().slice(0,10);
+    // KST 로컬 date 기반 — toISOString() 은 UTC 변환이라 한국시간 새벽~오전 사이 하루 어긋남.
+    // billingDate 자체가 "YYYY-MM-DD" 문자열이므로 같은 로컬 포맷으로 비교.
+    const t = new Date();
+    t.setDate(t.getDate() - MIN_OVERDUE_DAYS);
+    const y = t.getFullYear();
+    const m = String(t.getMonth()+1).padStart(2,'0');
+    const d = String(t.getDate()).padStart(2,'0');
+    const thrIso = `${y}-${m}-${d}`;
     return contracts.filter(c =>
       c.status === "청구완료" && !c.depositDate
       && !locallyPaid.has(c.id)
