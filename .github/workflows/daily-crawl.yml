@@ -3,7 +3,9 @@ name: IMS 사고대차 일일 크롤링
 on:
   # 2026-05-27 — schedule cron 비활성화 (Vultr cron 으로 이전).
   # 사유: GitHub Actions schedule cron 이 5-21, 5-27 두 번이나 17~20시간 통째로 skip.
-  # 17분 분산해도 무력. Vultr crontab `17 0-8 * * *` 가 운영중. workflow_dispatch 만 백업 유지.
+  # 17분 분산해도 무력. Vultr crontab `17 9-17 * * *` (KST 09:17~17:17 영업시간) 가 운영중.
+  # 주의: Vultr 서버 timezone = KST. crontab 의 시각은 KST 로 해석됨 (UTC 아님).
+  # workflow_dispatch 만 백업 유지.
   workflow_dispatch: # 수동 실행 (백업용)
 
 jobs:
