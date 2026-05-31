@@ -561,6 +561,40 @@ function App() {
 
   const save = useCallback(async d => { setRawContracts(d); }, []);
 
+  // 보류/입금 상태 변경 — 계약내역 탭의 인라인 드롭다운에서 호출.
+  // 독촉발송 탭의 같은 드롭다운과 옵션/색상/동작 일치. DB update 후 로컬 state 즉시 갱신.
+  const onChangeExclusionStatus = useCallback(async (c, newVal) => {
+    try {
+      if (newVal === "입금완료") {
+        const today = ymdLocal();
+        const input = prompt(`입금일 (YYYY-MM-DD)\n\n${c.customerName || ""} · ${c.customerNumber || ""}\n청구 ${c.billingDate || "?"} · ₩${(c.billingAmount || 0).toLocaleString()}`, today);
+        if (input === null) return;
+        const d = (input || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert("YYYY-MM-DD 형식"); return; }
+        const { error: e1 } = await supabaseClient.from('accident_rentals').update({
+          status: '입금완료', deposit_date: d, updated_at: new Date().toISOString()
+        }).eq('id', c.id);
+        if (e1) { alert("입금완료 실패: " + e1.message); return; }
+        await supabaseClient.from('accident_excluded_contracts').delete().eq('contract_id', c.id);
+        setRawContracts(prev => prev.map(x => x.id === c.id ? { ...x, status: '입금완료', depositDate: d, exclusionReason: null } : x));
+      } else if (newVal === "요청중") {
+        const { error } = await supabaseClient.from('accident_excluded_contracts').delete().eq('contract_id', c.id);
+        if (error) { alert("변경 실패: " + error.message); return; }
+        setRawContracts(prev => prev.map(x => x.id === c.id ? { ...x, exclusionReason: null } : x));
+      } else {
+        const owner = c.owner || 'hq';
+        const { error } = await supabaseClient.from('accident_excluded_contracts').upsert({
+          contract_id: c.id, owner, reason: newVal, excluded_by: 'ui:erp:contracts',
+          excluded_at: new Date().toISOString(),
+        }, { onConflict: 'contract_id' });
+        if (error) { alert("변경 실패: " + error.message); return; }
+        setRawContracts(prev => prev.map(x => x.id === c.id ? { ...x, exclusionReason: newVal } : x));
+      }
+    } catch (e) {
+      alert("변경 실패: " + e.message);
+    }
+  }, []);
+
   // Dynamic vehicles from data
   const vehicles = useMemo(() => {
     const m = new Map();
@@ -1287,17 +1321,35 @@ function App() {
                 <tbody>
                   {filtered.map((c,idx)=><tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #f1f5f9",cursor:"pointer",background:idx%2===0?"#ffffff":"#f8fafc"}} onMouseEnter={e=>e.currentTarget.style.background="#dbeafe"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"#ffffff":"#f8fafc"}>
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",color:"#0f172a",fontSize:11}}>{c.id}</td>
-                    <td style={{padding:"10px 12px"}}>
+                    <td style={{padding:"10px 12px"}} onClick={e=>e.stopPropagation()}>
                       <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
                         <Badge status={c.status}/>
-                        {c.exclusionReason && (() => {
+                        {(() => {
+                          const cur = c.exclusionReason || "요청중";
                           const bg = exclusionChipColor(c.exclusionReason);
-                          const isBunsim = c.exclusionReason.includes('분심');
-                          return <span style={{
-                            fontSize:10, fontWeight:700,
-                            background: bg, color:'#fff', padding:'2px 7px', borderRadius:10,
-                            whiteSpace:'nowrap',
-                          }}>{isBunsim && '⚖ '}{c.exclusionReason}</span>;
+                          const sel = (() => {
+                            if (cur === "분심진행중") return { bg:"#7c3aed", color:"#fff", border:"#7c3aed" };
+                            if (cur === "보류") return { bg:"#94a3b8", color:"#fff", border:"#94a3b8" };
+                            if (cur === "추가입금 필요") return { bg:"#f97316", color:"#fff", border:"#f97316" };
+                            return { bg:"#fff", color:"#0f172a", border:"#cbd5e1" };
+                          })();
+                          return <select
+                            value={cur}
+                            onChange={e=>onChangeExclusionStatus(c, e.target.value)}
+                            onClick={e=>e.stopPropagation()}
+                            title="보류 사유 변경 (분심/보류/추가입금/입금완료)"
+                            style={{
+                              padding:"2px 6px",
+                              background: sel.bg, color: sel.color, border:`1px solid ${sel.border}`,
+                              borderRadius:5, fontSize:10, fontWeight:700, cursor:"pointer",
+                            }}
+                          >
+                            <option value="요청중" style={{background:"#fff",color:"#0f172a"}}>요청중</option>
+                            <option value="분심진행중" style={{background:"#fff",color:"#0f172a"}}>분심진행중</option>
+                            <option value="보류" style={{background:"#fff",color:"#0f172a"}}>보류</option>
+                            <option value="추가입금 필요" style={{background:"#fff",color:"#0f172a"}}>추가입금 필요</option>
+                            <option value="입금완료" style={{background:"#fff",color:"#0f172a"}}>입금완료</option>
+                          </select>;
                         })()}
                       </div>
                     </td>
