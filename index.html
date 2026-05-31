@@ -314,6 +314,15 @@ function ymdLocal(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// 보류 사유 chip 색상 — accident_excluded_contracts.reason 값 기준.
+// 모든 표시 위치 (대시보드 / 계약내역 / 독촉발송 보류목록) 에서 일관 사용.
+function exclusionChipColor(reason) {
+  if (!reason) return null;
+  if (reason.includes('분심')) return '#7c3aed';     // 보라
+  if (reason.includes('추가입금')) return '#f97316'; // 주황
+  return '#94a3b8';                                   // 회색 (보류 등)
+}
+
 // ── UI Helpers ──
 function Badge({ status }) {
   const c = STATUS_COLORS[status] || STATUS_COLORS["입금완료"];
@@ -1070,11 +1079,11 @@ function App() {
                                     <Badge status={c.status} />
                                     {c.status === '교체' && (!c.endDate || c.endDate >= ymdLocal(_today)) && <Badge status="배차중" />}
                                     {c.exclusionReason && (() => {
+                                      const bg = exclusionChipColor(c.exclusionReason);
                                       const isBunsim = c.exclusionReason.includes('분심');
                                       return <span style={{
                                         fontSize:12, fontWeight:700,
-                                        background: isBunsim ? '#7c3aed' : '#94a3b8',
-                                        color:'#fff', padding:'3px 10px', borderRadius:12,
+                                        background: bg, color:'#fff', padding:'3px 10px', borderRadius:12,
                                       }}>{isBunsim && '⚖ '}{c.exclusionReason}</span>;
                                     })()}
                                   </div>
@@ -1282,11 +1291,11 @@ function App() {
                       <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
                         <Badge status={c.status}/>
                         {c.exclusionReason && (() => {
+                          const bg = exclusionChipColor(c.exclusionReason);
                           const isBunsim = c.exclusionReason.includes('분심');
                           return <span style={{
                             fontSize:10, fontWeight:700,
-                            background: isBunsim ? '#7c3aed' : '#94a3b8',
-                            color:'#fff', padding:'2px 7px', borderRadius:10,
+                            background: bg, color:'#fff', padding:'2px 7px', borderRadius:10,
                             whiteSpace:'nowrap',
                           }}>{isBunsim && '⚖ '}{c.exclusionReason}</span>;
                         })()}
@@ -1980,10 +1989,11 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
     await reload();
   };
   // 상태 select 공통 스타일
-  const STATUS_OPTIONS = ["요청중", "분심진행중", "보류", "입금완료"];
+  const STATUS_OPTIONS = ["요청중", "분심진행중", "보류", "추가입금 필요", "입금완료"];
   const statusStyle = (v) => {
     if (v === "분심진행중") return { bg:"#7c3aed", color:"#fff", border:"#7c3aed" };
     if (v === "보류") return { bg:"#94a3b8", color:"#fff", border:"#94a3b8" };
+    if (v === "추가입금 필요") return { bg:"#f97316", color:"#fff", border:"#f97316" };
     if (v === "입금완료") return { bg:"#10b981", color:"#fff", border:"#10b981" };
     return { bg:"#fff", color:"#0f172a", border:"#cbd5e1" }; // 요청중
   };
@@ -2243,9 +2253,8 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
         {excludedRows.sort((a,b)=>(excluded[b.id]?.excluded_at||"").localeCompare(excluded[a.id]?.excluded_at||"")).map(c => {
           const ex = excluded[c.id] || {};
           const isBunsim = (ex.reason || "").includes("분심");
-          const reasonColor = isBunsim
-            ? { bg:"#7c3aed", border:"#7c3aed" }
-            : { bg:"#475569", border:"#94a3b8" };
+          const _bg = exclusionChipColor(ex.reason) || "#475569";
+          const reasonColor = { bg: _bg, border: _bg };
           return <div key={c.id} style={{padding:"10px 14px",background:"#f8fafc",border:"1px solid #e2e8f0",borderLeft:`3px solid ${reasonColor.border}`,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,opacity:0.9}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",marginBottom:4}}>
