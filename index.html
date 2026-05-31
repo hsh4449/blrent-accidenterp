@@ -417,7 +417,7 @@ function App() {
   }, []);
   const [filter, setFilter] = useState(() => ({
     status:"all", vehicle:"all", search:"", searchField:"customerNumber",
-    startMonth: ymdLocal().slice(0,7),  // 기본: 오늘 기준 YYYY-MM (배차일 기준)
+    startMonth: "all",  // 기본: 전체 (IMS 작성순으로 보여줌, 필요 시 필터)
     startMonthTo: "",
   }));
   const [selected, setSelected] = useState(null);
@@ -765,7 +765,8 @@ function App() {
         l=l.filter(c=>match(c[filter.searchField]));
       }
     }
-    return l.sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
+    // IMS 작성순 (id desc) — 사용자 지시: IMS 에서 작성된 순서대로
+    return l.sort((a,b) => (Number(b.id)||0) - (Number(a.id)||0));
   }, [contracts, filter]);
 
   const sched = useMemo(() => {
