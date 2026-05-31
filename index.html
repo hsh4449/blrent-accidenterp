@@ -609,7 +609,8 @@ function App() {
   // 계약내역 탭의 "전체 차량" 드롭다운 옵션 — 비활성 fleet 차량 제외 + 현재 다른 필터(status/depositMonth)에 매칭되는 차량만
   const vehicleOptions = useMemo(() => {
     let l = contracts;
-    if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
+    if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
+    else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     // 입금월 필터: 완전 "YYYY-MM" 형식만 적용 (년만/월만 partial 은 무시)
     if (filter.depositMonth === "none") {
       l = l.filter(c => !c.depositDate);
@@ -734,7 +735,8 @@ function App() {
 
   const filtered = useMemo(() => {
     let l = [...contracts];
-    if(filter.status!=="all") l=l.filter(c=>c.status===filter.status);
+    if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
+    else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
     if (filter.depositMonth === "none") {
       l = l.filter(c => !c.depositDate);
@@ -1333,7 +1335,7 @@ function App() {
                 </select>
                 <input placeholder={`${({customerNumber:"고객 차량번호",customerName:"고객명",customerVehicle:"고객 차종",vehicleNumber:"대여차 번호",vehicleModel:"대여차 차종",id:"IMS번호",insurer:"보험사",all:"전체 (모든 필드)"})[filter.searchField]} 검색`} value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS, flex: isMobile ? 1 : "0 0 220px", width: isMobile ? "auto" : 220, borderTopLeftRadius:0, borderBottomLeftRadius:0}}/>
               </div>
-              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 120, flex: isMobile ? 1 : "0 0 120px"}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
+              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 120, flex: isMobile ? 1 : "0 0 120px"}}><option value="all">전체 상태</option><option value="미입금">미입금</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
               {/* 입금월: 년/월 select 두 쌍 (from ~ to). 빈 select = 그쪽 무한 */}
               {(() => {
@@ -1367,17 +1369,6 @@ function App() {
                     <option value="">월</option>
                     {months.map(m=><option key={m} value={m}>{parseInt(m)}</option>)}
                   </select>
-                  <button
-                    onClick={()=>setFilter(f=>({...f, depositMonth: f.depositMonth==="none"?"all":"none", depositMonthTo:""}))}
-                    title="미입금만 보기"
-                    style={{
-                      padding:"6px 10px",
-                      background: filter.depositMonth==="none" ? "#ef4444" : "#e2e8f0",
-                      color: filter.depositMonth==="none" ? "#fff" : "#0f172a",
-                      border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"
-                    }}>
-                    미입금만
-                  </button>
                 </div>;
               })()}
             </div>
