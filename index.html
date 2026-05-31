@@ -415,7 +415,11 @@ function App() {
       mq.removeEventListener ? mq.removeEventListener('change', handle) : mq.removeListener(handle);
     };
   }, []);
-  const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", searchField:"customerNumber", depositMonth:"all", depositMonthTo:"" });
+  const [filter, setFilter] = useState(() => ({
+    status:"all", vehicle:"all", search:"", searchField:"customerNumber",
+    depositMonth: ymdLocal().slice(0,7),  // 기본: 오늘 기준 YYYY-MM
+    depositMonthTo: "",
+  }));
   const [selected, setSelected] = useState(null);
   const [editModal, setEditModal] = useState(false);
   const [editData, setEditData] = useState(null);
