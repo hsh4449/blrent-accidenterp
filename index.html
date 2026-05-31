@@ -1278,7 +1278,20 @@ function App() {
                 <tbody>
                   {filtered.map((c,idx)=><tr key={c.id} onClick={()=>setSelected(c)} style={{borderBottom:"1px solid #f1f5f9",cursor:"pointer",background:idx%2===0?"#ffffff":"#f8fafc"}} onMouseEnter={e=>e.currentTarget.style.background="#dbeafe"} onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"#ffffff":"#f8fafc"}>
                     <td style={{padding:"10px 12px",fontVariantNumeric:"tabular-nums",color:"#0f172a",fontSize:11}}>{c.id}</td>
-                    <td style={{padding:"10px 12px"}}><Badge status={c.status}/></td>
+                    <td style={{padding:"10px 12px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+                        <Badge status={c.status}/>
+                        {c.exclusionReason && (() => {
+                          const isBunsim = c.exclusionReason.includes('분심');
+                          return <span style={{
+                            fontSize:10, fontWeight:700,
+                            background: isBunsim ? '#7c3aed' : '#94a3b8',
+                            color:'#fff', padding:'2px 7px', borderRadius:10,
+                            whiteSpace:'nowrap',
+                          }}>{isBunsim && '⚖ '}{c.exclusionReason}</span>;
+                        })()}
+                      </div>
+                    </td>
                     <td style={{padding:"10px 12px"}}>
                       <div style={{fontSize:12, fontWeight:700, color:"#18181b"}}>{c.customerVehicle || "(차종 없음)"}</div>
                       <div style={{display:"flex", alignItems:"center", gap:5, marginTop:3}}>
