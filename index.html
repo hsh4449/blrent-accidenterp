@@ -606,12 +606,14 @@ function App() {
   const vehicleOptions = useMemo(() => {
     let l = contracts;
     if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
-    // 입금월 필터: from/to 둘 다 비면 전체, none 이면 미입금만, 아니면 범위 (양쪽 optional)
+    // 입금월 필터: 완전 "YYYY-MM" 형식만 적용 (년만/월만 partial 은 무시)
     if (filter.depositMonth === "none") {
       l = l.filter(c => !c.depositDate);
     } else {
-      const from = filter.depositMonth !== "all" ? filter.depositMonth : "";
-      const to = filter.depositMonthTo || "";
+      const fromRaw = filter.depositMonth !== "all" ? filter.depositMonth : "";
+      const toRaw = filter.depositMonthTo || "";
+      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
+      const to = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       if (from || to) {
         l = l.filter(c => {
           if (!c.depositDate) return false;
@@ -733,8 +735,10 @@ function App() {
     if (filter.depositMonth === "none") {
       l = l.filter(c => !c.depositDate);
     } else {
-      const from = filter.depositMonth !== "all" ? filter.depositMonth : "";
-      const to = filter.depositMonthTo || "";
+      const fromRaw = filter.depositMonth !== "all" ? filter.depositMonth : "";
+      const toRaw = filter.depositMonthTo || "";
+      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
+      const to = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       if (from || to) {
         l = l.filter(c => {
           if (!c.depositDate) return false;
@@ -1337,8 +1341,9 @@ function App() {
                 const toRaw = filter.depositMonthTo || "";
                 const [fy, fm] = fromRaw ? fromRaw.split("-") : ["",""];
                 const [ty, tm] = toRaw ? toRaw.split("-") : ["",""];
-                const setFrom = (y, m) => setFilter(f=>({...f, depositMonth: (y && m) ? `${y}-${m}` : "all"}));
-                const setTo   = (y, m) => setFilter(f=>({...f, depositMonthTo: (y && m) ? `${y}-${m}` : ""}));
+                // 한쪽만 선택해도 임시 보존 (년만 = "YYYY-", 월만 = "-MM"). 필터 로직은 length===7 일 때만 적용.
+                const setFrom = (y, m) => setFilter(f=>({...f, depositMonth: (!y && !m) ? "all" : `${y||""}-${m||""}`}));
+                const setTo   = (y, m) => setFilter(f=>({...f, depositMonthTo: (!y && !m) ? "" : `${y||""}-${m||""}`}));
                 const selSt = {...SS, width: isMobile ? 70 : 80, flex: "0 0 auto"};
                 return <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap",flex: isMobile ? "1 1 100%" : "0 0 auto"}}>
                   <select value={fy} onChange={e=>setFrom(e.target.value, fm)} style={selSt} title="시작 년 (비우면 처음부터)">
