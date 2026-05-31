@@ -426,6 +426,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [schedMonth, setSchedMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
   const [settlMonth, setSettlMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
+  const [settlMonthTo, setSettlMonthTo] = useState("");
   const [settlVehicle, setSettlVehicle] = useState("all");
   const [gapMonth, setGapMonth] = useState("all");
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
@@ -1492,13 +1493,20 @@ function App() {
             const _now = new Date();
             const _curMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
             const allMonths = [...new Set([...depMonths, ...fixMonths, _curMonth])].sort();
+            // 기간 필터 — from~to (to 빈 + from 있으면 단일 월). settlMonth="all" 이면 전체.
             const ym = settlMonth;
-            const monthContracts = ym==="all" ? contracts.filter(c=>c.depositDate) : contracts.filter(c=>c.depositDate && c.depositDate.startsWith(ym));
+            const fromYm = (ym === "all") ? "" : ym;
+            const toYm = settlMonthTo || fromYm;  // to 빈 + from 있으면 단일 월
+            const isRange = fromYm || toYm;
+            const inRange = (m) => (!fromYm || m >= fromYm) && (!toYm || m <= toYm);
+            const monthContracts = !isRange
+              ? contracts.filter(c=>c.depositDate)
+              : contracts.filter(c=>c.depositDate && inRange(c.depositDate.slice(0,7)));
 
             // 차량 목록 (본사 fleet만, status 무관 — 매각/중단 차량도 통계 포함) — 외부차량/대차교체건은 정산에서 제외
             const vnums = new Set();
             monthContracts.forEach(c => { if (c.vehicleNumber && fleetSet.has(c.vehicleNumber)) vnums.add(c.vehicleNumber); });
-            if (ym !== "all") Object.keys(monthlyFixed).forEach(k => { const [vn,m]=k.split("|"); if (m===ym && fleetSet.has(vn)) vnums.add(vn); });
+            if (isRange) Object.keys(monthlyFixed).forEach(k => { const [vn,m]=k.split("|"); if (inRange(m) && fleetSet.has(vn)) vnums.add(vn); });
             vehicles.forEach(v => { if (fleetSet.has(v.number)) vnums.add(v.number); });
             // accident_fleet 등록된 모든 차량은 항상 행 표시 (활동 없어도)
             fleetSet.forEach(vn => vnums.add(vn));
@@ -1511,14 +1519,18 @@ function App() {
               const vat = Math.round(income * 10 / 110);
               const deliveryTotal = mc.reduce((s,c)=>s+(c.deliveryFee1||0)+(c.deliveryFee2||0),0);
               const deliveryCnt = mc.reduce((s,c)=>s+((c.deliveryFee1||0)>0?1:0)+((c.deliveryFee2||0)>0?1:0),0);
-              const commission = Math.round(mc.reduce((s,c)=>s+((c.rentalFee||0)/1.1)*((c.commissionRate||0)/100),0));
+              // 수수료: 부가세 뺀 금액(income - vat)의 15% (사용자 지시 2026-05-31)
+              const commission = Math.round((income - vat) * 0.15);
               let installment=0, insurance=0, etc=0;
-              if (ym === "all") {
-                Object.entries(monthlyFixed).forEach(([k,v])=>{ const [kvn]=k.split("|"); if (kvn===vn) { installment+=v.installment||0; insurance+=v.insurance||0; etc+=v.etc_cost||0; } });
-              } else {
-                const f = monthlyFixed[`${vn}|${ym}`] || {};
-                installment = f.installment || 0; insurance = f.insurance || 0; etc = f.etc_cost || 0;
-              }
+              // 기간 내 모든 월 합산 (전체: 모든 월, 단일: 해당 월만, 기간: from~to 합)
+              Object.entries(monthlyFixed).forEach(([k,v])=>{
+                const [kvn, km] = k.split("|");
+                if (kvn !== vn) return;
+                if (isRange && !inRange(km)) return;  // 기간 외 제외
+                installment += v.installment||0;
+                insurance += v.insurance||0;
+                etc += v.etc_cost||0;
+              });
               const settle = income - vat - installment - insurance - deliveryTotal - commission - etc;
               const model = vehicles.find(x=>x.number===vn)?.model || mc[0]?.vehicleModel || "";
               vStats[vn] = { model, cnt:mc.length, income, vat, installment, insurance, deliveryTotal, deliveryCnt, commission, etc, settle };
@@ -1540,16 +1552,30 @@ function App() {
             const canEdit = ym !== "all";
 
             return (<>
-              {/* 월 + 차량 선택 (드롭다운) — 차량은 상태 무관 (매각/중단/타용도 모두 포함) */}
+              {/* 정산월: from~to 기간 + 차량 (계약내역 패턴) */}
               <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:14,marginBottom:16,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:12,color:"#0f172a",fontWeight:600}}>정산월</span>
-                  <select value={settlMonth} onChange={e=>setSettlMonth(e.target.value)}
-                    style={{padding:"6px 10px",background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",color:"#18181b",minWidth:130}}>
-                    <option value="all">전체</option>
-                    {allMonths.slice().reverse().map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}
-                  </select>
-                </div>
+                {(() => {
+                  const yearSet = new Set(allMonths.map(m=>m.split("-")[0]));
+                  yearSet.add(String(new Date().getFullYear()));
+                  const years = [...yearSet].sort();
+                  const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+                  const fromRaw = settlMonth==="all" ? "" : (settlMonth || "");
+                  const toRaw = settlMonthTo || "";
+                  const [fy, fm] = fromRaw ? fromRaw.split("-") : ["",""];
+                  const [ty, tm] = toRaw ? toRaw.split("-") : ["",""];
+                  const setFrom = (y, m) => setSettlMonth((!y && !m) ? "all" : `${y||""}-${m||""}`);
+                  const setTo   = (y, m) => setSettlMonthTo((!y && !m) ? "" : `${y||""}-${m||""}`);
+                  const selSt = {padding:"6px 10px",background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",color:"#18181b",minWidth:75};
+                  return <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,color:"#0f172a",fontWeight:600,marginRight:4}}>정산월</span>
+                    <select value={fy} onChange={e=>setFrom(e.target.value, fm)} style={selSt}><option value="">년</option>{years.map(y=><option key={y} value={y}>{y}</option>)}</select>
+                    <select value={fm} onChange={e=>setFrom(fy, e.target.value)} style={selSt}><option value="">월</option>{months.map(m=><option key={m} value={m}>{parseInt(m)}</option>)}</select>
+                    <span style={{color:"#0f172a",fontSize:12,padding:"0 2px"}}>~</span>
+                    <select value={ty} onChange={e=>setTo(e.target.value, tm)} style={selSt}><option value="">년</option>{years.map(y=><option key={y} value={y}>{y}</option>)}</select>
+                    <select value={tm} onChange={e=>setTo(ty, e.target.value)} style={selSt}><option value="">월</option>{months.map(m=><option key={m} value={m}>{parseInt(m)}</option>)}</select>
+                    {(fromRaw || toRaw) && <button onClick={()=>{setSettlMonth("all");setSettlMonthTo("");}} style={{padding:"4px 10px",background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",color:"#0f172a"}}>× 초기화</button>}
+                  </div>;
+                })()}
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:12,color:"#0f172a",fontWeight:600}}>차량</span>
                   <select value={settlVehicle} onChange={e=>setSettlVehicle(e.target.value)}
