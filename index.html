@@ -427,7 +427,7 @@ function App() {
   const [schedMonth, setSchedMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
   const [settlMonth, setSettlMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
   const [settlMonthTo, setSettlMonthTo] = useState("");
-  const [settlVehicle, setSettlVehicle] = useState("all");
+  const [settlVehicles, setSettlVehicles] = useState([]); // 다중 선택. 빈 배열 = 전체
   const [gapMonth, setGapMonth] = useState("all");
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
   const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
@@ -1537,7 +1537,7 @@ function App() {
             });
 
             const rows = Object.entries(vStats)
-              .filter(([vn]) => settlVehicle === "all" || vn === settlVehicle)
+              .filter(([vn]) => settlVehicles.length === 0 || settlVehicles.includes(vn))
               .sort((a,b)=>a[0].localeCompare(b[0]));
             const T = rows.reduce((a,[,d])=>({
               cnt:a.cnt+d.cnt, income:a.income+d.income, vat:a.vat+d.vat,
@@ -1576,15 +1576,31 @@ function App() {
                     {(fromRaw || toRaw) && <button onClick={()=>{setSettlMonth("all");setSettlMonthTo("");}} style={{padding:"4px 10px",background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",color:"#0f172a"}}>× 초기화</button>}
                   </div>;
                 })()}
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontSize:12,color:"#0f172a",fontWeight:600}}>차량</span>
-                  <select value={settlVehicle} onChange={e=>setSettlVehicle(e.target.value)}
+                  <select value="" onChange={e=>{
+                    const v = e.target.value;
+                    if (!v) return;
+                    setSettlVehicles(prev => prev.includes(v) ? prev : [...prev, v]);
+                  }}
                     style={{padding:"6px 10px",background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",color:"#18181b",minWidth:180}}>
-                    <option value="all">전체 차량</option>
-                    {Object.entries(fleet).sort(([a],[b])=>a.localeCompare(b)).map(([num,info])=>(
+                    <option value="">{settlVehicles.length === 0 ? "전체 차량 (추가 선택)" : `+ 차량 추가 (${settlVehicles.length}대 선택됨)`}</option>
+                    {Object.entries(fleet).sort(([a],[b])=>a.localeCompare(b))
+                      .filter(([num]) => !settlVehicles.includes(num))
+                      .map(([num,info])=>(
                       <option key={num} value={num}>{info.model || ""} {num}{info.status && info.status!=='active' ? ` (${({sold:'매각',paused:'중단',other_use:'타용도',monthly_rent:'월렌트',short_rent:'단기렌트',maintenance:'수리중'})[info.status] || info.status})` : ''}</option>
                     ))}
                   </select>
+                  {settlVehicles.map(vn => {
+                    const info = fleet[vn] || {};
+                    return <span key={vn} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 8px 4px 10px",background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:14,fontSize:11,fontWeight:600,color:"#1e40af"}}>
+                      {info.model || ""} {vn}
+                      <button onClick={()=>setSettlVehicles(prev => prev.filter(x=>x!==vn))} title="제거" style={{padding:"0 4px",background:"transparent",border:"none",cursor:"pointer",color:"#1e40af",fontSize:13,fontWeight:700,lineHeight:1}}>×</button>
+                    </span>;
+                  })}
+                  {settlVehicles.length > 0 && (
+                    <button onClick={()=>setSettlVehicles([])} title="전체 차량 보기" style={{padding:"4px 10px",background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",color:"#0f172a"}}>× 전체</button>
+                  )}
                 </div>
               </div>
 
