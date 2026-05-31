@@ -609,8 +609,7 @@ function App() {
   // 계약내역 탭의 "전체 차량" 드롭다운 옵션 — 비활성 fleet 차량 제외 + 현재 다른 필터(status/depositMonth)에 매칭되는 차량만
   const vehicleOptions = useMemo(() => {
     let l = contracts;
-    if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
-    else if (filter.status === "입금됨") l = l.filter(c => !!c.depositDate);
+    if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (partial 무시)
     // to 비우면 단일 월 (= to=from). 기간 원하면 to 명시.
@@ -620,8 +619,8 @@ function App() {
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
       const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
-      // 월 필터 기준: status='입금완료'/'입금됨' 이면 입금일, 그 외엔 배차일
-      const useDeposit = filter.status === '입금완료' || filter.status === '입금됨';
+      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
+      const useDeposit = filter.status === '입금완료';
       if (from || to) {
         l = l.filter(c => {
           const src = useDeposit ? c.depositDate : c.startDate;
@@ -739,8 +738,7 @@ function App() {
 
   const filtered = useMemo(() => {
     let l = [...contracts];
-    if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
-    else if (filter.status === "입금됨") l = l.filter(c => !!c.depositDate);
+    if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
     {
@@ -749,8 +747,8 @@ function App() {
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
       const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
-      // 월 필터 기준: status='입금완료'/'입금됨' 이면 입금일, 그 외엔 배차일
-      const useDeposit = filter.status === '입금완료' || filter.status === '입금됨';
+      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
+      const useDeposit = filter.status === '입금완료';
       if (from || to) {
         l = l.filter(c => {
           const src = useDeposit ? c.depositDate : c.startDate;
@@ -1343,7 +1341,7 @@ function App() {
                 </select>
                 <input placeholder={`${({customerNumber:"고객 차량번호",customerName:"고객명",customerVehicle:"고객 차종",vehicleNumber:"대여차 번호",vehicleModel:"대여차 차종",id:"IMS번호",insurer:"보험사",all:"전체 (모든 필드)"})[filter.searchField]} 검색`} value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS, flex: isMobile ? 1 : "0 0 220px", width: isMobile ? "auto" : 220, borderTopLeftRadius:0, borderBottomLeftRadius:0}}/>
               </div>
-              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 130, flex: isMobile ? 1 : "0 0 130px"}}><option value="all">전체 상태</option><option value="입금됨">입금됨</option><option value="미입금">미입금</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
+              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 130, flex: isMobile ? 1 : "0 0 130px"}}><option value="all">전체 상태</option><option value="미입금">미입금</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
               {/* 입금월: 년/월 select 두 쌍 (from ~ to). 빈 select = 그쪽 무한 */}
               {(() => {
@@ -1378,8 +1376,8 @@ function App() {
                     <option value="">월</option>
                     {months.map(m=><option key={m} value={m}>{parseInt(m)}</option>)}
                   </select>
-                  <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}} title="입금완료/입금됨 선택 시 입금일 기준, 그 외 배차일 기준">
-                    {(filter.status === '입금완료' || filter.status === '입금됨') ? "입금일" : "배차일"}
+                  <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}} title="입금완료 선택 시 입금일 기준, 그 외 배차일 기준">
+                    {filter.status === '입금완료' ? "입금일" : "배차일"}
                   </span>
                 </div>;
               })()}
@@ -1456,9 +1454,9 @@ function App() {
               <div style={{display:"flex",gap: isMobile ? 12 : 20,alignItems:"center", flexWrap:"wrap"}}>
                 {(() => {
                   const billSum = filtered.reduce((s,c)=>s+(c.billingAmount||0),0);
-                  const rentSum = filtered.reduce((s,c)=>s+(c.rentalFee||0),0);
                   const paidRows = filtered.filter(c=>c.depositDate);
-                  const unpaidRows = filtered.filter(c=>!c.depositDate);
+                  // 미입금 = deposit_date 없음 AND status !== '배차중' (배차중은 진행중이라 미입금 아님)
+                  const unpaidRows = filtered.filter(c=>!c.depositDate && c.status !== '배차중');
                   const paidRent = paidRows.reduce((s,c)=>s+(c.rentalFee||0),0);
                   const unpaidBill = unpaidRows.reduce((s,c)=>s+(c.billingAmount||0),0);
                   const cell = (label, value, color, sub) => <div style={{textAlign: isMobile ? "left" : "right"}}>
@@ -1467,8 +1465,7 @@ function App() {
                   </div>;
                   return <>
                     {cell("청구금 합계", billSum, "#10b981")}
-                    {cell("대여료 합계", rentSum, "#8b5cf6")}
-                    {cell("입금완료 대여료", paidRent, "#059669", `${paidRows.length}건`)}
+                    {cell("입금완료 대여료", paidRent, "#8b5cf6", `${paidRows.length}건`)}
                     {cell("미입금 청구금", unpaidBill, "#dc2626", `${unpaidRows.length}건`)}
                   </>;
                 })()}
