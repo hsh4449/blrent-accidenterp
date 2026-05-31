@@ -606,11 +606,20 @@ function App() {
   const vehicleOptions = useMemo(() => {
     let l = contracts;
     if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
-    if (filter.depositMonth !== "all") {
-      if (filter.depositMonth === "none") l = l.filter(c => !c.depositDate);
-      else {
-        const to = filter.depositMonthTo || filter.depositMonth;
-        l = l.filter(c => c.depositDate && c.depositDate.slice(0,7) >= filter.depositMonth && c.depositDate.slice(0,7) <= to);
+    // 입금월 필터: from/to 둘 다 비면 전체, none 이면 미입금만, 아니면 범위 (양쪽 optional)
+    if (filter.depositMonth === "none") {
+      l = l.filter(c => !c.depositDate);
+    } else {
+      const from = filter.depositMonth !== "all" ? filter.depositMonth : "";
+      const to = filter.depositMonthTo || "";
+      if (from || to) {
+        l = l.filter(c => {
+          if (!c.depositDate) return false;
+          const dm = c.depositDate.slice(0,7);
+          if (from && dm < from) return false;
+          if (to && dm > to) return false;
+          return true;
+        });
       }
     }
     const presentNums = new Set();
@@ -721,11 +730,19 @@ function App() {
     let l = [...contracts];
     if(filter.status!=="all") l=l.filter(c=>c.status===filter.status);
     if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
-    if(filter.depositMonth!=="all") {
-      if(filter.depositMonth==="none") l=l.filter(c=>!c.depositDate);
-      else {
-        const to = filter.depositMonthTo || filter.depositMonth;
-        l = l.filter(c => c.depositDate && c.depositDate.slice(0,7) >= filter.depositMonth && c.depositDate.slice(0,7) <= to);
+    if (filter.depositMonth === "none") {
+      l = l.filter(c => !c.depositDate);
+    } else {
+      const from = filter.depositMonth !== "all" ? filter.depositMonth : "";
+      const to = filter.depositMonthTo || "";
+      if (from || to) {
+        l = l.filter(c => {
+          if (!c.depositDate) return false;
+          const dm = c.depositDate.slice(0,7);
+          if (from && dm < from) return false;
+          if (to && dm > to) return false;
+          return true;
+        });
       }
     }
     if(filter.search){
@@ -1310,14 +1327,35 @@ function App() {
               </div>
               <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 120, flex: isMobile ? 1 : "0 0 120px"}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
-              <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value,depositMonthTo:""}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 140, flex: isMobile ? 1 : "0 0 140px"}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
-              {filter.depositMonth !== "all" && filter.depositMonth !== "none" && (
-                <div style={{display:"flex",alignItems:"center",gap:4,flex: isMobile ? "1 1 100%" : "0 0 auto"}}>
-                  <span style={{color:"#0f172a",fontSize:12,padding:"0 2px"}}>~</span>
-                  <input type="month" value={filter.depositMonthTo || ""} onChange={e=>setFilter(f=>({...f,depositMonthTo:e.target.value}))} placeholder="단일 월" title="기간 끝 (비우면 단일 월)" style={{...IS, width: isMobile ? "auto" : 130, flex: isMobile ? 1 : "0 0 130px"}}/>
-                  {filter.depositMonthTo && <button onClick={()=>setFilter(f=>({...f,depositMonthTo:""}))} title="기간 해제" style={{padding:"6px 10px",background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,cursor:"pointer",color:"#0f172a"}}>×</button>}
-                </div>
-              )}
+              {/* 입금월: from ~ to (둘 다 비우면 전체, from 만 비우면 처음부터, to 만 비우면 끝까지) */}
+              <div style={{display:"flex",alignItems:"center",gap:4,flex: isMobile ? "1 1 100%" : "0 0 auto"}}>
+                <input
+                  type="month"
+                  value={filter.depositMonth==="all" || filter.depositMonth==="none" ? "" : filter.depositMonth}
+                  onChange={e=>setFilter(f=>({...f, depositMonth: e.target.value || "all"}))}
+                  title="입금월 시작 (비우면 처음부터)"
+                  style={{...IS, width: isMobile ? "auto" : 130, flex: isMobile ? 1 : "0 0 130px"}}
+                />
+                <span style={{color:"#0f172a",fontSize:12,padding:"0 2px"}}>~</span>
+                <input
+                  type="month"
+                  value={filter.depositMonthTo || ""}
+                  onChange={e=>setFilter(f=>({...f, depositMonthTo: e.target.value}))}
+                  title="입금월 끝 (비우면 끝까지)"
+                  style={{...IS, width: isMobile ? "auto" : 130, flex: isMobile ? 1 : "0 0 130px"}}
+                />
+                <button
+                  onClick={()=>setFilter(f=>({...f, depositMonth: f.depositMonth==="none"?"all":"none", depositMonthTo:""}))}
+                  title="미입금만 보기"
+                  style={{
+                    padding:"6px 10px",
+                    background: filter.depositMonth==="none" ? "#ef4444" : "#e2e8f0",
+                    color: filter.depositMonth==="none" ? "#fff" : "#0f172a",
+                    border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"
+                  }}>
+                  미입금만
+                </button>
+              </div>
             </div>
             <div style={{ display:"flex", gap:6, width: isMobile ? "100%" : "auto" }}>
               <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer", flex: isMobile ? 1 : "none"}}>+ 신규</button>
