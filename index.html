@@ -620,12 +620,15 @@ function App() {
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
       const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
+      // 월 필터 기준: status='입금완료'/'입금됨' 이면 입금일, 그 외엔 배차일
+      const useDeposit = filter.status === '입금완료' || filter.status === '입금됨';
       if (from || to) {
         l = l.filter(c => {
-          if (!c.startDate) return false;
-          const sm = c.startDate.slice(0,7);
-          if (from && sm < from) return false;
-          if (to && sm > to) return false;
+          const src = useDeposit ? c.depositDate : c.startDate;
+          if (!src) return false;
+          const ym = src.slice(0,7);
+          if (from && ym < from) return false;
+          if (to && ym > to) return false;
           return true;
         });
       }
@@ -746,12 +749,15 @@ function App() {
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
       const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
+      // 월 필터 기준: status='입금완료'/'입금됨' 이면 입금일, 그 외엔 배차일
+      const useDeposit = filter.status === '입금완료' || filter.status === '입금됨';
       if (from || to) {
         l = l.filter(c => {
-          if (!c.startDate) return false;
-          const sm = c.startDate.slice(0,7);
-          if (from && sm < from) return false;
-          if (to && sm > to) return false;
+          const src = useDeposit ? c.depositDate : c.startDate;
+          if (!src) return false;
+          const ym = src.slice(0,7);
+          if (from && ym < from) return false;
+          if (to && ym > to) return false;
           return true;
         });
       }
@@ -1372,6 +1378,9 @@ function App() {
                     <option value="">월</option>
                     {months.map(m=><option key={m} value={m}>{parseInt(m)}</option>)}
                   </select>
+                  <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}} title="입금완료/입금됨 선택 시 입금일 기준, 그 외 배차일 기준">
+                    {(filter.status === '입금완료' || filter.status === '입금됨') ? "입금일" : "배차일"}
+                  </span>
                 </div>;
               })()}
             </div>
