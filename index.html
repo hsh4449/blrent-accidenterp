@@ -610,6 +610,7 @@ function App() {
   const vehicleOptions = useMemo(() => {
     let l = contracts;
     if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
+    else if (filter.status === "입금됨") l = l.filter(c => !!c.depositDate);
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (partial 무시)
     // to 비우면 단일 월 (= to=from). 기간 원하면 to 명시.
@@ -736,6 +737,7 @@ function App() {
   const filtered = useMemo(() => {
     let l = [...contracts];
     if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
+    else if (filter.status === "입금됨") l = l.filter(c => !!c.depositDate);
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
     {
@@ -1334,7 +1336,7 @@ function App() {
                 </select>
                 <input placeholder={`${({customerNumber:"고객 차량번호",customerName:"고객명",customerVehicle:"고객 차종",vehicleNumber:"대여차 번호",vehicleModel:"대여차 차종",id:"IMS번호",insurer:"보험사",all:"전체 (모든 필드)"})[filter.searchField]} 검색`} value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} style={{...IS, flex: isMobile ? 1 : "0 0 220px", width: isMobile ? "auto" : 220, borderTopLeftRadius:0, borderBottomLeftRadius:0}}/>
               </div>
-              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 120, flex: isMobile ? 1 : "0 0 120px"}}><option value="all">전체 상태</option><option value="미입금">미입금</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
+              <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 130, flex: isMobile ? 1 : "0 0 130px"}}><option value="all">전체 상태</option><option value="입금됨">입금됨</option><option value="미입금">미입금</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
               {/* 입금월: 년/월 select 두 쌍 (from ~ to). 빈 select = 그쪽 무한 */}
               {(() => {
@@ -1442,8 +1444,24 @@ function App() {
             <div style={{padding: isMobile ? "10px 12px" : "14px 18px",borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 8 : 0}}>
               <span style={{fontSize:13,fontWeight:600,color:"#0f172a"}}>{filtered.length}건</span>
               <div style={{display:"flex",gap: isMobile ? 12 : 20,alignItems:"center", flexWrap:"wrap"}}>
-                <div style={{textAlign: isMobile ? "left" : "right"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:2}}>청구금 합계</div><div style={{fontSize: isMobile ? 14 : 16,fontWeight:800,color:"#10b981",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.billingAmount||0),0))}원</div></div>
-                <div style={{textAlign: isMobile ? "left" : "right"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:2}}>대여료 합계</div><div style={{fontSize: isMobile ? 14 : 16,fontWeight:800,color:"#8b5cf6",fontVariantNumeric:"tabular-nums"}}>{fmt(filtered.reduce((s,c)=>s+(c.rentalFee||0),0))}원</div></div>
+                {(() => {
+                  const billSum = filtered.reduce((s,c)=>s+(c.billingAmount||0),0);
+                  const rentSum = filtered.reduce((s,c)=>s+(c.rentalFee||0),0);
+                  const paidRows = filtered.filter(c=>c.depositDate);
+                  const unpaidRows = filtered.filter(c=>!c.depositDate);
+                  const paidRent = paidRows.reduce((s,c)=>s+(c.rentalFee||0),0);
+                  const unpaidBill = unpaidRows.reduce((s,c)=>s+(c.billingAmount||0),0);
+                  const cell = (label, value, color, sub) => <div style={{textAlign: isMobile ? "left" : "right"}}>
+                    <div style={{fontSize:10,color:"#0f172a",marginBottom:2}}>{label}{sub && <span style={{color:"#94a3b8",marginLeft:4}}>({sub})</span>}</div>
+                    <div style={{fontSize: isMobile ? 14 : 16,fontWeight:800,color,fontVariantNumeric:"tabular-nums"}}>{fmt(value)}원</div>
+                  </div>;
+                  return <>
+                    {cell("청구금 합계", billSum, "#10b981")}
+                    {cell("대여료 합계", rentSum, "#8b5cf6")}
+                    {cell("입금완료 대여료", paidRent, "#059669", `${paidRows.length}건`)}
+                    {cell("미입금 청구금", unpaidBill, "#dc2626", `${unpaidRows.length}건`)}
+                  </>;
+                })()}
               </div>
             </div>
           </div>
