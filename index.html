@@ -611,12 +611,14 @@ function App() {
     let l = contracts;
     if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
-    // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (년만/월만 partial 은 무시)
+    // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (partial 무시)
+    // to 비우면 단일 월 (= to=from). 기간 원하면 to 명시.
     {
       const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
       const toRaw = filter.startMonthTo || "";
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
-      const to = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
+      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
+      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
       if (from || to) {
         l = l.filter(c => {
           if (!c.startDate) return false;
@@ -740,7 +742,8 @@ function App() {
       const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
       const toRaw = filter.startMonthTo || "";
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
-      const to = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
+      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
+      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
       if (from || to) {
         l = l.filter(c => {
           if (!c.startDate) return false;
