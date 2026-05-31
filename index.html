@@ -415,7 +415,7 @@ function App() {
       mq.removeEventListener ? mq.removeEventListener('change', handle) : mq.removeListener(handle);
     };
   }, []);
-  const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", searchField:"customerNumber", depositMonth:"all" });
+  const [filter, setFilter] = useState({ status:"all", vehicle:"all", search:"", searchField:"customerNumber", depositMonth:"all", depositMonthTo:"" });
   const [selected, setSelected] = useState(null);
   const [editModal, setEditModal] = useState(false);
   const [editData, setEditData] = useState(null);
@@ -608,7 +608,10 @@ function App() {
     if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     if (filter.depositMonth !== "all") {
       if (filter.depositMonth === "none") l = l.filter(c => !c.depositDate);
-      else l = l.filter(c => c.depositDate && c.depositDate.startsWith(filter.depositMonth));
+      else {
+        const to = filter.depositMonthTo || filter.depositMonth;
+        l = l.filter(c => c.depositDate && c.depositDate.slice(0,7) >= filter.depositMonth && c.depositDate.slice(0,7) <= to);
+      }
     }
     const presentNums = new Set();
     l.forEach(c => { if (c.vehicleNumber) presentNums.add(c.vehicleNumber); });
@@ -618,7 +621,7 @@ function App() {
       if (f && f.status !== 'active') return false; // 비활성 fleet 제외 (미등록은 통과)
       return true;
     });
-  }, [contracts, filter.status, filter.depositMonth, vehicles, fleet]);
+  }, [contracts, filter.status, filter.depositMonth, filter.depositMonthTo, vehicles, fleet]);
 
   // File import
   const onImport = useCallback(async e => {
@@ -720,7 +723,10 @@ function App() {
     if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
     if(filter.depositMonth!=="all") {
       if(filter.depositMonth==="none") l=l.filter(c=>!c.depositDate);
-      else l=l.filter(c=>c.depositDate&&c.depositDate.startsWith(filter.depositMonth));
+      else {
+        const to = filter.depositMonthTo || filter.depositMonth;
+        l = l.filter(c => c.depositDate && c.depositDate.slice(0,7) >= filter.depositMonth && c.depositDate.slice(0,7) <= to);
+      }
     }
     if(filter.search){
       const s=filter.search.toLowerCase();
@@ -1304,7 +1310,14 @@ function App() {
               </div>
               <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 120, flex: isMobile ? 1 : "0 0 120px"}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
-              <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 140, flex: isMobile ? 1 : "0 0 140px"}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
+              <select value={filter.depositMonth} onChange={e=>setFilter(f=>({...f,depositMonth:e.target.value,depositMonthTo:""}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 140, flex: isMobile ? 1 : "0 0 140px"}}><option value="all">전체 입금월</option><option value="none">미입금</option>{depositMonths.map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}</select>
+              {filter.depositMonth !== "all" && filter.depositMonth !== "none" && (
+                <div style={{display:"flex",alignItems:"center",gap:4,flex: isMobile ? "1 1 100%" : "0 0 auto"}}>
+                  <span style={{color:"#0f172a",fontSize:12,padding:"0 2px"}}>~</span>
+                  <input type="month" value={filter.depositMonthTo || ""} onChange={e=>setFilter(f=>({...f,depositMonthTo:e.target.value}))} placeholder="단일 월" title="기간 끝 (비우면 단일 월)" style={{...IS, width: isMobile ? "auto" : 130, flex: isMobile ? 1 : "0 0 130px"}}/>
+                  {filter.depositMonthTo && <button onClick={()=>setFilter(f=>({...f,depositMonthTo:""}))} title="기간 해제" style={{padding:"6px 10px",background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,cursor:"pointer",color:"#0f172a"}}>×</button>}
+                </div>
+              )}
             </div>
             <div style={{ display:"flex", gap:6, width: isMobile ? "100%" : "auto" }}>
               <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer", flex: isMobile ? 1 : "none"}}>+ 신규</button>
