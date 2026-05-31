@@ -1327,35 +1327,50 @@ function App() {
               </div>
               <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{...SS,width: isMobile ? "calc(50% - 4px)" : 120, flex: isMobile ? 1 : "0 0 120px"}}><option value="all">전체 상태</option>{Object.keys(STATUS_COLORS).map(s=><option key={s}>{s}</option>)}</select>
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
-              {/* 입금월: from ~ to (둘 다 비우면 전체, from 만 비우면 처음부터, to 만 비우면 끝까지) */}
-              <div style={{display:"flex",alignItems:"center",gap:4,flex: isMobile ? "1 1 100%" : "0 0 auto"}}>
-                <input
-                  type="month"
-                  value={filter.depositMonth==="all" || filter.depositMonth==="none" ? "" : filter.depositMonth}
-                  onChange={e=>setFilter(f=>({...f, depositMonth: e.target.value || "all"}))}
-                  title="입금월 시작 (비우면 처음부터)"
-                  style={{...IS, width: isMobile ? "auto" : 130, flex: isMobile ? 1 : "0 0 130px"}}
-                />
-                <span style={{color:"#0f172a",fontSize:12,padding:"0 2px"}}>~</span>
-                <input
-                  type="month"
-                  value={filter.depositMonthTo || ""}
-                  onChange={e=>setFilter(f=>({...f, depositMonthTo: e.target.value}))}
-                  title="입금월 끝 (비우면 끝까지)"
-                  style={{...IS, width: isMobile ? "auto" : 130, flex: isMobile ? 1 : "0 0 130px"}}
-                />
-                <button
-                  onClick={()=>setFilter(f=>({...f, depositMonth: f.depositMonth==="none"?"all":"none", depositMonthTo:""}))}
-                  title="미입금만 보기"
-                  style={{
-                    padding:"6px 10px",
-                    background: filter.depositMonth==="none" ? "#ef4444" : "#e2e8f0",
-                    color: filter.depositMonth==="none" ? "#fff" : "#0f172a",
-                    border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"
-                  }}>
-                  미입금만
-                </button>
-              </div>
+              {/* 입금월: 년/월 select 두 쌍 (from ~ to). 빈 select = 그쪽 무한 */}
+              {(() => {
+                const yearSet = new Set(contracts.filter(c=>c.depositDate).map(c=>c.depositDate.slice(0,4)));
+                yearSet.add(String(new Date().getFullYear()));
+                const years = [...yearSet].sort();
+                const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+                const fromRaw = filter.depositMonth==="all" || filter.depositMonth==="none" ? "" : (filter.depositMonth || "");
+                const toRaw = filter.depositMonthTo || "";
+                const [fy, fm] = fromRaw ? fromRaw.split("-") : ["",""];
+                const [ty, tm] = toRaw ? toRaw.split("-") : ["",""];
+                const setFrom = (y, m) => setFilter(f=>({...f, depositMonth: (y && m) ? `${y}-${m}` : "all"}));
+                const setTo   = (y, m) => setFilter(f=>({...f, depositMonthTo: (y && m) ? `${y}-${m}` : ""}));
+                const selSt = {...SS, width: isMobile ? 70 : 80, flex: "0 0 auto"};
+                return <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap",flex: isMobile ? "1 1 100%" : "0 0 auto"}}>
+                  <select value={fy} onChange={e=>setFrom(e.target.value, fm)} style={selSt} title="시작 년 (비우면 처음부터)">
+                    <option value="">년</option>
+                    {years.map(y=><option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <select value={fm} onChange={e=>setFrom(fy, e.target.value)} style={selSt} title="시작 월">
+                    <option value="">월</option>
+                    {months.map(m=><option key={m} value={m}>{parseInt(m)}</option>)}
+                  </select>
+                  <span style={{color:"#0f172a",fontSize:12,padding:"0 2px"}}>~</span>
+                  <select value={ty} onChange={e=>setTo(e.target.value, tm)} style={selSt} title="끝 년 (비우면 끝까지)">
+                    <option value="">년</option>
+                    {years.map(y=><option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <select value={tm} onChange={e=>setTo(ty, e.target.value)} style={selSt} title="끝 월">
+                    <option value="">월</option>
+                    {months.map(m=><option key={m} value={m}>{parseInt(m)}</option>)}
+                  </select>
+                  <button
+                    onClick={()=>setFilter(f=>({...f, depositMonth: f.depositMonth==="none"?"all":"none", depositMonthTo:""}))}
+                    title="미입금만 보기"
+                    style={{
+                      padding:"6px 10px",
+                      background: filter.depositMonth==="none" ? "#ef4444" : "#e2e8f0",
+                      color: filter.depositMonth==="none" ? "#fff" : "#0f172a",
+                      border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"
+                    }}>
+                    미입금만
+                  </button>
+                </div>;
+              })()}
             </div>
             <div style={{ display:"flex", gap:6, width: isMobile ? "100%" : "auto" }}>
               <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer", flex: isMobile ? 1 : "none"}}>+ 신규</button>
