@@ -370,9 +370,10 @@ def build_extra_rows(c, our_numbers, main_row):
         new_row['end_date'] = d_end
         new_row['end_time'] = d_end_time
         new_row['billing_amount'] = d_cost  # 이 detail 분담 청구금
-        # 입금/대여료는 메인 행에서만 카운트 (중복 방지)
+        # 대여료는 메인 행에서만 카운트 (중복 방지). rental_fee=0 으로 통계 합산 영향 차단.
+        # deposit_date 는 메인과 동기화 — status='입금완료' 인데 deposit_date NULL 인 모순 방지.
+        # (rental_fee=0 이라 입금 통계 중복 위험 없음)
         new_row['rental_fee'] = 0
-        new_row['deposit_date'] = None
         # 외부차 정보는 부 행에 의미 없음
         new_row['replacement_other_vehicle'] = None
         new_row['replacement_other_model'] = None
