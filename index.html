@@ -417,8 +417,8 @@ function App() {
   }, []);
   const [filter, setFilter] = useState(() => ({
     status:"all", vehicle:"all", search:"", searchField:"customerNumber",
-    depositMonth: ymdLocal().slice(0,7),  // 기본: 오늘 기준 YYYY-MM
-    depositMonthTo: "",
+    startMonth: ymdLocal().slice(0,7),  // 기본: 오늘 기준 YYYY-MM (배차일 기준)
+    startMonthTo: "",
   }));
   const [selected, setSelected] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -611,20 +611,18 @@ function App() {
     let l = contracts;
     if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
-    // 입금월 필터: 완전 "YYYY-MM" 형식만 적용 (년만/월만 partial 은 무시)
-    if (filter.depositMonth === "none") {
-      l = l.filter(c => !c.depositDate);
-    } else {
-      const fromRaw = filter.depositMonth !== "all" ? filter.depositMonth : "";
-      const toRaw = filter.depositMonthTo || "";
+    // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (년만/월만 partial 은 무시)
+    {
+      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
+      const toRaw = filter.startMonthTo || "";
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
       const to = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       if (from || to) {
         l = l.filter(c => {
-          if (!c.depositDate) return false;
-          const dm = c.depositDate.slice(0,7);
-          if (from && dm < from) return false;
-          if (to && dm > to) return false;
+          if (!c.startDate) return false;
+          const sm = c.startDate.slice(0,7);
+          if (from && sm < from) return false;
+          if (to && sm > to) return false;
           return true;
         });
       }
@@ -637,7 +635,7 @@ function App() {
       if (f && f.status !== 'active') return false; // 비활성 fleet 제외 (미등록은 통과)
       return true;
     });
-  }, [contracts, filter.status, filter.depositMonth, filter.depositMonthTo, vehicles, fleet]);
+  }, [contracts, filter.status, filter.startMonth, filter.startMonthTo, vehicles, fleet]);
 
   // File import
   const onImport = useCallback(async e => {
@@ -738,19 +736,17 @@ function App() {
     if (filter.status === "미입금") l = l.filter(c => !c.depositDate);
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
-    if (filter.depositMonth === "none") {
-      l = l.filter(c => !c.depositDate);
-    } else {
-      const fromRaw = filter.depositMonth !== "all" ? filter.depositMonth : "";
-      const toRaw = filter.depositMonthTo || "";
+    {
+      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
+      const toRaw = filter.startMonthTo || "";
       const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
       const to = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
       if (from || to) {
         l = l.filter(c => {
-          if (!c.depositDate) return false;
-          const dm = c.depositDate.slice(0,7);
-          if (from && dm < from) return false;
-          if (to && dm > to) return false;
+          if (!c.startDate) return false;
+          const sm = c.startDate.slice(0,7);
+          if (from && sm < from) return false;
+          if (to && sm > to) return false;
           return true;
         });
       }
@@ -1339,17 +1335,18 @@ function App() {
               <select value={filter.vehicle} onChange={e=>setFilter(f=>({...f,vehicle:e.target.value}))} style={{...SS,width: isMobile ? "100%" : 180, flex: isMobile ? "1 1 100%" : "0 0 180px"}}><option value="all">전체 차량</option>{vehicleOptions.map(v=><option key={v.number} value={v.number}>{v.model} ({v.number})</option>)}</select>
               {/* 입금월: 년/월 select 두 쌍 (from ~ to). 빈 select = 그쪽 무한 */}
               {(() => {
-                const yearSet = new Set(contracts.filter(c=>c.depositDate).map(c=>c.depositDate.slice(0,4)));
+                // 배차일(start_date) 기준 — 미입금/입금완료 무관 그 월 시작 계약 표시
+                const yearSet = new Set(contracts.filter(c=>c.startDate).map(c=>c.startDate.slice(0,4)));
                 yearSet.add(String(new Date().getFullYear()));
                 const years = [...yearSet].sort();
                 const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
-                const fromRaw = filter.depositMonth==="all" || filter.depositMonth==="none" ? "" : (filter.depositMonth || "");
-                const toRaw = filter.depositMonthTo || "";
+                const fromRaw = filter.startMonth==="all" ? "" : (filter.startMonth || "");
+                const toRaw = filter.startMonthTo || "";
                 const [fy, fm] = fromRaw ? fromRaw.split("-") : ["",""];
                 const [ty, tm] = toRaw ? toRaw.split("-") : ["",""];
                 // 한쪽만 선택해도 임시 보존 (년만 = "YYYY-", 월만 = "-MM"). 필터 로직은 length===7 일 때만 적용.
-                const setFrom = (y, m) => setFilter(f=>({...f, depositMonth: (!y && !m) ? "all" : `${y||""}-${m||""}`}));
-                const setTo   = (y, m) => setFilter(f=>({...f, depositMonthTo: (!y && !m) ? "" : `${y||""}-${m||""}`}));
+                const setFrom = (y, m) => setFilter(f=>({...f, startMonth: (!y && !m) ? "all" : `${y||""}-${m||""}`}));
+                const setTo   = (y, m) => setFilter(f=>({...f, startMonthTo: (!y && !m) ? "" : `${y||""}-${m||""}`}));
                 const selSt = {...SS, width: isMobile ? 70 : 80, flex: "0 0 auto"};
                 return <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap",flex: isMobile ? "1 1 100%" : "0 0 auto"}}>
                   <select value={fy} onChange={e=>setFrom(e.target.value, fm)} style={selSt} title="시작 년 (비우면 처음부터)">
