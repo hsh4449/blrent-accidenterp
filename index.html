@@ -426,6 +426,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [schedMonth, setSchedMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
   const [settlMonth, setSettlMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
+  const [settlVehicle, setSettlVehicle] = useState("all");
   const [gapMonth, setGapMonth] = useState("all");
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
   const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
@@ -1523,7 +1524,9 @@ function App() {
               vStats[vn] = { model, cnt:mc.length, income, vat, installment, insurance, deliveryTotal, deliveryCnt, commission, etc, settle };
             });
 
-            const rows = Object.entries(vStats).sort((a,b)=>a[0].localeCompare(b[0]));
+            const rows = Object.entries(vStats)
+              .filter(([vn]) => settlVehicle === "all" || vn === settlVehicle)
+              .sort((a,b)=>a[0].localeCompare(b[0]));
             const T = rows.reduce((a,[,d])=>({
               cnt:a.cnt+d.cnt, income:a.income+d.income, vat:a.vat+d.vat,
               installment:a.installment+d.installment, insurance:a.insurance+d.insurance,
@@ -1537,11 +1540,26 @@ function App() {
             const canEdit = ym !== "all";
 
             return (<>
-              {/* 월 선택 탭 */}
-              <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:14,marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                <span style={{fontSize:12,color:"#0f172a",fontWeight:600,marginRight:4}}>정산월</span>
-                <button onClick={()=>setSettlMonth("all")} style={{padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:settlMonth==="all"?700:400,background:settlMonth==="all"?"#3b82f6":"#e2e8f0",color:settlMonth==="all"?"#fff":"#888"}}>전체</button>
-                {allMonths.map(m=>{const [y,mm]=m.split("-"); return <button key={m} onClick={()=>setSettlMonth(m)} style={{padding:"6px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:settlMonth===m?700:400,background:settlMonth===m?"#3b82f6":"#e2e8f0",color:settlMonth===m?"#fff":"#888"}}>{y.slice(2)}년 {parseInt(mm)}월</button>;})}
+              {/* 월 + 차량 선택 (드롭다운) — 차량은 상태 무관 (매각/중단/타용도 모두 포함) */}
+              <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:14,marginBottom:16,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:12,color:"#0f172a",fontWeight:600}}>정산월</span>
+                  <select value={settlMonth} onChange={e=>setSettlMonth(e.target.value)}
+                    style={{padding:"6px 10px",background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",color:"#18181b",minWidth:130}}>
+                    <option value="all">전체</option>
+                    {allMonths.slice().reverse().map(m=>{const [y,mm]=m.split("-"); return <option key={m} value={m}>{y}년 {parseInt(mm)}월</option>;})}
+                  </select>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:12,color:"#0f172a",fontWeight:600}}>차량</span>
+                  <select value={settlVehicle} onChange={e=>setSettlVehicle(e.target.value)}
+                    style={{padding:"6px 10px",background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",color:"#18181b",minWidth:180}}>
+                    <option value="all">전체 차량</option>
+                    {Object.entries(fleet).sort(([a],[b])=>a.localeCompare(b)).map(([num,info])=>(
+                      <option key={num} value={num}>{info.model || ""} {num}{info.status && info.status!=='active' ? ` (${({sold:'매각',paused:'중단',other_use:'타용도',monthly_rent:'월렌트',short_rent:'단기렌트',maintenance:'수리중'})[info.status] || info.status})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* 핵심 KPI 3카드 */}
