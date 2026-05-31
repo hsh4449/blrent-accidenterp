@@ -1379,6 +1379,14 @@ function App() {
                   <span style={{fontSize:10,color:"#94a3b8",whiteSpace:"nowrap"}} title="입금완료 선택 시 입금일 기준, 그 외 배차일 기준">
                     {filter.status === '입금완료' ? "입금일" : "배차일"}
                   </span>
+                  {(fromRaw || toRaw) && (
+                    <button
+                      onClick={()=>setFilter(f=>({...f, startMonth:"all", startMonthTo:""}))}
+                      title="기간 초기화 (전체)"
+                      style={{padding:"4px 10px",background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",color:"#0f172a",whiteSpace:"nowrap"}}>
+                      × 초기화
+                    </button>
+                  )}
                 </div>;
               })()}
             </div>
