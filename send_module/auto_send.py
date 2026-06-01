@@ -28,7 +28,7 @@ SKIP_WEEKDAYS = {6}
 
 # 자동발송 도메인 — 본사 hq 와 지입 jiip 둘 다 매일 cron 에서 순차 평가.
 # 각 owner 의 settings/last_auto_send_date/send_armed/발신번호가 독립적으로 작동.
-OWNERS = ('hq', 'jiip')
+OWNERS = ('hq', 'jiip', 'kim')
 
 
 def run_one(sb, owner: str, today) -> None:

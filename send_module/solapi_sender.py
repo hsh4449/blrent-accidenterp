@@ -21,12 +21,15 @@ SOLAPI_API_SECRET = os.environ.get('SOLAPI_API_SECRET', '')
 # legacy SOLAPI_FROM 도 fallback 으로 유지 (HQ 용).
 SOLAPI_FROM_HQ   = os.environ.get('SOLAPI_FROM_HQ',   os.environ.get('SOLAPI_FROM', ''))
 SOLAPI_FROM_JIIP = os.environ.get('SOLAPI_FROM_JIIP', '')
+SOLAPI_FROM_KIM  = os.environ.get('SOLAPI_FROM_KIM',  '')  # 2026-05-31 추가 — 미설정 시 HQ 발신번호 fallback
 
 
 def from_number_for(owner: str) -> str:
-    """owner = 'hq' or 'jiip' → 발신번호 (E.164 미적용, 하이픈 포함 가능)."""
+    """owner = 'hq' or 'jiip' or 'kim' → 발신번호."""
     if owner == 'jiip':
         return SOLAPI_FROM_JIIP
+    if owner == 'kim':
+        return SOLAPI_FROM_KIM or SOLAPI_FROM_HQ
     return SOLAPI_FROM_HQ
 
 

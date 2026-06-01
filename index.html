@@ -226,7 +226,12 @@ const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#0
 
 // "사용자" 4자리 코드 입력 시 owner='jiip' (신동석부장 지입차) 만 표시하는 제한 뷰로 전환.
 // 차량 추가/제거는 Supabase accident_fleet.owner='jiip' 행에서 관리. crawler.py JIIP_VEHICLES 도 함께 갱신.
-const USER_VIEW_CODE = "4417";
+// 사용자 모드 4자리 코드 → owner 매핑 (2026-05-31 다중 사용자 지원)
+const USER_VIEW_CODES = {
+  "4417": { owner: "jiip", label: "신동석 지입 (jiip)", fromNumber: "010-5602-4417" },
+  "0000": { owner: "kim",  label: "김민규 (kim)",       fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
+};
+const USER_VIEW_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner)); // {'jiip','kim'} — 본사모드에서 제외할 owner들
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -396,11 +401,19 @@ function App() {
   const [rawContracts, setRawContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("dashboard");
-  // 사용자 모드: 4자리 코드(USER_VIEW_CODE) 입력 시 활성화. 활성 시 owner='jiip' 데이터만 표시.
-  // 새로고침해도 유지되도록 localStorage에 저장.
-  const [userMode, setUserMode] = useState(() => {
-    try { return localStorage.getItem('blrent_user_mode') === '1'; } catch { return false; }
+  // 사용자 모드: 4자리 코드 입력 시 활성화. 활성 시 해당 owner 데이터만 표시.
+  // 코드 → owner 매핑 USER_VIEW_CODES (전역 상수). localStorage 에 owner 저장.
+  const [userOwner, setUserOwner] = useState(() => {
+    try {
+      const saved = localStorage.getItem('blrent_user_owner');
+      if (saved && USER_VIEW_OWNERS.has(saved)) return saved;
+      // 레거시 호환: 옛 'blrent_user_mode'=='1' 키 있으면 jiip
+      if (localStorage.getItem('blrent_user_mode') === '1') return 'jiip';
+    } catch {}
+    return null;
   });
+  const userMode = !!userOwner;  // boolean alias (기존 분기 호환)
+  const userInfo = userOwner ? Object.values(USER_VIEW_CODES).find(v=>v.owner===userOwner) : null;
   const [userCodeInput, setUserCodeInput] = useState("");
   // 모바일 감지 — 768px 이하면 모바일 레이아웃. matchMedia 로 리사이즈/회전 즉시 반영.
   const [isMobile, setIsMobile] = useState(() => {
@@ -444,26 +457,27 @@ function App() {
   const fileRef = useRef(null);
 
   // 모드별 owner 필터링:
-  //   본사모드 (userMode=false): owner !== 'jiip' — 본사(hq)/legacy(null) 데이터 노출
-  //   사용자모드 (userMode=true): owner === 'jiip' — 신동석부장 지입차만 노출
+  //   본사모드 (userOwner=null): owner not in USER_VIEW_OWNERS — hq/legacy(null) 노출
+  //   사용자모드 (userOwner='jiip'|'kim'): owner === userOwner 만 노출
   const contracts = useMemo(() => {
-    return userMode
-      ? rawContracts.filter(c => c.owner === 'jiip')
-      : rawContracts.filter(c => c.owner !== 'jiip');
-  }, [rawContracts, userMode]);
+    return userOwner
+      ? rawContracts.filter(c => c.owner === userOwner)
+      : rawContracts.filter(c => !USER_VIEW_OWNERS.has(c.owner));
+  }, [rawContracts, userOwner]);
   const fleet = useMemo(() => {
     const out = {};
     for (const [num, info] of Object.entries(rawFleet)) {
-      const isJiip = info.owner === 'jiip';
-      if (userMode ? isJiip : !isJiip) out[num] = info;
+      const inUserOwners = USER_VIEW_OWNERS.has(info.owner);
+      const show = userOwner ? (info.owner === userOwner) : !inUserOwners;
+      if (show) out[num] = info;
     }
     return out;
-  }, [rawFleet, userMode]);
+  }, [rawFleet, userOwner]);
   const deletedContractsView = useMemo(() => {
-    return userMode
-      ? deletedContracts.filter(c => c.owner === 'jiip')
-      : deletedContracts.filter(c => c.owner !== 'jiip');
-  }, [deletedContracts, userMode]);
+    return userOwner
+      ? deletedContracts.filter(c => c.owner === userOwner)
+      : deletedContracts.filter(c => !USER_VIEW_OWNERS.has(c.owner));
+  }, [deletedContracts, userOwner]);
 
   useEffect(() => {
     (async () => {
@@ -904,11 +918,12 @@ function App() {
                 onChange={e => {
                   const v = e.target.value.replace(/\D/g,"").slice(0,4);
                   setUserCodeInput(v);
-                  if (v === USER_VIEW_CODE) {
-                    setUserMode(true);
-                    try { localStorage.setItem('blrent_user_mode', '1'); } catch {}
+                  const ent = USER_VIEW_CODES[v];
+                  if (ent) {
+                    setUserOwner(ent.owner);
+                    try { localStorage.setItem('blrent_user_owner', ent.owner); localStorage.removeItem('blrent_user_mode'); } catch {}
                     setUserCodeInput("");
-                    setToast({msg:"사용자 모드 진입", type:"success"});
+                    setToast({msg:`${ent.label} 모드 진입`, type:"success"});
                   }
                 }}
                 disabled={userMode}
@@ -916,7 +931,7 @@ function App() {
               />
               {userMode && (
                 <button
-                  onClick={() => { setUserMode(false); try { localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
+                  onClick={() => { setUserOwner(null); try { localStorage.removeItem('blrent_user_owner'); localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
                   style={{ padding:"4px 8px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:10, color:"#334155", cursor:"pointer" }}
                 >해제</button>
               )}
@@ -955,11 +970,12 @@ function App() {
                 onChange={e => {
                   const v = e.target.value.replace(/\D/g,"").slice(0,4);
                   setUserCodeInput(v);
-                  if (v === USER_VIEW_CODE) {
-                    setUserMode(true);
-                    try { localStorage.setItem('blrent_user_mode', '1'); } catch {}
+                  const ent = USER_VIEW_CODES[v];
+                  if (ent) {
+                    setUserOwner(ent.owner);
+                    try { localStorage.setItem('blrent_user_owner', ent.owner); localStorage.removeItem('blrent_user_mode'); } catch {}
                     setUserCodeInput("");
-                    setToast({msg:"사용자 모드 진입", type:"success"});
+                    setToast({msg:`${ent.label} 모드 진입`, type:"success"});
                   }
                 }}
                 disabled={userMode}
@@ -967,7 +983,7 @@ function App() {
               />
               {userMode && (
                 <button
-                  onClick={() => { setUserMode(false); try { localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
+                  onClick={() => { setUserOwner(null); try { localStorage.removeItem('blrent_user_owner'); localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
                   style={{ padding:"5px 9px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:11, color:"#334155", cursor:"pointer" }}
                   title="전체 차량 모드로 복귀"
                 >해제</button>
@@ -1808,7 +1824,7 @@ function App() {
         })()}
 
         {/* ── DOKCHOK (미입금 자동 독촉 SMS) ── */}
-        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} isMobile={isMobile} userMode={userMode} />}
+        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} isMobile={isMobile} userOwner={userOwner} userLabel={userInfo?.label} fromNumberOverride={userInfo?.fromNumber} />}
 
         {/* ── TRASH ── */}
         {tab==="trash" && <div>
@@ -1888,7 +1904,7 @@ function App() {
 
       {/* Edit Modal */}
       <Modal open={editModal} onClose={()=>{setEditModal(false);setEditData(null);}} title={editData?"계약 수정":"신규 등록"} width={600}>
-        <EditForm init={editData} vehs={vehicles} defaultOwner={userMode?"jiip":"hq"} onSave={doSave} onCancel={()=>{setEditModal(false);setEditData(null);}}/>
+        <EditForm init={editData} vehs={vehicles} defaultOwner={userOwner || "hq"} onSave={doSave} onCancel={()=>{setEditModal(false);setEditData(null);}}/>
       </Modal>
     </div>
   );
@@ -1959,11 +1975,12 @@ function EditForm({ init, vehs, onSave, onCancel, defaultOwner }) {
 //   2) accident_send_settings.send_armed (1회용 무장)
 //   3) Vultr crontab LOCKED-BY-USER 코멘트
 // ============================================================
-function DokchokTab({ sb, contracts, isMobile, userMode }) {
+function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberOverride }) {
+  const userMode = !!userOwner;
   // owner: 'hq' (본사모드) / 'jiip' (사용자모드, 신동석부장 지입)
   // 모든 settings/logs/excluded 쿼리·쓰기에 owner 필터를 적용해 본사/지입 발송 시스템이 독립적으로 작동.
-  const owner = userMode ? 'jiip' : 'hq';
-  const fromNumber = userMode ? '010-5602-4417' : '010-2418-8272';
+  const owner = userOwner || 'hq';
+  const fromNumber = fromNumberOverride || '010-2418-8272';
 
   const [settings, setSettings] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -2242,7 +2259,7 @@ function DokchokTab({ sb, contracts, isMobile, userMode }) {
       color: userMode ? "#065f46" : "#1e40af",
       fontSize:12, fontWeight:600
     }}>
-      <span>도메인: <b>{userMode ? "신동석 지입 (jiip)" : "본사 (hq)"}</b></span>
+      <span>도메인: <b>{userMode ? (userLabel || `사용자 (${userOwner})`) : "본사 (hq)"}</b></span>
       <span style={{color: userMode ? "#10b981" : "#3b82f6"}}>·</span>
       <span>발신번호 <b>{fromNumber}</b></span>
       <span style={{color: userMode ? "#10b981" : "#3b82f6"}}>·</span>

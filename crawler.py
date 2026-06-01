@@ -26,7 +26,7 @@ VEHICLE_NUMBERS = [
 ]
 
 # 신동석부장 지입차 17대 (owner='jiip' 로 태그)
-# - 사고대차 ERP 사용자 모드 (코드 0000) 에서만 노출됨
+# - 사고대차 ERP 사용자 모드 (코드 4417) 에서만 노출됨
 # - 청구일 < JIIP_BILLING_CUTOFF 인 건은 upsert 제외 (이전 이력 무시 정책)
 JIIP_VEHICLES = [
     '4286', '8993', '9194', '9256', '9334',
@@ -36,10 +36,20 @@ JIIP_VEHICLES = [
 ]
 JIIP_BILLING_CUTOFF = '2025-12-20'  # 이전 청구는 수집 안 함
 
+# 김민규 차량 22대 (owner='kim' 로 태그) — 사용자 모드 코드 '0000' (추가 2026-05-31)
+KIM_VEHICLES = [
+    '9646', '7892', '7898', '7899', '7951',
+    '8359', '9115', '6785', '6948', '9844',
+    '9757', '7893', '7897', '2841', '5438',
+    '9116', '9283', '9756', '9774', '9137',
+    '9315', '7891',
+]
+
 # 끝 4자리 → owner 매핑 (한 행 단위로 owner 태그 결정).
 SUFFIX_TO_OWNER = (
     {s: 'hq'   for s in VEHICLE_NUMBERS}
     | {s: 'jiip' for s in JIIP_VEHICLES}
+    | {s: 'kim' for s in KIM_VEHICLES}
 )
 ALL_SUFFIXES = list(SUFFIX_TO_OWNER.keys())
 
