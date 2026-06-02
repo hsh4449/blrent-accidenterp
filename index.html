@@ -226,12 +226,16 @@ const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#0
 
 // "사용자" 4자리 코드 입력 시 owner='jiip' (신동석부장 지입차) 만 표시하는 제한 뷰로 전환.
 // 차량 추가/제거는 Supabase accident_fleet.owner='jiip' 행에서 관리. crawler.py JIIP_VEHICLES 도 함께 갱신.
-// 사용자 모드 4자리 코드 → owner 매핑 (2026-05-31 다중 사용자 지원)
+// 사원코드 4자리 → owner 매핑. 시작 화면에서 입력해야 진입 가능.
+// (2026-05-31: 본사도 코드 진입 — 시작 lock 화면 도입)
 const USER_VIEW_CODES = {
+  "0000": { owner: "hq",   label: "본사 (hq)",         displayName: "본사",   fromNumber: "010-2418-8272" },
   "4417": { owner: "jiip", label: "신동석 지입 (jiip)", displayName: "신동석", fromNumber: "010-5602-4417" },
-  "0000": { owner: "kim",  label: "김민규 (kim)",       displayName: "김민규", fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
+  "0001": { owner: "kim",  label: "김민규 (kim)",       displayName: "김민규", fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
 };
-const USER_VIEW_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner)); // {'jiip','kim'} — 본사모드에서 제외할 owner들
+// 사용자 모드(jiip/kim) 와 본사 모드(hq) 구분. 기존 UI 분기 (인사 배너 등) 호환.
+const USER_VIEW_OWNERS = new Set(["jiip", "kim"]);  // 사용자 모드 owner들 (hq 제외)
+const ALL_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner));
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -401,18 +405,17 @@ function App() {
   const [rawContracts, setRawContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("dashboard");
-  // 사용자 모드: 4자리 코드 입력 시 활성화. 활성 시 해당 owner 데이터만 표시.
-  // 코드 → owner 매핑 USER_VIEW_CODES (전역 상수). localStorage 에 owner 저장.
+  // 사원코드 진입: null = lock 화면, 'hq'/'jiip'/'kim' = 해당 owner 진입.
+  // localStorage 에 owner 저장 (새로고침 해도 유지). 레거시 호환 포함.
   const [userOwner, setUserOwner] = useState(() => {
     try {
       const saved = localStorage.getItem('blrent_user_owner');
-      if (saved && USER_VIEW_OWNERS.has(saved)) return saved;
-      // 레거시 호환: 옛 'blrent_user_mode'=='1' 키 있으면 jiip
-      if (localStorage.getItem('blrent_user_mode') === '1') return 'jiip';
+      if (saved && ALL_OWNERS.has(saved)) return saved;
+      if (localStorage.getItem('blrent_user_mode') === '1') return 'jiip';  // legacy
     } catch {}
     return null;
   });
-  const userMode = !!userOwner;  // boolean alias (기존 분기 호환)
+  const userMode = userOwner && USER_VIEW_OWNERS.has(userOwner);  // 사용자 모드 (jiip/kim) — hq 는 false (본사 모드)
   const userInfo = userOwner ? Object.values(USER_VIEW_CODES).find(v=>v.owner===userOwner) : null;
   const [userCodeInput, setUserCodeInput] = useState("");
   // 모바일 감지 — 768px 이하면 모바일 레이아웃. matchMedia 로 리사이즈/회전 즉시 반영.
@@ -456,28 +459,21 @@ function App() {
   const [showInactiveFleet, setShowInactiveFleet] = useState(false);
   const fileRef = useRef(null);
 
-  // 모드별 owner 필터링:
-  //   본사모드 (userOwner=null): owner not in USER_VIEW_OWNERS — hq/legacy(null) 노출
-  //   사용자모드 (userOwner='jiip'|'kim'): owner === userOwner 만 노출
-  const contracts = useMemo(() => {
-    return userOwner
-      ? rawContracts.filter(c => c.owner === userOwner)
-      : rawContracts.filter(c => !USER_VIEW_OWNERS.has(c.owner));
-  }, [rawContracts, userOwner]);
+  // owner 필터링: hq 는 legacy null 도 포함. 그 외는 owner === userOwner.
+  // (userOwner=null 인 경우 lock 화면이라 여기까지 안 옴)
+  const matchOwner = (rowOwner) => {
+    if (userOwner === 'hq') return rowOwner === 'hq' || !rowOwner;
+    return rowOwner === userOwner;
+  };
+  const contracts = useMemo(() => rawContracts.filter(c => matchOwner(c.owner)), [rawContracts, userOwner]);
   const fleet = useMemo(() => {
     const out = {};
     for (const [num, info] of Object.entries(rawFleet)) {
-      const inUserOwners = USER_VIEW_OWNERS.has(info.owner);
-      const show = userOwner ? (info.owner === userOwner) : !inUserOwners;
-      if (show) out[num] = info;
+      if (matchOwner(info.owner)) out[num] = info;
     }
     return out;
   }, [rawFleet, userOwner]);
-  const deletedContractsView = useMemo(() => {
-    return userOwner
-      ? deletedContracts.filter(c => c.owner === userOwner)
-      : deletedContracts.filter(c => !USER_VIEW_OWNERS.has(c.owner));
-  }, [deletedContracts, userOwner]);
+  const deletedContractsView = useMemo(() => deletedContracts.filter(c => matchOwner(c.owner)), [deletedContracts, userOwner]);
 
   useEffect(() => {
     (async () => {
@@ -893,6 +889,48 @@ function App() {
 
   if(loading) return <div style={{minHeight:"100vh",background:"#f8fafc",display:"flex",alignItems:"center",justifyContent:"center",color:"#18181b",fontFamily:"'Pretendard',sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>BL</div><div style={{fontSize:13,color:"#0f172a"}}>로딩 중...</div></div></div>;
 
+  // 시작 lock 화면 — 사원코드 입력 전엔 ERP UI 노출 안 함
+  if (!userOwner) {
+    const tryEnter = (v) => {
+      const ent = USER_VIEW_CODES[v];
+      if (ent) {
+        setUserOwner(ent.owner);
+        try { localStorage.setItem('blrent_user_owner', ent.owner); localStorage.removeItem('blrent_user_mode'); } catch {}
+        setUserCodeInput("");
+      }
+    };
+    return (
+      <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#334155 100%)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Pretendard',-apple-system,sans-serif",padding:20}}>
+        <div style={{background:"#ffffff",borderRadius:20,padding:isMobile?"36px 28px":"48px 56px",boxShadow:"0 25px 60px -20px rgba(0,0,0,0.4)",maxWidth:380,width:"100%"}}>
+          <div style={{textAlign:"center",marginBottom:32}}>
+            <div style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",width:64,height:64,borderRadius:14,display:"inline-flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:22,color:"#fff",marginBottom:16,boxShadow:"0 10px 25px -8px rgba(139,92,246,0.5)"}}>BL</div>
+            <div style={{fontSize:22,fontWeight:800,color:"#18181b",letterSpacing:"-0.3px"}}>BL 사고대차 관리</div>
+          </div>
+          <div style={{marginBottom:14,fontSize:13,color:"#64748b",fontWeight:600,textAlign:"center"}}>사원코드</div>
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="○ ○ ○ ○"
+            autoFocus
+            value={userCodeInput}
+            onChange={e => {
+              const v = e.target.value.replace(/\D/g,"").slice(0,4);
+              setUserCodeInput(v);
+              if (v.length === 4) tryEnter(v);
+            }}
+            style={{width:"100%",padding:"16px 18px",borderRadius:12,border:"2px solid #e2e8f0",fontSize:28,textAlign:"center",letterSpacing:"0.5em",background:"#f8fafc",color:"#18181b",outline:"none",fontFamily:"monospace",fontWeight:700,boxSizing:"border-box"}}
+            onFocus={e=>e.target.style.borderColor="#3b82f6"}
+            onBlur={e=>e.target.style.borderColor="#e2e8f0"}
+          />
+          {userCodeInput.length === 4 && (
+            <div style={{marginTop:12,textAlign:"center",fontSize:12,color:"#dc2626",fontWeight:600}}>등록되지 않은 코드</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight:"100vh", background:"#f8fafc", color:"#18181b", fontFamily:"'Pretendard',-apple-system,sans-serif" }}>
       <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
@@ -906,35 +944,14 @@ function App() {
             <span style={{ fontSize:14, fontWeight:700, whiteSpace:"nowrap" }}>사고대차 관리</span>
             <span style={{ fontSize:11, color:"#0f172a", whiteSpace:"nowrap" }}>{contracts.length}건</span>
           </div>
-          {/* 모바일: 사용자 코드 입력 인라인 (제목 줄 오른쪽) */}
+          {/* 모바일: 현재 모드 + 로그아웃 */}
           {isMobile && (
-            <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="사용자"
-                value={userMode ? "" : userCodeInput}
-                onChange={e => {
-                  const v = e.target.value.replace(/\D/g,"").slice(0,4);
-                  setUserCodeInput(v);
-                  const ent = USER_VIEW_CODES[v];
-                  if (ent) {
-                    setUserOwner(ent.owner);
-                    try { localStorage.setItem('blrent_user_owner', ent.owner); localStorage.removeItem('blrent_user_mode'); } catch {}
-                    setUserCodeInput("");
-                    setToast({msg:`${ent.label} 모드 진입`, type:"success"});
-                  }
-                }}
-                disabled={userMode}
-                style={{ width:60, padding:"5px 6px", borderRadius:6, border:"1px solid #cbd5e1", fontSize:11, textAlign:"center", letterSpacing:1.5, background: userMode ? "#e2e8f0" : "#fff", color:"#0f172a", outline:"none", fontFamily:"monospace" }}
-              />
-              {userMode && (
-                <button
-                  onClick={() => { setUserOwner(null); try { localStorage.removeItem('blrent_user_owner'); localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
-                  style={{ padding:"4px 8px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:10, color:"#334155", cursor:"pointer" }}
-                >해제</button>
-              )}
+            <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+              <span style={{ fontSize:11, color:"#0f172a", fontWeight:700 }}>{userInfo?.displayName}</span>
+              <button
+                onClick={() => { setUserOwner(null); try { localStorage.removeItem('blrent_user_owner'); localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); }}
+                style={{ padding:"4px 8px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:10, color:"#334155", cursor:"pointer" }}
+              >로그아웃</button>
             </div>
           )}
         </div>
@@ -957,37 +974,15 @@ function App() {
               }}>{l}</button>
             ))}
           </nav>
-          {/* PC: 사용자 코드 입력 (네비 오른쪽) — 모바일에선 위 줄에 있으니 숨김 */}
+          {/* PC: 현재 모드 표시 + 로그아웃 */}
           {!isMobile && (
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:10, paddingLeft:10, borderLeft:"1px solid #cbd5e1" }}>
-              <span style={{ fontSize:11, color:"#475569" }}>사용자</span>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
-                value={userMode ? "" : userCodeInput}
-                onChange={e => {
-                  const v = e.target.value.replace(/\D/g,"").slice(0,4);
-                  setUserCodeInput(v);
-                  const ent = USER_VIEW_CODES[v];
-                  if (ent) {
-                    setUserOwner(ent.owner);
-                    try { localStorage.setItem('blrent_user_owner', ent.owner); localStorage.removeItem('blrent_user_mode'); } catch {}
-                    setUserCodeInput("");
-                    setToast({msg:`${ent.label} 모드 진입`, type:"success"});
-                  }
-                }}
-                disabled={userMode}
-                style={{ width:60, padding:"6px 8px", borderRadius:6, border:"1px solid #cbd5e1", fontSize:12, textAlign:"center", letterSpacing:2, background: userMode ? "#e2e8f0" : "#fff", color:"#0f172a", outline:"none", fontFamily:"monospace" }}
-              />
-              {userMode && (
-                <button
-                  onClick={() => { setUserOwner(null); try { localStorage.removeItem('blrent_user_owner'); localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); setToast({msg:"전체 모드로 복귀", type:"success"}); }}
-                  style={{ padding:"5px 9px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:11, color:"#334155", cursor:"pointer" }}
-                  title="전체 차량 모드로 복귀"
-                >해제</button>
-              )}
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:10, paddingLeft:10, borderLeft:"1px solid #cbd5e1" }}>
+              <span style={{ fontSize:12, color:"#334155", fontWeight:700 }}>{userInfo?.displayName}</span>
+              <button
+                onClick={() => { setUserOwner(null); try { localStorage.removeItem('blrent_user_owner'); localStorage.removeItem('blrent_user_mode'); } catch {} setUserCodeInput(""); }}
+                style={{ padding:"5px 11px", borderRadius:6, border:"1px solid #cbd5e1", background:"#fff", fontSize:11, color:"#334155", cursor:"pointer", fontWeight:600 }}
+                title="다른 사원코드로 전환"
+              >로그아웃</button>
             </div>
           )}
         </div>
