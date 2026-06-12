@@ -108,7 +108,26 @@
             replacementOtherEndDate: r.replacement_other_end_date || '',
             isDeleted: !!r.is_deleted,
             deletedAt: r.deleted_at || null,
+            deposits: Array.isArray(r.deposits) ? r.deposits : null,
           };
+        }
+
+        // 건별 입금 내역 — 크롤러가 IMS 입금내역(deposit_history)에서 수집한 deposits(JSONB) 사용,
+        // 없으면 기존 방식(입금일 + 대여료 총액 단일 건) fallback.
+        // service=true(차액서비스)는 대여료 매출이 아니므로 집계에서 제외.
+        function depositItems(c) {
+          if (Array.isArray(c.deposits) && c.deposits.length) {
+            return c.deposits.filter(d => !d.service && d.date).map(d => ({ date: String(d.date).slice(0,10), amount: d.amount || 0 }));
+          }
+          return c.depositDate ? [{ date: c.depositDate, amount: c.rentalFee || 0 }] : [];
+        }
+        // ym("YYYY-MM") 에 입금된 금액 합 — 분할 입금은 각 입금월에 귀속
+        function depositAmountIn(c, ym) {
+          return depositItems(c).reduce((s, d) => s + (d.date.startsWith(ym) ? d.amount : 0), 0);
+        }
+        // ym 에 입금된 입금일 목록 (표시용)
+        function depositDatesIn(c, ym) {
+          return depositItems(c).filter(d => d.date.startsWith(ym)).map(d => d.date);
         }
 
         // XLSX is already available from CDN as window.XLSX
@@ -635,7 +654,8 @@ function App() {
       const useDeposit = filter.status === '입금완료';
       if (from || to) {
         l = l.filter(c => {
-          const src = useDeposit ? c.depositDate : c.startDate;
+          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
+          const src = c.startDate;
           if (!src) return false;
           const ym = src.slice(0,7);
           if (from && ym < from) return false;
@@ -737,11 +757,11 @@ function App() {
   const sortedMonths = useMemo(() => Object.entries(stats.monthly).sort((a,b)=>a[0].localeCompare(b[0])), [stats.monthly]);
   const maxMA = useMemo(() => Math.max(...sortedMonths.map(([,d])=>d.bill),1), [sortedMonths]);
 
-  // 입금월 목록 (depositDate 기준 + 현재월 강제 포함)
+  // 입금월 목록 (건별 입금 내역 기준 + 현재월 강제 포함)
   const depositMonths = useMemo(() => {
     const ms = new Set();
     contracts.forEach(c => {
-      if (c.depositDate) ms.add(c.depositDate.slice(0,7));
+      depositItems(c).forEach(d => ms.add(d.date.slice(0,7)));
     });
     const now = new Date();
     ms.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`);
@@ -763,7 +783,8 @@ function App() {
       const useDeposit = filter.status === '입금완료';
       if (from || to) {
         l = l.filter(c => {
-          const src = useDeposit ? c.depositDate : c.startDate;
+          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
+          const src = c.startDate;
           if (!src) return false;
           const ym = src.slice(0,7);
           if (from && ym < from) return false;
@@ -1000,8 +1021,8 @@ function App() {
             {(() => {
               const _ym = vehicleViewYm;
               const _monthLabel = `${parseInt(_ym.split("-")[1])}월`;
-              const _monthDeps = contracts.filter(c => c.depositDate && c.depositDate.startsWith(_ym));
-              const _monthDepAmount = _monthDeps.reduce((s,c)=>s+(c.rentalFee||0), 0);
+              const _monthDeps = contracts.filter(c => depositAmountIn(c, _ym) > 0);
+              const _monthDepAmount = _monthDeps.reduce((s,c)=>s+depositAmountIn(c,_ym), 0);
               const _unpaidList = contracts.filter(c => c.status === '청구완료' && !c.depositDate);
               const _unpaidAmount = _unpaidList.reduce((s,c)=>s+(c.billingAmount||0), 0);
               const _activeFleetTotal = activeFleetSet.size;
@@ -1031,7 +1052,7 @@ function App() {
               const _monthLabel = `${parseInt(_selMonth)}월`;
               // 드롭다운 옵션: 년 = 데이터 있는 년 ∪ 현재년, 월 = 01~12
               const _depYears = new Set();
-              contracts.forEach(c => { if (c.depositDate) _depYears.add(c.depositDate.slice(0,4)); });
+              contracts.forEach(c => { depositItems(c).forEach(d => _depYears.add(d.date.slice(0,4))); });
               _depYears.add(String(_today.getFullYear()));
               const _yearOpts = Array.from(_depYears).sort();
               const _monthOpts = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
@@ -1064,9 +1085,9 @@ function App() {
                       (c.status === '교체' && (!c.endDate || c.endDate >= _todayStr))
                     );
                     const unpaidCount = cars.filter(c => c.status === '청구완료').length;
-                    const monthDeps = cars.filter(c => c.depositDate && c.depositDate.startsWith(_ymPrefix));
+                    const monthDeps = cars.filter(c => depositAmountIn(c, _ymPrefix) > 0);
                     const monthDepCount = monthDeps.length;
-                    const monthDepAmount = monthDeps.reduce((s,c)=>s+(c.rentalFee||0),0);
+                    const monthDepAmount = monthDeps.reduce((s,c)=>s+depositAmountIn(c,_ymPrefix),0);
                     const isOpen = unpaidExpanded.has(num);
                     const unpaidItems = cars.filter(c => c.status === '청구전' || c.status === '청구완료' || c.status === '교체' || c.status === '배차중').sort((a,b)=>(b.endDate||"").localeCompare(a.endDate||""));
                     // 당월 계약 건수 + 가동 일수 (가동률)
@@ -1212,11 +1233,11 @@ function App() {
                                       <span style={{fontSize:13, fontWeight:700, color:"#1e40af", background:"#dbeafe", padding:"2px 9px", borderRadius:5, letterSpacing:0.2}}>{c.customerNumber || "-"}</span>
                                       <span style={{fontSize:12, color:"#64748b", fontWeight:500}}>· {c.customerName || "이름 없음"}</span>
                                     </div>
-                                    <span style={{color:"#10b981",fontWeight:700,fontVariantNumeric:"tabular-nums",fontSize:15, flexShrink:0}}>₩{fmt(c.rentalFee)}</span>
+                                    <span style={{color:"#10b981",fontWeight:700,fontVariantNumeric:"tabular-nums",fontSize:15, flexShrink:0}}>₩{fmt(depositAmountIn(c,_ymPrefix))}{depositAmountIn(c,_ymPrefix) !== (c.rentalFee||0) && <span style={{color:"#64748b",fontSize:11,fontWeight:500,marginLeft:4}}>/ 누적 ₩{fmt(c.rentalFee)}</span>}</span>
                                   </div>
                                   <div style={{display:"flex", gap:18, marginTop:8, fontSize:13, color:"#0f172a"}}>
                                     <span><span style={{color:"#0f172a"}}>청구 </span>{c.billingDate || "-"}</span>
-                                    <span><span style={{color:"#0f172a"}}>입금 </span><span style={{color:"#10b981"}}>{c.depositDate}</span></span>
+                                    <span><span style={{color:"#0f172a"}}>입금 </span><span style={{color:"#10b981"}}>{depositDatesIn(c,_ymPrefix).join(", ") || c.depositDate}</span></span>
                                   </div>
                                 </div>
                               ))}
@@ -1241,22 +1262,22 @@ function App() {
           const _selMonth = _ymPrefix.split("-")[1];
           const _monthLabel = `${parseInt(_selMonth)}월`;
           const _depYears = new Set();
-          contracts.forEach(c => { if (c.depositDate) _depYears.add(c.depositDate.slice(0,4)); });
+          contracts.forEach(c => { depositItems(c).forEach(d => _depYears.add(d.date.slice(0,4))); });
           _depYears.add(String(_today.getFullYear()));
           const _yearOpts = Array.from(_depYears).sort();
           const _monthOpts = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
           const _selectStyle = { padding:"6px 10px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, color:"#18181b", fontSize:14, cursor:"pointer", fontWeight:600 };
 
-          // 차량별로 그 월 입금완료된 계약만 묶기
+          // 차량별로 그 월 입금완료된 계약만 묶기 (분할 입금은 입금월별 금액으로 귀속)
           const byVehicle = {};
           contracts.forEach(c => {
-            if (!c.depositDate || !c.depositDate.startsWith(_ymPrefix)) return;
+            if (depositAmountIn(c, _ymPrefix) <= 0) return;
             if (!c.vehicleNumber) return;
             if (!byVehicle[c.vehicleNumber]) byVehicle[c.vehicleNumber] = { model: c.vehicleModel, items: [] };
             byVehicle[c.vehicleNumber].items.push(c);
           });
           const vehicleList = Object.entries(byVehicle).map(([num,d])=>{
-            const amount = d.items.reduce((s,c)=>s+(c.rentalFee||0),0);
+            const amount = d.items.reduce((s,c)=>s+depositAmountIn(c,_ymPrefix),0);
             const days = d.items.reduce((s,c)=>s+daysBetween(c.startDate,c.endDate),0);
             return { num, model: d.model, items: d.items, amount, days };
           }).sort((a,b)=>a.num.localeCompare(b.num));
@@ -1308,6 +1329,7 @@ function App() {
                         {v.items.slice().sort((a,b)=>(b.depositDate||"").localeCompare(a.depositDate||"")).map(c => {
                           const cDays = daysBetween(c.startDate, c.endDate);
                           const cDaily = cDays > 0 ? Math.round((c.rentalFee||0) / cDays) : 0;
+                          const cMonthAmt = depositAmountIn(c, _ymPrefix);
                           return (
                           <div key={c.id} style={{ padding: isMobile ? "8px 10px" : "12px 16px", background:"#f8fafc", border:"1px solid #e2e8f0", borderLeft:`3px solid ${vColor}`, borderRadius:8, display:"flex", flexDirection: isMobile ? "column" : "row", justifyContent: isMobile ? "flex-start" : "space-between", alignItems: isMobile ? "stretch" : "center", gap: isMobile ? 6 : 14, overflow:"hidden" }}>
                             <div style={{ flex:1, minWidth:0, width: isMobile ? "100%" : "auto" }}>
@@ -1319,11 +1341,11 @@ function App() {
                               <div style={{ display:"flex", flexWrap:"wrap", gap:"5px 6px", fontSize: isMobile ? 11 : 13 }}>
                                 <span style={{ background:"#dbeafe", color:"#1e40af", padding:"3px 8px", borderRadius:10, fontWeight:600, whiteSpace:"nowrap" }}>대여 {c.startDate||"-"}~{c.endDate||"-"}{cDays>0 && `·${cDays}일`}</span>
                                 <span style={{ background:"#fef3c7", color:"#854d0e", padding:"3px 8px", borderRadius:10, fontWeight:600, whiteSpace:"nowrap" }}>청구 {c.billingDate||"-"}</span>
-                                <span style={{ background:"#dcfce7", color:"#166534", padding:"3px 8px", borderRadius:10, fontWeight:700, whiteSpace:"nowrap" }}>입금 {c.depositDate}</span>
+                                <span style={{ background:"#dcfce7", color:"#166534", padding:"3px 8px", borderRadius:10, fontWeight:700, whiteSpace:"nowrap" }}>입금 {depositDatesIn(c,_ymPrefix).join(", ") || c.depositDate}</span>
                                 {c.insurer && c.insurer !== '-' && <span style={{ background:"#ede9fe", color:"#5b21b6", padding:"3px 8px", borderRadius:10, fontWeight:600, whiteSpace:"nowrap" }}>{c.insurer}</span>}
                               </div>
                             </div>
-                            <span style={{ color:"#10b981", fontWeight:800, fontSize: isMobile ? 15 : 18, fontVariantNumeric:"tabular-nums", flexShrink:0, alignSelf: isMobile ? "flex-end" : "auto", whiteSpace:"nowrap", marginTop: isMobile ? 4 : 0 }}>₩{fmt(c.rentalFee)}{cDaily>0 && <span style={{color:"#64748b", fontSize: isMobile ? 10 : 13, fontWeight:500, marginLeft:5}}>(일:{fmt(cDaily)})</span>}</span>
+                            <span style={{ color:"#10b981", fontWeight:800, fontSize: isMobile ? 15 : 18, fontVariantNumeric:"tabular-nums", flexShrink:0, alignSelf: isMobile ? "flex-end" : "auto", whiteSpace:"nowrap", marginTop: isMobile ? 4 : 0 }}>₩{fmt(cMonthAmt)}{cMonthAmt !== (c.rentalFee||0) && <span style={{color:"#64748b", fontSize: isMobile ? 10 : 12, fontWeight:500, marginLeft:5}}>/ 누적 ₩{fmt(c.rentalFee)}</span>}{cDaily>0 && <span style={{color:"#64748b", fontSize: isMobile ? 10 : 13, fontWeight:500, marginLeft:5}}>(일:{fmt(cDaily)})</span>}</span>
                           </div>
                           );
                         })}
@@ -1497,8 +1519,8 @@ function App() {
         {/* ── SETTLEMENT ── */}
         {tab==="settlement" && <div>
           {(() => {
-            // 입금월 집계 (deposit_date 기준 + 현재월 강제 포함)
-            const depMonths = [...new Set(contracts.filter(c=>c.depositDate).map(c=>c.depositDate.slice(0,7)))].sort();
+            // 입금월 집계 (건별 입금 내역 기준 + 현재월 강제 포함)
+            const depMonths = [...new Set(contracts.flatMap(c=>depositItems(c).map(d=>d.date.slice(0,7))))].sort();
             const fixMonths = [...new Set(Object.keys(monthlyFixed).map(k=>k.split("|")[1]))];
             const _now = new Date();
             const _curMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
@@ -1509,9 +1531,9 @@ function App() {
             const toYm = settlMonthTo || fromYm;  // to 빈 + from 있으면 단일 월
             const isRange = fromYm || toYm;
             const inRange = (m) => (!fromYm || m >= fromYm) && (!toYm || m <= toYm);
-            const monthContracts = !isRange
-              ? contracts.filter(c=>c.depositDate)
-              : contracts.filter(c=>c.depositDate && inRange(c.depositDate.slice(0,7)));
+            // 기간 내 입금액 — 분할 입금은 입금 건별로 해당 월에만 귀속 (월매출 분리)
+            const rangeAmount = (c) => depositItems(c).reduce((s,d)=>s+(inRange(d.date.slice(0,7))?d.amount:0),0);
+            const monthContracts = contracts.filter(c => depositItems(c).some(d=>inRange(d.date.slice(0,7))));
 
             // 차량 목록 (본사 fleet만, status 무관 — 매각/중단 차량도 통계 포함) — 외부차량/대차교체건은 정산에서 제외
             const vnums = new Set();
@@ -1525,7 +1547,7 @@ function App() {
             const vStats = {};
             [...vnums].forEach(vn => {
               const mc = monthContracts.filter(c => c.vehicleNumber === vn);
-              const income = mc.reduce((s,c)=>s+(c.rentalFee||0),0);
+              const income = mc.reduce((s,c)=>s+rangeAmount(c),0);
               const vat = Math.round(income * 10 / 110);
               const deliveryTotal = mc.reduce((s,c)=>s+(c.deliveryFee1||0)+(c.deliveryFee2||0),0);
               const deliveryCnt = mc.reduce((s,c)=>s+((c.deliveryFee1||0)>0?1:0)+((c.deliveryFee2||0)>0?1:0),0);

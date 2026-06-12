@@ -401,6 +401,57 @@ def build_extra_rows(c, our_numbers, main_row):
     return extras
 
 
+def _find_deposit_history(obj):
+    """중첩 JSON에서 deposit_history 배열 재귀 탐색 (상세 페이지 구조 변화에 견디게)"""
+    if isinstance(obj, dict):
+        if isinstance(obj.get('deposit_history'), list):
+            return obj['deposit_history']
+        for v in obj.values():
+            found = _find_deposit_history(v)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for v in obj:
+            found = _find_deposit_history(v)
+            if found is not None:
+                return found
+    return None
+
+
+def fetch_deposits(session, claim_id):
+    """계약 상세 페이지 __NEXT_DATA__ 에서 건별 입금 내역 추출.
+
+    분할 입금 시 월매출 귀속을 입금 건별로 분리하기 위해 deposits JSONB 에 저장.
+    반환: [{'date','amount','reason','service'}, ...] (입금일 오름차순) / 실패 시 None
+    service=True 는 차액서비스 항목 (대여료 매출 아님 — ERP 집계에서 제외됨)
+    """
+    try:
+        resp = session.get(f'https://imsform.com/contract/detail?id={claim_id}', timeout=30)
+        if resp.status_code != 200:
+            return None
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', resp.text)
+        if not m:
+            return None
+        page_props = json.loads(m.group(1)).get('props', {}).get('pageProps', {})
+        hist = _find_deposit_history(page_props)
+        if hist is None:
+            return None
+        deposits = []
+        for d in hist:
+            date, _ = parse_datetime(d.get('deposit_date'))
+            deposits.append({
+                'date': date,
+                'amount': d.get('deposit_cost') or 0,
+                'reason': d.get('deposit_reason') or '',
+                'service': bool(d.get('service')),
+            })
+        deposits.sort(key=lambda x: x['date'] or '')
+        return deposits
+    except Exception as e:
+        print(f'  [WARN] 입금내역 조회 실패 {claim_id}: {e}')
+        return None
+
+
 def search_vehicle(session, car_number):
     """차량번호 검색 → __NEXT_DATA__에서 JSON 추출"""
     contracts = []
@@ -523,6 +574,30 @@ def main():
     if fee_protected:
         print(f'[PROTECT] rental_fee 이상치 {fee_protected}건 — 청구금 < 대여료 케이스 보호됨')
 
+    # 건별 입금 내역(deposits JSONB) 수집 — 분할 입금 월매출 분리용
+    # 대상: (1) 이번 upsert 행 중 입금 있는 건 (2) DB에 입금 있는데 deposits 미수집인 건 (백필)
+    # 상세 페이지 1건당 1요청이므로 입금 있는 건만 조회. 백필은 최초 1회 후 자연 소멸.
+    deposit_target_ids = {c['id'] for c in unique if (c.get('rental_fee') or 0) > 0}
+    try:
+        need_backfill = supabase_client.table('accident_rentals').select('id') \
+            .gt('rental_fee', 0).is_('deposits', 'null').execute()
+        backfill_ids = {r['id'] for r in (need_backfill.data or [])} - deposit_target_ids
+    except Exception as e:
+        backfill_ids = set()
+        print(f'[WARN] deposits 백필 대상 조회 실패: {e}')
+    if deposit_target_ids or backfill_ids:
+        print(f'[DEPOSITS] 입금내역 수집: 갱신 {len(deposit_target_ids)}건 + 백필 {len(backfill_ids)}건')
+    unique_by_id = {c['id']: c for c in unique}
+    for cid in sorted(deposit_target_ids):
+        deps = fetch_deposits(session, cid)
+        if deps is not None:
+            unique_by_id[cid]['deposits'] = deps
+    backfill_rows = []
+    for cid in sorted(backfill_ids):
+        deps = fetch_deposits(session, cid)
+        if deps is not None:
+            backfill_rows.append({'id': cid, 'deposits': deps})
+
     print(f'[UPDATE] {len(unique)}건 업데이트 대상')
 
     # 디버그: IMS 응답 중 DB 에 없는 신규 id 식별 (왜 신규 INSERT 가 안 일어나는지 추적)
@@ -555,6 +630,15 @@ def main():
             unique, on_conflict='id'
         ).execute()
         print(f'[DB] Supabase {len(unique)}건 upsert 완료 (updated_at={now_iso})')
+
+    # deposits 백필 — id + deposits 만 부분 upsert (기존 컬럼 보존)
+    if backfill_rows:
+        for row in backfill_rows:
+            row['updated_at'] = now_iso
+        supabase_client.table('accident_rentals').upsert(
+            backfill_rows, on_conflict='id'
+        ).execute()
+        print(f'[DB] deposits 백필 {len(backfill_rows)}건 upsert 완료')
 
     # 추가 DB 정리: IMS가 옛 배차중 행을 더 이상 안 보내는 경우도 정정
     # (DB에는 남아있지만 새 배차중이 있으면 옛 행은 청구전으로)
