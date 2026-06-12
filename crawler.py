@@ -475,17 +475,24 @@ def main():
     print(f'\n[TOTAL] {len(unique)}건 (중복 제거)')
 
     # DB에서 이미 입금완료 + deposit_date + rental_fee>0 있는 건 제외 (재크롤 방지)
-    # 단, rental_fee=0 인 입금완료 건은 = 사용자가 독촉문자 차단 위해 강제로 입금완료로 잡은 케이스
-    # → 실제 입금금액(IMS deposit_cost)으로 rental_fee 채워야 하므로 매 크롤 재시도.
+    # 단, 두 가지 예외는 재크롤:
+    #   1) rental_fee=0 인 입금완료 건 = 사용자가 독촉문자 차단 위해 강제로 입금완료로 잡은 케이스
+    #      → 실제 입금금액(IMS deposit_cost)으로 rental_fee 채워야 하므로 매 크롤 재시도.
+    #   2) IMS deposit_cost > DB rental_fee = 입금완료 후 추가 입금(분할 입금)이 들어온 케이스
+    #      → 스킵하면 2차 입금이 영영 반영 안 됨 (예: 2971483 김진우 5/27 입금 후 6/5 추가 입금 누락 사고)
     settled = supabase_client.table('accident_rentals').select('id, rental_fee').eq('status', '입금완료').not_.is_('deposit_date', 'null').execute()
-    settled_ids = {r['id'] for r in (settled.data or []) if (r.get('rental_fee') or 0) > 0}
+    settled_fee = {r['id']: (r.get('rental_fee') or 0) for r in (settled.data or [])}
     before = len(unique)
-    unique = [c for c in unique if c['id'] not in settled_ids]
+    for c in unique:
+        db_fee = settled_fee.get(c['id'], 0)
+        if db_fee > 0 and (c.get('rental_fee') or 0) > db_fee:
+            print(f'[RECRAWL] {c["id"]} {c.get("customer_name","")}: 추가 입금 감지 — DB {db_fee:,} → IMS {c.get("rental_fee") or 0:,}')
+    unique = [c for c in unique
+              if not (settled_fee.get(c['id'], 0) > 0 and (c.get('rental_fee') or 0) <= settled_fee.get(c['id'], 0))]
     skipped = before - len(unique)
     if skipped:
-        print(f'[SKIP] 입금완료(rental_fee>0) {skipped}건 제외')
-    # rental_fee=0 인 입금완료 건은 재시도 대상으로 포함됨
-    retry_zero = sum(1 for c in unique if any(s.get('id')==c['id'] and (s.get('rental_fee') or 0)==0 for s in (settled.data or [])))
+        print(f'[SKIP] 입금완료(rental_fee>0, 추가입금 없음) {skipped}건 제외')
+    retry_zero = sum(1 for c in unique if settled_fee.get(c['id']) == 0)
     if retry_zero:
         print(f'[RETRY] rental_fee=0 인 입금완료 {retry_zero}건 — IMS 값으로 갱신 시도')
 
