@@ -257,13 +257,13 @@ const USER_VIEW_OWNERS = new Set(["jiip", "kim"]);  // 사용자 모드 owner들
 const ALL_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner));
 
 // ── 김민규(kim) 페이지 차량별 담당자 매핑 ──
-// 출처: BL매니저(blrent-car-system) vehicles.sales_status 2026-07-04 기준.
-// 아래에 없는 kim 차량(미지정·박민 포함)은 전부 김민규로 분류 (사용자 확정).
+// 출처: 사용자 직접 지정 2026-07-04 (BL매니저 vehicles.sales_status 보다 이 목록이 우선).
+// 아래에 없는 kim 차량은 전부 김민규로 분류 (사용자 확정).
 // 담당 변경 시 여기만 수정하면 됨 (차량번호 끝 4자리).
 const KIM_MANAGER_VEHICLES = {
-  "최제렬": ["9116", "9283", "9756", "9774"],
-  "윤유빈": ["9646"],
-  "전상민": ["7892", "7898", "7899", "7951"],
+  "최제렬": ["9116", "9283", "9756", "9774", "9137", "9315", "7891"],
+  "윤유빈": ["9646", "7892"],
+  "전상민": ["7898", "7899", "7951"],
 };
 const KIM_MANAGER_DEFAULT = "김민규";
 const KIM_MANAGER_TABS = ["최제렬", "윤유빈", "전상민", KIM_MANAGER_DEFAULT];
