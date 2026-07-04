@@ -485,7 +485,6 @@ function App() {
   const [gapMonth, setGapMonth] = useState("all");
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
   const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
-  const [monthExpanded, setMonthExpanded] = useState(new Set());
   const [deletedContracts, setDeletedContracts] = useState([]);
   const [vehicleViewYm, setVehicleViewYm] = useState(() => {
     const n = new Date();
@@ -565,14 +564,6 @@ function App() {
     })();
   }, []);
 
-  // 활성 차량 Set + 등록된 fleet 전체 Set
-  const activeFleetSet = useMemo(() => {
-    const s = new Set();
-    Object.entries(fleet).forEach(([num, info]) => { if (info.status === 'active') s.add(num); });
-    return s;
-  }, [fleet]);
-  const fleetSet = useMemo(() => new Set(Object.keys(fleet)), [fleet]);
-
   // 차량별 카드/스케줄에서 표시할지 여부:
   //   표시: active / monthly_rent / short_rent / maintenance
   //   숨김 (showInactive 토글 시에만 표시): sold / paused / other_use
@@ -632,8 +623,6 @@ function App() {
     if (error) { console.error(error); setToast({msg:"저장 실패: "+error.message, type:"error"}); }
   }, [monthlyFixed]);
 
-  const save = useCallback(async d => { setRawContracts(d); }, []);
-
   // 보류/입금 상태 변경 — 계약내역 탭의 인라인 드롭다운에서 호출.
   // 독촉발송 탭의 같은 드롭다운과 옵션/색상/동작 일치. DB update 후 로컬 state 즉시 갱신.
   const onChangeExclusionStatus = useCallback(async (c, newVal) => {
@@ -675,43 +664,6 @@ function App() {
     return Array.from(m.entries()).map(([num,model],i) => ({ model, number:num, color:VCOLORS[i%VCOLORS.length] }));
   }, [contracts]);
 
-  // 계약내역 탭의 "전체 차량" 드롭다운 옵션 — 비활성 fleet 차량 제외 + 현재 다른 필터(status/depositMonth)에 매칭되는 차량만
-  const vehicleOptions = useMemo(() => {
-    let l = contracts;
-    if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
-    else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
-    // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (partial 무시)
-    // to 비우면 단일 월 (= to=from). 기간 원하면 to 명시.
-    {
-      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
-      const toRaw = filter.startMonthTo || "";
-      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
-      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
-      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
-      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
-      const useDeposit = filter.status === '입금완료';
-      if (from || to) {
-        l = l.filter(c => {
-          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
-          const src = c.startDate;
-          if (!src) return false;
-          const ym = src.slice(0,7);
-          if (from && ym < from) return false;
-          if (to && ym > to) return false;
-          return true;
-        });
-      }
-    }
-    const presentNums = new Set();
-    l.forEach(c => { if (c.vehicleNumber) presentNums.add(c.vehicleNumber); });
-    return vehicles.filter(v => {
-      if (!presentNums.has(v.number)) return false;
-      const f = fleet[v.number];
-      if (f && f.status !== 'active') return false; // 비활성 fleet 제외 (미등록은 통과)
-      return true;
-    });
-  }, [contracts, filter.status, filter.startMonth, filter.startMonthTo, vehicles, fleet]);
-
   // File import
   const onImport = useCallback(async e => {
     const f = e.target.files?.[0]; if(!f) return; e.target.value="";
@@ -726,149 +678,7 @@ function App() {
       setRawContracts(merged);
       setToast({msg:`완료: 신규 ${added}건, 업데이트 ${updated}건 (총 ${merged.length}건)`, type:"success"});
     } catch(err) { setToast({msg:"파일 오류: "+err.message, type:"error"}); }
-  }, [rawContracts, save]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const active = contracts.filter(c=>c.status==="배차중").length;
-    const pending = contracts.filter(c=>c.status==="청구전").length;
-    const totalBill = contracts.reduce((s,c)=>s+(c.billingAmount||0),0);
-    const deposited = contracts.filter(c=>c.depositDate);
-    const totalDep = contracts.reduce((s,c)=>s+(c.rentalFee||0),0);
-    const totalRentalFee = totalDep;
-    const monthly = {};
-    const _today = new Date();
-    const _ensureVeh = (m, vn, model) => {
-      if (!m.vehicles[vn]) m.vehicles[vn] = { model: model || '', days: 0, cnt: 0, bill: 0 };
-    };
-    // 같은 차량×같은 날짜 중복 카운트 방지 (인접 계약의 경계일 보호)
-    const _seenVehicleDays = new Set();
-    contracts.forEach(c => {
-      if (!c.startDate) return;
-      // bill/dep/cnt: 시작 월에만 카운트 (계약 단위)
-      const startYm = c.startDate.slice(0,7);
-      if (!monthly[startYm]) monthly[startYm] = {
-        bill:0, dep:0, cnt:0, vehicles:{},
-        pending:0, claimed:0, settled:0, active:0, replaced:0
-      };
-      monthly[startYm].bill += (c.billingAmount||0);
-      monthly[startYm].dep += (c.rentalFee||0);
-      monthly[startYm].cnt++;
-      if (c.status === '청구전') monthly[startYm].pending++;
-      else if (c.status === '청구완료') monthly[startYm].claimed++;
-      else if (c.status === '입금완료') monthly[startYm].settled++;
-      else if (c.status === '배차중') monthly[startYm].active++;
-      else if (c.status === '교체') monthly[startYm].replaced++;
-
-      if (!c.vehicleNumber) return;
-
-      // 차량별 시작월 통계 (건수/청구금) — 그 월에 신규 시작한 계약만
-      _ensureVeh(monthly[startYm], c.vehicleNumber, c.vehicleModel);
-      monthly[startYm].vehicles[c.vehicleNumber].cnt += 1;
-      monthly[startYm].vehicles[c.vehicleNumber].bill += (c.billingAmount||0);
-
-      // 차량 활동 일수: 일별 순회로 각 월에 속한 일수만 그 월에 누적
-      // 같은 차량의 같은 날짜는 한 번만 카운트 (인접 계약: A 03-06 반납 + B 03-06 인수 시 03-06 중복 방지)
-      const start = new Date(c.startDate);
-      const end = c.endDate ? new Date(c.endDate) : _today;
-      if (end < start) return;
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
-        const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-        const dayKey = `${c.vehicleNumber}|${ym}-${String(d.getDate()).padStart(2,'0')}`;
-        if (_seenVehicleDays.has(dayKey)) continue;
-        _seenVehicleDays.add(dayKey);
-        if (!monthly[ym]) monthly[ym] = { bill:0, dep:0, cnt:0, vehicles:{} };
-        _ensureVeh(monthly[ym], c.vehicleNumber, c.vehicleModel);
-        monthly[ym].vehicles[c.vehicleNumber].days += 1;
-      }
-    });
-    const vStats = {};
-    contracts.forEach(c => { const k=c.vehicleNumber; if(!k) return; if(!vStats[k]) vStats[k]={model:c.vehicleModel,cnt:0,bill:0,dep:0,rental:0,days:0}; vStats[k].cnt++; vStats[k].bill+=(c.billingAmount||0); vStats[k].dep+=(c.rentalFee||0); vStats[k].rental+=(c.rentalFee||0); vStats[k].days+=daysBetween(c.startDate,c.endDate); });
-    // fleet 에 등록된 차량은 사고대차 청구건이 0건이어도 vStats 에 빈 row 로 포함.
-    // (사용자모드 17대 모두 카드에 보이게. 본사 fleet 14대도 동일.)
-    Object.entries(fleet).forEach(([num, info]) => {
-      if (!vStats[num]) vStats[num] = { model: info?.model || '', cnt:0, bill:0, dep:0, rental:0, days:0 };
-    });
-    return { active, pending, totalBill, totalDep, totalRentalFee, monthly, vStats, total:contracts.length, depCount:deposited.length };
-  }, [contracts, fleet]);
-
-  const sortedMonths = useMemo(() => Object.entries(stats.monthly).sort((a,b)=>a[0].localeCompare(b[0])), [stats.monthly]);
-  const maxMA = useMemo(() => Math.max(...sortedMonths.map(([,d])=>d.bill),1), [sortedMonths]);
-
-  // 입금월 목록 (건별 입금 내역 기준 + 현재월 강제 포함)
-  const depositMonths = useMemo(() => {
-    const ms = new Set();
-    contracts.forEach(c => {
-      depositItems(c).forEach(d => ms.add(d.date.slice(0,7)));
-    });
-    const now = new Date();
-    ms.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`);
-    return Array.from(ms).sort();
-  }, [contracts]);
-
-  const filtered = useMemo(() => {
-    let l = [...contracts];
-    if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
-    else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
-    if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
-    {
-      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
-      const toRaw = filter.startMonthTo || "";
-      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
-      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
-      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
-      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
-      const useDeposit = filter.status === '입금완료';
-      if (from || to) {
-        l = l.filter(c => {
-          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
-          const src = c.startDate;
-          if (!src) return false;
-          const ym = src.slice(0,7);
-          if (from && ym < from) return false;
-          if (to && ym > to) return false;
-          return true;
-        });
-      }
-    }
-    if(filter.search){
-      const s=filter.search.toLowerCase();
-      const match = (val) => (val==null?"":String(val)).toLowerCase().includes(s);
-      if (filter.searchField === "all") {
-        l=l.filter(c=>match(c.customerName)||match(c.id)||match(c.receiptNo)||match(c.insurer)||match(c.vehicleModel)||match(c.vehicleNumber)||match(c.customerVehicle)||match(c.customerNumber)||match(c.customerPhone));
-      } else {
-        l=l.filter(c=>match(c[filter.searchField]));
-      }
-    }
-    // IMS 작성순 (id desc) — 사용자 지시: IMS 에서 작성된 순서대로
-    return l.sort((a,b) => (Number(b.id)||0) - (Number(a.id)||0));
-  }, [contracts, filter]);
-
-  const sched = useMemo(() => {
-    const [y,m]=schedMonth.split("-").map(Number);
-    const dim=new Date(y,m,0).getDate(), f=new Date(y,m-1,1), la=new Date(y,m-1,dim,23,59,59);
-    const vs={};
-    contracts.forEach(c=>{
-      const st=c.startDate?new Date(c.startDate):null, en=c.endDate?new Date(c.endDate):new Date(2099,0,1);
-      if(!st||st>la||en<f) return;
-      const k=c.vehicleNumber; if(!k) return;
-      if(!vs[k]) vs[k]={model:c.vehicleModel,number:k,entries:[]};
-      vs[k].entries.push({...c, bs:Math.max(1,st<f?1:st.getDate()), be:Math.min(dim,en>la?dim:en.getDate())});
-    });
-    // fleet 에 등록된 차량은 이 달에 entries 가 없어도 빈 row 로 표시.
-    // (사용자모드 17대 모두 보이게. 본사모드도 동일.)
-    Object.entries(fleet).forEach(([num, info]) => {
-      if (!vs[num]) vs[num] = { model: info?.model || '', number: num, entries: [] };
-    });
-    const ordered = Object.values(vs).sort((a, b) => {
-      // entries 있는 차량 먼저, 그 안에서 차량번호 정렬
-      const ae = a.entries.length > 0 ? 0 : 1;
-      const be = b.entries.length > 0 ? 0 : 1;
-      if (ae !== be) return ae - be;
-      return (a.number || '').localeCompare(b.number || '');
-    });
-    return {dim,vs:ordered,y,m};
-  }, [contracts, fleet, schedMonth]);
+  }, [rawContracts]);
 
   const doSave = useCallback(async d => {
     try {
@@ -1078,7 +888,150 @@ function App() {
       <main style={{ padding: isMobile ? "12px 10px" : "20px 24px", maxWidth:1320, margin:"0 auto" }}>
 
         {/* ── DASHBOARD ── */}
-        {tab==="dashboard" && <div>
+        {tab==="dashboard" && <DashboardTab isMobile={isMobile} contracts={contracts} fleet={fleet} vehicles={vehicles} isFleetVisible={isFleetVisible} vehicleViewYm={vehicleViewYm} setVehicleViewYm={setVehicleViewYm} showInactiveFleet={showInactiveFleet} setShowInactiveFleet={setShowInactiveFleet} unpaidExpanded={unpaidExpanded} setUnpaidExpanded={setUnpaidExpanded} setEditData={setEditData} setEditModal={setEditModal} doDelete={doDelete}/>}
+
+        {/* ── PAID (입금완료) ── */}
+        {tab==="paid" && <PaidTab isMobile={isMobile} contracts={contracts} vehicles={vehicles} vehicleViewYm={vehicleViewYm} setVehicleViewYm={setVehicleViewYm}/>}
+
+        {/* ── CONTRACTS ── */}
+        {tab==="contracts" && <ContractsTab isMobile={isMobile} contracts={contracts} vehicles={vehicles} fleet={fleet} filter={filter} setFilter={setFilter} setSelected={setSelected} setEditData={setEditData} setEditModal={setEditModal} fileRef={fileRef} onChangeExclusionStatus={onChangeExclusionStatus}/>}
+
+        {/* ── SETTLEMENT ── */}
+        {tab==="settlement" && <SettlementTab isMobile={isMobile} contracts={contracts} vehicles={vehicles} fleet={fleet} monthlyFixed={monthlyFixed} saveMonthlyFixed={saveMonthlyFixed} settlMonth={settlMonth} setSettlMonth={setSettlMonth} settlMonthTo={settlMonthTo} setSettlMonthTo={setSettlMonthTo} settlVehicles={settlVehicles} setSettlVehicles={setSettlVehicles}/>}
+
+        {/* ── SCHEDULE ── */}
+        {tab==="schedule" && <ScheduleTab isMobile={isMobile} contracts={contracts} fleet={fleet} vehicles={vehicles} isFleetVisible={isFleetVisible} schedMonth={schedMonth} setSchedMonth={setSchedMonth} showInactiveFleet={showInactiveFleet} setShowInactiveFleet={setShowInactiveFleet} setSelected={setSelected}/>}
+
+        {/* ── FLEET (차량 관리) ── */}
+        {tab==="fleet" && <FleetTab isMobile={isMobile} fleet={fleet} addFleet={addFleet} saveFleet={saveFleet} deleteFleet={deleteFleet}/>}
+
+        {/* ── DOKCHOK (미입금 자동 독촉 SMS) ── */}
+        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} isMobile={isMobile} userOwner={userOwner} userLabel={userInfo?.label} fromNumberOverride={userInfo?.fromNumber} />}
+
+        {/* ── TRASH ── */}
+        {tab==="trash" && <TrashTab isMobile={isMobile} deletedContractsView={deletedContractsView} doRestore={doRestore} doPurge={doPurge} doEmptyTrash={doEmptyTrash}/>}
+      </main>
+
+      {/* Detail Modal */}
+      <Modal open={!!selected} onClose={()=>setSelected(null)} title="계약 상세" width={640}>
+        {selected && (()=>{
+          return <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+            <div>
+              <Badge status={selected.status}/>
+              <div style={{fontSize:20,fontWeight:700,marginTop:8}}>{selected.customerName}</div>
+              <div style={{fontSize:12,color:"#0f172a"}}>IMS {selected.id} | 접수 {selected.receiptNo}</div>
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>{setEditData(selected);setEditModal(true);setSelected(null);}} style={{padding:"6px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>수정</button>
+              <button onClick={()=>doDelete(selected.id)} style={{padding:"6px 14px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>삭제</button>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div style={{background:"#f8fafc",borderRadius:10,padding:14}}>
+              <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600}}>대여 정보</div>
+              {[["대여차종",selected.vehicleModel],["차량번호",selected.vehicleNumber],["배차자",selected.dispatcher],["배차일",`${selected.startDate||"-"} ${selected.startTime||""}`],["반납일",`${selected.endDate||"-"} ${selected.endTime||""}`],["대여일수",selected.endDate?`${daysBetween(selected.startDate,selected.endDate)}일`:"진행중"]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#0f172a"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
+            </div>
+            <div style={{background:"#f8fafc",borderRadius:10,padding:14}}>
+              <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600}}>고객/보험</div>
+              {[["고객차량",`${selected.customerVehicle} (${selected.customerNumber})`],["연락처",selected.customerPhone],["과실",selected.fault],["보험사",selected.insurer],["접수번호",selected.receiptNo||"-"],["수리처",selected.repairShop==="-"?"없음":selected.repairShop]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#0f172a"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
+            </div>
+          </div>
+          <div style={{background:"#f8fafc",borderRadius:10,padding:14,marginTop:12}}>
+            <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600}}>청구/정산</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+              {[["청구금",fmt(selected.billingAmount)+"원","#10b981"],["대여료",fmt(selected.rentalFee)+"원","#8b5cf6"],["청구일",selected.billingDate||"미청구","#3b82f6"],["입금일",selected.depositDate||"미입금",selected.depositDate?"#10b981":"#ef4444"]].map(([l,v,c])=><div key={l} style={{textAlign:"center"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:3}}>{l}</div><div style={{fontSize:14,fontWeight:700,color:c,fontVariantNumeric:"tabular-nums"}}>{v}</div></div>)}
+            </div>
+          </div>
+        </div>;
+        })()}
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal open={editModal} onClose={()=>{setEditModal(false);setEditData(null);}} title={editData?"계약 수정":"신규 등록"} width={600}>
+        <EditForm init={editData} vehs={vehicles} defaultOwner={userOwner || "hq"} onSave={doSave} onCancel={()=>{setEditModal(false);setEditData(null);}}/>
+      </Modal>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════
+// 탭 컴포넌트 — App 이 데이터/핸들러를 props 로 내려주고, 탭은 렌더와 탭 전용 파생값만 담당.
+// (2026-07-04 리팩토링: App() 인라인 JSX 분리. 동작 변경 없음)
+// ════════════════════════════════════════
+
+function DashboardTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, vehicleViewYm, setVehicleViewYm, showInactiveFleet, setShowInactiveFleet, unpaidExpanded, setUnpaidExpanded, setEditData, setEditModal, doDelete }) {
+  // 활성 차량 Set — 운행중 카드 분모
+  const activeFleetSet = useMemo(() => {
+    const s = new Set();
+    Object.entries(fleet).forEach(([num, info]) => { if (info.status === 'active') s.add(num); });
+    return s;
+  }, [fleet]);
+  // Stats
+  const stats = useMemo(() => {
+    const active = contracts.filter(c=>c.status==="배차중").length;
+    const pending = contracts.filter(c=>c.status==="청구전").length;
+    const totalBill = contracts.reduce((s,c)=>s+(c.billingAmount||0),0);
+    const deposited = contracts.filter(c=>c.depositDate);
+    const totalDep = contracts.reduce((s,c)=>s+(c.rentalFee||0),0);
+    const totalRentalFee = totalDep;
+    const monthly = {};
+    const _today = new Date();
+    const _ensureVeh = (m, vn, model) => {
+      if (!m.vehicles[vn]) m.vehicles[vn] = { model: model || '', days: 0, cnt: 0, bill: 0 };
+    };
+    // 같은 차량×같은 날짜 중복 카운트 방지 (인접 계약의 경계일 보호)
+    const _seenVehicleDays = new Set();
+    contracts.forEach(c => {
+      if (!c.startDate) return;
+      // bill/dep/cnt: 시작 월에만 카운트 (계약 단위)
+      const startYm = c.startDate.slice(0,7);
+      if (!monthly[startYm]) monthly[startYm] = {
+        bill:0, dep:0, cnt:0, vehicles:{},
+        pending:0, claimed:0, settled:0, active:0, replaced:0
+      };
+      monthly[startYm].bill += (c.billingAmount||0);
+      monthly[startYm].dep += (c.rentalFee||0);
+      monthly[startYm].cnt++;
+      if (c.status === '청구전') monthly[startYm].pending++;
+      else if (c.status === '청구완료') monthly[startYm].claimed++;
+      else if (c.status === '입금완료') monthly[startYm].settled++;
+      else if (c.status === '배차중') monthly[startYm].active++;
+      else if (c.status === '교체') monthly[startYm].replaced++;
+
+      if (!c.vehicleNumber) return;
+
+      // 차량별 시작월 통계 (건수/청구금) — 그 월에 신규 시작한 계약만
+      _ensureVeh(monthly[startYm], c.vehicleNumber, c.vehicleModel);
+      monthly[startYm].vehicles[c.vehicleNumber].cnt += 1;
+      monthly[startYm].vehicles[c.vehicleNumber].bill += (c.billingAmount||0);
+
+      // 차량 활동 일수: 일별 순회로 각 월에 속한 일수만 그 월에 누적
+      // 같은 차량의 같은 날짜는 한 번만 카운트 (인접 계약: A 03-06 반납 + B 03-06 인수 시 03-06 중복 방지)
+      const start = new Date(c.startDate);
+      const end = c.endDate ? new Date(c.endDate) : _today;
+      if (end < start) return;
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+        const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const dayKey = `${c.vehicleNumber}|${ym}-${String(d.getDate()).padStart(2,'0')}`;
+        if (_seenVehicleDays.has(dayKey)) continue;
+        _seenVehicleDays.add(dayKey);
+        if (!monthly[ym]) monthly[ym] = { bill:0, dep:0, cnt:0, vehicles:{} };
+        _ensureVeh(monthly[ym], c.vehicleNumber, c.vehicleModel);
+        monthly[ym].vehicles[c.vehicleNumber].days += 1;
+      }
+    });
+    const vStats = {};
+    contracts.forEach(c => { const k=c.vehicleNumber; if(!k) return; if(!vStats[k]) vStats[k]={model:c.vehicleModel,cnt:0,bill:0,dep:0,rental:0,days:0}; vStats[k].cnt++; vStats[k].bill+=(c.billingAmount||0); vStats[k].dep+=(c.rentalFee||0); vStats[k].rental+=(c.rentalFee||0); vStats[k].days+=daysBetween(c.startDate,c.endDate); });
+    // fleet 에 등록된 차량은 사고대차 청구건이 0건이어도 vStats 에 빈 row 로 포함.
+    // (사용자모드 17대 모두 카드에 보이게. 본사 fleet 14대도 동일.)
+    Object.entries(fleet).forEach(([num, info]) => {
+      if (!vStats[num]) vStats[num] = { model: info?.model || '', cnt:0, bill:0, dep:0, rental:0, days:0 };
+    });
+    return { active, pending, totalBill, totalDep, totalRentalFee, monthly, vStats, total:contracts.length, depCount:deposited.length };
+  }, [contracts, fleet]);
+  return <div>
           <div style={{ display:"grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fit,minmax(220px,1fr))", gap: isMobile ? 8 : 14, marginBottom: isMobile ? 14 : 24 }}>
             {(() => {
               const _ym = vehicleViewYm;
@@ -1314,10 +1267,10 @@ function App() {
             })()}
 
           </div>
-        </div>}
+  </div>;
+}
 
-        {/* ── PAID (입금완료) ── */}
-        {tab==="paid" && (() => {
+function PaidTab({ isMobile, contracts, vehicles, vehicleViewYm, setVehicleViewYm }) {
           const _today = new Date();
           const _ymPrefix = vehicleViewYm;
           const _selYear = _ymPrefix.split("-")[0];
@@ -1418,10 +1371,83 @@ function App() {
               }
             </div>
           </div>;
-        })()}
+}
 
-        {/* ── CONTRACTS ── */}
-        {tab==="contracts" && <div>
+function ContractsTab({ isMobile, contracts, vehicles, fleet, filter, setFilter, setSelected, setEditData, setEditModal, fileRef, onChangeExclusionStatus }) {
+  // 계약내역 탭의 "전체 차량" 드롭다운 옵션 — 비활성 fleet 차량 제외 + 현재 다른 필터(status/depositMonth)에 매칭되는 차량만
+  const vehicleOptions = useMemo(() => {
+    let l = contracts;
+    if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
+    else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
+    // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (partial 무시)
+    // to 비우면 단일 월 (= to=from). 기간 원하면 to 명시.
+    {
+      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
+      const toRaw = filter.startMonthTo || "";
+      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
+      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
+      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
+      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
+      const useDeposit = filter.status === '입금완료';
+      if (from || to) {
+        l = l.filter(c => {
+          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
+          const src = c.startDate;
+          if (!src) return false;
+          const ym = src.slice(0,7);
+          if (from && ym < from) return false;
+          if (to && ym > to) return false;
+          return true;
+        });
+      }
+    }
+    const presentNums = new Set();
+    l.forEach(c => { if (c.vehicleNumber) presentNums.add(c.vehicleNumber); });
+    return vehicles.filter(v => {
+      if (!presentNums.has(v.number)) return false;
+      const f = fleet[v.number];
+      if (f && f.status !== 'active') return false; // 비활성 fleet 제외 (미등록은 통과)
+      return true;
+    });
+  }, [contracts, filter.status, filter.startMonth, filter.startMonthTo, vehicles, fleet]);
+  const filtered = useMemo(() => {
+    let l = [...contracts];
+    if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
+    else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
+    if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
+    {
+      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
+      const toRaw = filter.startMonthTo || "";
+      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
+      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
+      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
+      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
+      const useDeposit = filter.status === '입금완료';
+      if (from || to) {
+        l = l.filter(c => {
+          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
+          const src = c.startDate;
+          if (!src) return false;
+          const ym = src.slice(0,7);
+          if (from && ym < from) return false;
+          if (to && ym > to) return false;
+          return true;
+        });
+      }
+    }
+    if(filter.search){
+      const s=filter.search.toLowerCase();
+      const match = (val) => (val==null?"":String(val)).toLowerCase().includes(s);
+      if (filter.searchField === "all") {
+        l=l.filter(c=>match(c.customerName)||match(c.id)||match(c.receiptNo)||match(c.insurer)||match(c.vehicleModel)||match(c.vehicleNumber)||match(c.customerVehicle)||match(c.customerNumber)||match(c.customerPhone));
+      } else {
+        l=l.filter(c=>match(c[filter.searchField]));
+      }
+    }
+    // IMS 작성순 (id desc) — 사용자 지시: IMS 에서 작성된 순서대로
+    return l.sort((a,b) => (Number(b.id)||0) - (Number(a.id)||0));
+  }, [contracts, filter]);
+  return <div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8, flexDirection: isMobile ? "column" : "row" }}>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap", width: isMobile ? "100%" : "auto" }}>
               <div style={{display:"flex", gap:0, alignItems:"stretch", width: isMobile ? "100%" : "auto"}}>
@@ -1576,10 +1602,13 @@ function App() {
               </div>
             </div>
           </div>
-        </div>}
+  </div>;
+}
 
-        {/* ── SETTLEMENT ── */}
-        {tab==="settlement" && <div>
+function SettlementTab({ isMobile, contracts, vehicles, fleet, monthlyFixed, saveMonthlyFixed, settlMonth, setSettlMonth, settlMonthTo, setSettlMonthTo, settlVehicles, setSettlVehicles }) {
+  // 등록된 fleet 전체 Set — 정산 대상 차량 판정용
+  const fleetSet = useMemo(() => new Set(Object.keys(fleet)), [fleet]);
+  return <div>
           {(() => {
             // 입금월 집계 (건별 입금 내역 기준 + 현재월 강제 포함)
             const depMonths = [...new Set(contracts.flatMap(c=>depositItems(c).map(d=>d.date.slice(0,7))))].sort();
@@ -1782,10 +1811,36 @@ function App() {
               </div>
             </>);
           })()}
-        </div>}
+  </div>;
+}
 
-        {/* ── SCHEDULE ── */}
-        {tab==="schedule" && <div>
+function ScheduleTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, schedMonth, setSchedMonth, showInactiveFleet, setShowInactiveFleet, setSelected }) {
+  const sched = useMemo(() => {
+    const [y,m]=schedMonth.split("-").map(Number);
+    const dim=new Date(y,m,0).getDate(), f=new Date(y,m-1,1), la=new Date(y,m-1,dim,23,59,59);
+    const vs={};
+    contracts.forEach(c=>{
+      const st=c.startDate?new Date(c.startDate):null, en=c.endDate?new Date(c.endDate):new Date(2099,0,1);
+      if(!st||st>la||en<f) return;
+      const k=c.vehicleNumber; if(!k) return;
+      if(!vs[k]) vs[k]={model:c.vehicleModel,number:k,entries:[]};
+      vs[k].entries.push({...c, bs:Math.max(1,st<f?1:st.getDate()), be:Math.min(dim,en>la?dim:en.getDate())});
+    });
+    // fleet 에 등록된 차량은 이 달에 entries 가 없어도 빈 row 로 표시.
+    // (사용자모드 17대 모두 보이게. 본사모드도 동일.)
+    Object.entries(fleet).forEach(([num, info]) => {
+      if (!vs[num]) vs[num] = { model: info?.model || '', number: num, entries: [] };
+    });
+    const ordered = Object.values(vs).sort((a, b) => {
+      // entries 있는 차량 먼저, 그 안에서 차량번호 정렬
+      const ae = a.entries.length > 0 ? 0 : 1;
+      const be = b.entries.length > 0 ? 0 : 1;
+      if (ae !== be) return ae - be;
+      return (a.number || '').localeCompare(b.number || '');
+    });
+    return {dim,vs:ordered,y,m};
+  }, [contracts, fleet, schedMonth]);
+  return <div>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
             <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);const d=new Date(y,m-2,1);setSchedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}} style={{background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:8,color:"#18181b",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&lt;</button>
             <span style={{fontSize:16,fontWeight:700,minWidth:130,textAlign:"center"}}>{sched.y}년 {sched.m}월</span>
@@ -1824,10 +1879,10 @@ function App() {
           <div style={{display:"flex",gap:12,marginTop:12,flexWrap:"wrap"}}>
             {Object.entries(STATUS_COLORS).map(([n,c])=><div key={n} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#0f172a"}}><span style={{width:12,height:12,borderRadius:3,background:c.dot+"cc"}}/>{n}</div>)}
           </div>
-        </div>}
+  </div>;
+}
 
-        {/* ── FLEET (차량 관리) ── */}
-        {tab==="fleet" && (() => {
+function FleetTab({ isMobile, fleet, addFleet, saveFleet, deleteFleet }) {
           const STATUS_OPTIONS = [
             { v:'active',        l:'운영중',       c:'#10b981' },
             { v:'monthly_rent',  l:'월렌트',       c:'#2563eb' },
@@ -1899,13 +1954,10 @@ function App() {
               </div>}
             </div>
           </div>;
-        })()}
+}
 
-        {/* ── DOKCHOK (미입금 자동 독촉 SMS) ── */}
-        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} isMobile={isMobile} userOwner={userOwner} userLabel={userInfo?.label} fromNumberOverride={userInfo?.fromNumber} />}
-
-        {/* ── TRASH ── */}
-        {tab==="trash" && <div>
+function TrashTab({ isMobile, deletedContractsView, doRestore, doPurge, doEmptyTrash }) {
+  return <div>
           <div style={{ marginBottom:18, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:8 }}>
             <div>
               <h3 style={{ margin:0, fontSize:18, color:"#18181b" }}>🗑 휴지통</h3>
@@ -1941,51 +1993,7 @@ function App() {
               </div>
             ))}
           </div>}
-        </div>}
-      </main>
-
-      {/* Detail Modal */}
-      <Modal open={!!selected} onClose={()=>setSelected(null)} title="계약 상세" width={640}>
-        {selected && (()=>{
-          return <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-            <div>
-              <Badge status={selected.status}/>
-              <div style={{fontSize:20,fontWeight:700,marginTop:8}}>{selected.customerName}</div>
-              <div style={{fontSize:12,color:"#0f172a"}}>IMS {selected.id} | 접수 {selected.receiptNo}</div>
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>{setEditData(selected);setEditModal(true);setSelected(null);}} style={{padding:"6px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>수정</button>
-              <button onClick={()=>doDelete(selected.id)} style={{padding:"6px 14px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer"}}>삭제</button>
-            </div>
-          </div>
-
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <div style={{background:"#f8fafc",borderRadius:10,padding:14}}>
-              <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600}}>대여 정보</div>
-              {[["대여차종",selected.vehicleModel],["차량번호",selected.vehicleNumber],["배차자",selected.dispatcher],["배차일",`${selected.startDate||"-"} ${selected.startTime||""}`],["반납일",`${selected.endDate||"-"} ${selected.endTime||""}`],["대여일수",selected.endDate?`${daysBetween(selected.startDate,selected.endDate)}일`:"진행중"]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#0f172a"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
-            </div>
-            <div style={{background:"#f8fafc",borderRadius:10,padding:14}}>
-              <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600}}>고객/보험</div>
-              {[["고객차량",`${selected.customerVehicle} (${selected.customerNumber})`],["연락처",selected.customerPhone],["과실",selected.fault],["보험사",selected.insurer],["접수번호",selected.receiptNo||"-"],["수리처",selected.repairShop==="-"?"없음":selected.repairShop]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12}}><span style={{color:"#0f172a"}}>{l}</span><span style={{fontWeight:500}}>{v}</span></div>)}
-            </div>
-          </div>
-          <div style={{background:"#f8fafc",borderRadius:10,padding:14,marginTop:12}}>
-            <div style={{fontSize:11,color:"#0f172a",marginBottom:8,fontWeight:600}}>청구/정산</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-              {[["청구금",fmt(selected.billingAmount)+"원","#10b981"],["대여료",fmt(selected.rentalFee)+"원","#8b5cf6"],["청구일",selected.billingDate||"미청구","#3b82f6"],["입금일",selected.depositDate||"미입금",selected.depositDate?"#10b981":"#ef4444"]].map(([l,v,c])=><div key={l} style={{textAlign:"center"}}><div style={{fontSize:10,color:"#0f172a",marginBottom:3}}>{l}</div><div style={{fontSize:14,fontWeight:700,color:c,fontVariantNumeric:"tabular-nums"}}>{v}</div></div>)}
-            </div>
-          </div>
-        </div>;
-        })()}
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal open={editModal} onClose={()=>{setEditModal(false);setEditData(null);}} title={editData?"계약 수정":"신규 등록"} width={600}>
-        <EditForm init={editData} vehs={vehicles} defaultOwner={userOwner || "hq"} onSave={doSave} onCancel={()=>{setEditModal(false);setEditData(null);}}/>
-      </Modal>
-    </div>
-  );
+  </div>;
 }
 
 function EditForm({ init, vehs, onSave, onCancel, defaultOwner }) {
