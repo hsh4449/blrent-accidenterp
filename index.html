@@ -361,6 +361,49 @@ function ymdLocal(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// "YYYY-MM" 버전 (ymdLocal 과 동일한 이유로 로컬 포맷)
+function ymNow(d) {
+  d = d || new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+// 월 select 옵션 "01"~"12"
+const MONTH_OPTS = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+
+// 입금 내역이 있는 년도 목록 (현재년 강제 포함) — 대시보드/입금완료 탭 년 select 옵션
+function depositYearOpts(contracts) {
+  const ys = new Set();
+  contracts.forEach(c => { depositItems(c).forEach(d => ys.add(d.date.slice(0,4))); });
+  ys.add(String(new Date().getFullYear()));
+  return Array.from(ys).sort();
+}
+
+// fleet 운영 상태 → 배지 라벨/색 (active 는 배지 없음).
+// 차량 관리 탭 STATUS_OPTIONS 의 문구('사고대여 중단' 등)와는 별개 — 배지는 짧은 라벨 사용.
+const FLEET_STATUS_LABELS = { sold:'매각', paused:'중단', other_use:'타용도', monthly_rent:'월렌트', short_rent:'단기렌트', maintenance:'수리중' };
+const FLEET_STATUS_COLORS = { sold:'#dc2626', paused:'#a16207', other_use:'#7c3aed', monthly_rent:'#2563eb', short_rent:'#14b8a6', maintenance:'#ea580c' };
+
+// 계약 리스트 배차월/입금월 from~to 필터 — 완전한 "YYYY-MM" 만 적용 (partial 무시), to 비면 단일 월 (=from).
+// status='입금완료' 면 건별 입금 내역의 입금월 기준, 그 외 배차월 기준.
+function applyMonthRange(list, filter) {
+  const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
+  const toRaw = filter.startMonthTo || "";
+  const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
+  const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
+  const to = toExplicit || from;
+  if (!from && !to) return list;
+  const useDeposit = filter.status === '입금완료';
+  return list.filter(c => {
+    if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
+    const src = c.startDate;
+    if (!src) return false;
+    const ym = src.slice(0,7);
+    if (from && ym < from) return false;
+    if (to && ym > to) return false;
+    return true;
+  });
+}
+
 // 보류 사유 chip 색상 — accident_excluded_contracts.reason 값 기준.
 // 모든 표시 위치 (대시보드 / 계약내역 / 독촉발송 보류목록) 에서 일관 사용.
 function exclusionChipColor(reason) {
@@ -478,18 +521,15 @@ function App() {
   const [editModal, setEditModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [toast, setToast] = useState(null);
-  const [schedMonth, setSchedMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
-  const [settlMonth, setSettlMonth] = useState(() => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; });
+  const [schedMonth, setSchedMonth] = useState(() => ymNow());
+  const [settlMonth, setSettlMonth] = useState(() => ymNow());
   const [settlMonthTo, setSettlMonthTo] = useState("");
   const [settlVehicles, setSettlVehicles] = useState([]); // 다중 선택. 빈 배열 = 전체
   const [gapMonth, setGapMonth] = useState("all");
   const [monthlyFixed, setMonthlyFixed] = useState({}); // key: "vehicleNumber|YYYY-MM" -> {installment, insurance, etc_cost, etc_note}
   const [unpaidExpanded, setUnpaidExpanded] = useState(new Set());
   const [deletedContracts, setDeletedContracts] = useState([]);
-  const [vehicleViewYm, setVehicleViewYm] = useState(() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
-  });
+  const [vehicleViewYm, setVehicleViewYm] = useState(() => ymNow());
   // accident_fleet: { vehicleNumber: { model, status, note } }
   // status: 'active' | 'sold' | 'paused' | 'other_use'
   const [rawFleet, setRawFleet] = useState({});
@@ -1013,7 +1053,7 @@ function DashboardTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, ve
       const end = c.endDate ? new Date(c.endDate) : _today;
       if (end < start) return;
       for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
-        const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const ym = ymNow(d);
         const dayKey = `${c.vehicleNumber}|${ym}-${String(d.getDate()).padStart(2,'0')}`;
         if (_seenVehicleDays.has(dayKey)) continue;
         _seenVehicleDays.add(dayKey);
@@ -1066,11 +1106,7 @@ function DashboardTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, ve
               const _selMonth = _ymPrefix.split("-")[1];
               const _monthLabel = `${parseInt(_selMonth)}월`;
               // 드롭다운 옵션: 년 = 데이터 있는 년 ∪ 현재년, 월 = 01~12
-              const _depYears = new Set();
-              contracts.forEach(c => { depositItems(c).forEach(d => _depYears.add(d.date.slice(0,4))); });
-              _depYears.add(String(_today.getFullYear()));
-              const _yearOpts = Array.from(_depYears).sort();
-              const _monthOpts = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+              const _yearOpts = depositYearOpts(contracts);
               const _openEdit = (c) => { setEditData(c); setEditModal(true); };
               const _emptyTag = (txt, c) => <span onClick={(e)=>{e.stopPropagation();_openEdit(c);}} style={{ background:"#7f1d1d44", color:"#ef4444", padding:"3px 10px", borderRadius:5, cursor:"pointer", fontSize:13, fontWeight:600 }}>{txt}</span>;
               const _selectStyle = { padding:"6px 10px", background:"#f8fafc", border:"1px solid #cbd5e1", borderRadius:7, color:"#18181b", fontSize:14, cursor:"pointer", fontWeight:600 };
@@ -1086,7 +1122,7 @@ function DashboardTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, ve
                       {_yearOpts.map(y=><option key={y} value={y}>{y}년</option>)}
                     </select>
                     <select value={_selMonth} onChange={e=>setVehicleViewYm(`${_selYear}-${e.target.value}`)} style={_selectStyle}>
-                      {_monthOpts.map(m=><option key={m} value={m}>{parseInt(m)}월</option>)}
+                      {MONTH_OPTS.map(m=><option key={m} value={m}>{parseInt(m)}월</option>)}
                     </select>
                   </div>
                 </div>
@@ -1110,15 +1146,15 @@ function DashboardTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, ve
                     const dispatchedCount = vmonth.cnt || 0;
                     const daysRun = vmonth.days || 0;
                     const [_yNum, _mNum] = _ymPrefix.split('-').map(Number);
-                    const _curYmStr = `${_today.getFullYear()}-${String(_today.getMonth()+1).padStart(2,'0')}`;
+                    const _curYmStr = ymNow(_today);
                     const daysTotal = _ymPrefix === _curYmStr
                       ? _today.getDate()
                       : new Date(_yNum, _mNum, 0).getDate();
                     const fleetInfo = fleet[num];
                     const fleetStatus = fleetInfo?.status || 'active';
                     const isInactiveFleet = fleetStatus !== 'active';
-                    const fleetLabel = { sold:'매각', paused:'중단', other_use:'타용도', monthly_rent:'월렌트', short_rent:'단기렌트', maintenance:'수리중' }[fleetStatus];
-                    const fleetColor = { sold:'#dc2626', paused:'#a16207', other_use:'#7c3aed', monthly_rent:'#2563eb', short_rent:'#14b8a6', maintenance:'#ea580c' }[fleetStatus];
+                    const fleetLabel = FLEET_STATUS_LABELS[fleetStatus];
+                    const fleetColor = FLEET_STATUS_COLORS[fleetStatus];
                     return (
                       <div key={num} style={{ background:"#f8fafc", borderRadius:10, overflow:"hidden", opacity: isInactiveFleet ? 0.65 : 1 }}>
                         <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", padding: isMobile ? "10px 12px" : "16px 20px", gap: isMobile ? 10 : 20 }}>
@@ -1276,11 +1312,7 @@ function PaidTab({ isMobile, contracts, vehicles, vehicleViewYm, setVehicleViewY
           const _selYear = _ymPrefix.split("-")[0];
           const _selMonth = _ymPrefix.split("-")[1];
           const _monthLabel = `${parseInt(_selMonth)}월`;
-          const _depYears = new Set();
-          contracts.forEach(c => { depositItems(c).forEach(d => _depYears.add(d.date.slice(0,4))); });
-          _depYears.add(String(_today.getFullYear()));
-          const _yearOpts = Array.from(_depYears).sort();
-          const _monthOpts = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+          const _yearOpts = depositYearOpts(contracts);
           const _selectStyle = { padding:"6px 10px", background:"#ffffff", border:"1px solid #cbd5e1", borderRadius:7, color:"#18181b", fontSize:14, cursor:"pointer", fontWeight:600 };
 
           // 차량별로 그 월 입금완료된 계약만 묶기 (분할 입금은 입금월별 금액으로 귀속)
@@ -1319,7 +1351,7 @@ function PaidTab({ isMobile, contracts, vehicles, vehicleViewYm, setVehicleViewY
                     {_yearOpts.map(y=><option key={y} value={y}>{y}년</option>)}
                   </select>
                   <select value={_selMonth} onChange={e=>setVehicleViewYm(`${_selYear}-${e.target.value}`)} style={_selectStyle}>
-                    {_monthOpts.map(m=><option key={m} value={m}>{parseInt(m)}월</option>)}
+                    {MONTH_OPTS.map(m=><option key={m} value={m}>{parseInt(m)}월</option>)}
                   </select>
                 </div>
               </div>
@@ -1379,28 +1411,7 @@ function ContractsTab({ isMobile, contracts, vehicles, fleet, filter, setFilter,
     let l = contracts;
     if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
-    // 배차월(start_date) 필터: 완전 "YYYY-MM" 형식만 적용 (partial 무시)
-    // to 비우면 단일 월 (= to=from). 기간 원하면 to 명시.
-    {
-      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
-      const toRaw = filter.startMonthTo || "";
-      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
-      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
-      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
-      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
-      const useDeposit = filter.status === '입금완료';
-      if (from || to) {
-        l = l.filter(c => {
-          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
-          const src = c.startDate;
-          if (!src) return false;
-          const ym = src.slice(0,7);
-          if (from && ym < from) return false;
-          if (to && ym > to) return false;
-          return true;
-        });
-      }
-    }
+    l = applyMonthRange(l, filter);
     const presentNums = new Set();
     l.forEach(c => { if (c.vehicleNumber) presentNums.add(c.vehicleNumber); });
     return vehicles.filter(v => {
@@ -1415,26 +1426,7 @@ function ContractsTab({ isMobile, contracts, vehicles, fleet, filter, setFilter,
     if (filter.status === "미입금") l = l.filter(c => !c.depositDate && c.status !== '배차중');
     else if (filter.status !== "all") l = l.filter(c => c.status === filter.status);
     if(filter.vehicle!=="all") l=l.filter(c=>c.vehicleNumber===filter.vehicle);
-    {
-      const fromRaw = filter.startMonth !== "all" ? filter.startMonth : "";
-      const toRaw = filter.startMonthTo || "";
-      const from = /^\d{4}-\d{2}$/.test(fromRaw) ? fromRaw : "";
-      const toExplicit = /^\d{4}-\d{2}$/.test(toRaw) ? toRaw : "";
-      const to = toExplicit || from;  // to 빈 + from 있으면 단일 월
-      // 월 필터 기준: status='입금완료' 면 입금일, 그 외엔 배차일
-      const useDeposit = filter.status === '입금완료';
-      if (from || to) {
-        l = l.filter(c => {
-          if (useDeposit) return depositItems(c).some(d => { const ym = d.date.slice(0,7); return (!from || ym >= from) && (!to || ym <= to); });
-          const src = c.startDate;
-          if (!src) return false;
-          const ym = src.slice(0,7);
-          if (from && ym < from) return false;
-          if (to && ym > to) return false;
-          return true;
-        });
-      }
-    }
+    l = applyMonthRange(l, filter);
     if(filter.search){
       const s=filter.search.toLowerCase();
       const match = (val) => (val==null?"":String(val)).toLowerCase().includes(s);
@@ -1471,7 +1463,7 @@ function ContractsTab({ isMobile, contracts, vehicles, fleet, filter, setFilter,
                 const yearSet = new Set(contracts.filter(c=>c.startDate).map(c=>c.startDate.slice(0,4)));
                 yearSet.add(String(new Date().getFullYear()));
                 const years = [...yearSet].sort();
-                const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+                const months = MONTH_OPTS;
                 const fromRaw = filter.startMonth==="all" ? "" : (filter.startMonth || "");
                 const toRaw = filter.startMonthTo || "";
                 const [fy, fm] = fromRaw ? fromRaw.split("-") : ["",""];
@@ -1614,7 +1606,7 @@ function SettlementTab({ isMobile, contracts, vehicles, fleet, monthlyFixed, sav
             const depMonths = [...new Set(contracts.flatMap(c=>depositItems(c).map(d=>d.date.slice(0,7))))].sort();
             const fixMonths = [...new Set(Object.keys(monthlyFixed).map(k=>k.split("|")[1]))];
             const _now = new Date();
-            const _curMonth = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}`;
+            const _curMonth = ymNow(_now);
             const allMonths = [...new Set([...depMonths, ...fixMonths, _curMonth])].sort();
             // 기간 필터 — from~to (to 빈 + from 있으면 단일 월). settlMonth="all" 이면 전체.
             const ym = settlMonth;
@@ -1681,7 +1673,7 @@ function SettlementTab({ isMobile, contracts, vehicles, fleet, monthlyFixed, sav
                   const yearSet = new Set(allMonths.map(m=>m.split("-")[0]));
                   yearSet.add(String(new Date().getFullYear()));
                   const years = [...yearSet].sort();
-                  const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+                  const months = MONTH_OPTS;
                   const fromRaw = settlMonth==="all" ? "" : (settlMonth || "");
                   const toRaw = settlMonthTo || "";
                   const [fy, fm] = fromRaw ? fromRaw.split("-") : ["",""];
@@ -1711,7 +1703,7 @@ function SettlementTab({ isMobile, contracts, vehicles, fleet, monthlyFixed, sav
                     {Object.entries(fleet).sort(([a],[b])=>a.localeCompare(b))
                       .filter(([num]) => !settlVehicles.includes(num))
                       .map(([num,info])=>(
-                      <option key={num} value={num}>{info.model || ""} {num}{info.status && info.status!=='active' ? ` (${({sold:'매각',paused:'중단',other_use:'타용도',monthly_rent:'월렌트',short_rent:'단기렌트',maintenance:'수리중'})[info.status] || info.status})` : ''}</option>
+                      <option key={num} value={num}>{info.model || ""} {num}{info.status && info.status!=='active' ? ` (${FLEET_STATUS_LABELS[info.status] || info.status})` : ''}</option>
                     ))}
                   </select>
                   {settlVehicles.map(vn => {
@@ -1758,8 +1750,8 @@ function SettlementTab({ isMobile, contracts, vehicles, fleet, monthlyFixed, sav
                     const fInfo=fleet[num];
                     const fStatus=fInfo?.status||'active';
                     const isInactiveRow=fStatus!=='active';
-                    const fLabel={sold:'매각',paused:'중단',other_use:'타용도',monthly_rent:'월렌트',short_rent:'단기렌트',maintenance:'수리중'}[fStatus];
-                    const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed',monthly_rent:'#2563eb',short_rent:'#14b8a6',maintenance:'#ea580c'}[fStatus];
+                    const fLabel=FLEET_STATUS_LABELS[fStatus];
+                    const fColor=FLEET_STATUS_COLORS[fStatus];
                     return (
                     <tr key={num} style={{borderBottom:"1px solid #f1f5f9",background:idx%2===0?"#ffffff":"#f8fafc",opacity:isInactiveRow?0.7:1}}>
                       <td style={{padding:"10px 10px"}}>
@@ -1842,9 +1834,9 @@ function ScheduleTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, sch
   }, [contracts, fleet, schedMonth]);
   return <div>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-            <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);const d=new Date(y,m-2,1);setSchedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}} style={{background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:8,color:"#18181b",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&lt;</button>
+            <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);setSchedMonth(ymNow(new Date(y,m-2,1)));}} style={{background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:8,color:"#18181b",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&lt;</button>
             <span style={{fontSize:16,fontWeight:700,minWidth:130,textAlign:"center"}}>{sched.y}년 {sched.m}월</span>
-            <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);const d=new Date(y,m,1);setSchedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}} style={{background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:8,color:"#18181b",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&gt;</button>
+            <button onClick={()=>{const[y,m]=schedMonth.split("-").map(Number);setSchedMonth(ymNow(new Date(y,m,1)));}} style={{background:"#e2e8f0",border:"1px solid #cbd5e1",borderRadius:8,color:"#18181b",padding:"6px 12px",cursor:"pointer",fontSize:14}}>&gt;</button>
             <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"#0f172a", cursor:"pointer", padding:"6px 10px", background:"#f8fafc", border:"1px solid #cbd5e1", borderRadius:7, fontWeight:600, marginLeft:8 }}>
               <input type="checkbox" checked={showInactiveFleet} onChange={e=>setShowInactiveFleet(e.target.checked)} style={{margin:0}}/>
               비활성 포함
@@ -1858,7 +1850,7 @@ function ScheduleTab({ isMobile, contracts, fleet, vehicles, isFleetVisible, sch
                   {Array.from({length:sched.dim},(_,i)=>{const d=new Date(sched.y,sched.m-1,i+1);const dow=d.getDay();const td=new Date();const isToday=d.getFullYear()===td.getFullYear()&&d.getMonth()===td.getMonth()&&d.getDate()===td.getDate();const cellW=isMobile?30:36;
                   return <div key={i} style={{minWidth:cellW,textAlign:"center",padding:"6px 0",fontSize:10,color:dow===0?"#ef4444":dow===6?"#3b82f6":"#888",borderLeft:"1px solid #1a1a35",background:isToday?"#e2e8f0":"transparent"}}><div style={{fontWeight:600}}>{i+1}</div><div>{["일","월","화","수","목","금","토"][dow]}</div></div>;})}
                 </div>
-                {sched.vs.filter(v=>isFleetVisible(v.number)).map(v=>{const vc=vehicles.find(x=>x.number===v.number);const fInfo=fleet[v.number];const fStatus=fInfo?.status||'active';const fLabel={sold:'매각',paused:'중단',other_use:'타용도',monthly_rent:'월렌트',short_rent:'단기렌트',maintenance:'수리중'}[fStatus];const fColor={sold:'#dc2626',paused:'#a16207',other_use:'#7c3aed',monthly_rent:'#2563eb',short_rent:'#14b8a6',maintenance:'#ea580c'}[fStatus];const cellW=isMobile?30:36;return(
+                {sched.vs.filter(v=>isFleetVisible(v.number)).map(v=>{const vc=vehicles.find(x=>x.number===v.number);const fInfo=fleet[v.number];const fStatus=fInfo?.status||'active';const fLabel=FLEET_STATUS_LABELS[fStatus];const fColor=FLEET_STATUS_COLORS[fStatus];const cellW=isMobile?30:36;return(
                   <div key={v.number} style={{display:"flex",borderBottom:"1px solid #1a1a35",minHeight:52,opacity:fStatus!=='active'?0.6:1}}>
                     <div style={{minWidth: isMobile ? 130 : 170,padding: isMobile ? "8px 10px" : "8px 14px",fontSize: isMobile ? 11 : 12,flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
                       <span style={{width:8,height:8,borderRadius:"50%",background:vc?.color||"#888",flexShrink:0}}/>
