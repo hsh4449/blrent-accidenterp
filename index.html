@@ -255,6 +255,25 @@ const USER_VIEW_CODES = {
 // 사용자 모드(jiip/kim) 와 본사 모드(hq) 구분. 기존 UI 분기 (인사 배너 등) 호환.
 const USER_VIEW_OWNERS = new Set(["jiip", "kim"]);  // 사용자 모드 owner들 (hq 제외)
 const ALL_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner));
+
+// ── 김민규(kim) 페이지 차량별 담당자 매핑 ──
+// 출처: BL매니저(blrent-car-system) vehicles.sales_status 2026-07-04 기준.
+// 아래에 없는 kim 차량(미지정·박민 포함)은 전부 김민규로 분류 (사용자 확정).
+// 담당 변경 시 여기만 수정하면 됨 (차량번호 끝 4자리).
+const KIM_MANAGER_VEHICLES = {
+  "최제렬": ["9116", "9283", "9756", "9774"],
+  "윤유빈": ["9646"],
+  "전상민": ["7892", "7898", "7899", "7951"],
+};
+const KIM_MANAGER_DEFAULT = "김민규";
+const KIM_MANAGER_TABS = ["최제렬", "윤유빈", "전상민", KIM_MANAGER_DEFAULT];
+function kimManagerFor(vehicleNumber) {
+  const num = vehicleNumber || "";
+  for (const [mgr, suffixes] of Object.entries(KIM_MANAGER_VEHICLES)) {
+    if (suffixes.some(s => num.endsWith(s))) return mgr;
+  }
+  return KIM_MANAGER_DEFAULT;
+}
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -484,15 +503,34 @@ function App() {
     if (userOwner === 'hq') return rowOwner === 'hq' || !rowOwner;
     return rowOwner === userOwner;
   };
-  const contracts = useMemo(() => rawContracts.filter(c => matchOwner(c.owner)), [rawContracts, userOwner]);
+  // kim 페이지 담당자 탭: 'all' = 전체, 그 외 = KIM_MANAGER_TABS 의 담당자명.
+  // kim 외 owner 에선 무시됨. 모든 데이터(계약/차량/휴지통)가 탭 선택을 따라감.
+  const [kimMgr, setKimMgr] = useState('all');
+  const matchKimMgr = (vehicleNumber) => {
+    if (userOwner !== 'kim' || kimMgr === 'all') return true;
+    return kimManagerFor(vehicleNumber) === kimMgr;
+  };
+  const contracts = useMemo(() => rawContracts.filter(c => matchOwner(c.owner) && matchKimMgr(c.vehicleNumber)), [rawContracts, userOwner, kimMgr]);
   const fleet = useMemo(() => {
     const out = {};
     for (const [num, info] of Object.entries(rawFleet)) {
-      if (matchOwner(info.owner)) out[num] = info;
+      if (matchOwner(info.owner) && matchKimMgr(num)) out[num] = info;
     }
     return out;
+  }, [rawFleet, userOwner, kimMgr]);
+  const deletedContractsView = useMemo(() => deletedContracts.filter(c => matchOwner(c.owner) && matchKimMgr(c.vehicleNumber)), [deletedContracts, userOwner, kimMgr]);
+  // 담당자별 차량 대수 (탭 배지용) — 필터 전 rawFleet 기준
+  const kimMgrCounts = useMemo(() => {
+    const counts = {};
+    if (userOwner !== 'kim') return counts;
+    for (const [num, info] of Object.entries(rawFleet)) {
+      if (info.owner === 'kim') {
+        const m = kimManagerFor(num);
+        counts[m] = (counts[m] || 0) + 1;
+      }
+    }
+    return counts;
   }, [rawFleet, userOwner]);
-  const deletedContractsView = useMemo(() => deletedContracts.filter(c => matchOwner(c.owner)), [deletedContracts, userOwner]);
 
   useEffect(() => {
     (async () => {
@@ -1010,6 +1048,30 @@ function App() {
       {userMode && (
         <div style={{ background:"#ecfdf5", borderBottom:"1px solid #a7f3d0", padding: isMobile ? "5px 12px" : "6px 20px", fontSize:12, color:"#065f46", display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontWeight:700 }}>{userInfo?.displayName || "사용자"}님 안녕하세요</span>
+        </div>
+      )}
+      {/* kim 페이지: 차량 담당자별 필터 탭 — 전체 탭(대시보드~휴지통)에 공통 적용 */}
+      {userOwner === 'kim' && (
+        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap:6, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+          <span style={{ fontSize:11, color:"#64748b", fontWeight:700, flexShrink:0, marginRight:2 }}>담당</span>
+          {["all", ...KIM_MANAGER_TABS].map(m => {
+            const active = kimMgr === m;
+            const label = m === "all" ? "전체" : m;
+            const cnt = m === "all" ? null : (kimMgrCounts[m] || 0);
+            return (
+              <button key={m} onClick={()=>setKimMgr(m)} style={{
+                padding: isMobile ? "5px 11px" : "5px 14px",
+                borderRadius:999,
+                border: active ? "1px solid #3b82f6" : "1px solid #e2e8f0",
+                background: active ? "#eff6ff" : "#fff",
+                color: active ? "#1d4ed8" : "#334155",
+                fontSize: isMobile ? 11.5 : 12.5,
+                fontWeight: active ? 700 : 600,
+                cursor:"pointer", whiteSpace:"nowrap", flexShrink:0,
+                transition:"all 0.15s",
+              }}>{label}{cnt !== null ? ` ${cnt}대` : ""}</button>
+            );
+          })}
         </div>
       )}
 
