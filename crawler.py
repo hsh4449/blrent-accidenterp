@@ -23,6 +23,7 @@ VEHICLE_NUMBERS = [
     '9579', '8089', '9470', '7725', '9879',
     '9894', '7950', '7940', '4926', '7034',
     '3910', '5080', '6078', '7986', '9578',
+    '9577',
 ]
 
 # 신동석부장 지입차 18대 (owner='jiip' 로 태그)
@@ -44,6 +45,15 @@ KIM_VEHICLES = [
     '9116', '9283', '9756', '9774', '9137',
     '9315', '7891',
 ]
+
+# 본사 → 김민규 이관 차량 (2026-07-21 사용자 지시): 이관일 이후 시작 건만 'kim'.
+# - 시작일(없으면 청구일) >= 이관일 → owner='kim', 이전 건은 'hq' 유지 (과거 본사 매출 이력 보존)
+# - 둘 다 없는 건(막 배차된 신규)은 현재 진행 건이므로 'kim'
+# - 검색 자체는 VEHICLE_NUMBERS 에 남겨 계속 수집 (SUFFIX_TO_OWNER 기본값 hq → convert_claim 에서 override)
+KIM_TRANSFER_VEHICLES = {
+    '7950': '2026-07-01',  # 106호7950 E 클래스 → 김민규 담당
+    '9879': '2026-07-01',  # 106호9879 GLC 클래스 → 최제렬 담당
+}
 
 # 끝 4자리 → owner 매핑 (한 행 단위로 owner 태그 결정).
 SUFFIX_TO_OWNER = (
@@ -174,6 +184,7 @@ def convert_claim(c, our_numbers):
 
     owner 컬럼:
       - rent_car_number 끝 4자리 → SUFFIX_TO_OWNER 매핑으로 'hq' / 'jiip' 결정
+      - KIM_TRANSFER_VEHICLES 해당 차량은 시작일 기준 이관일 이후 건만 'kim' override
     JIIP cutoff:
       - owner='jiip' 이고 billing_date < JIIP_BILLING_CUTOFF 인 건은 None 반환
         (이전 청구 이력은 ERP에 가져오지 않음)
@@ -216,6 +227,14 @@ def convert_claim(c, our_numbers):
     start_date, start_time = parse_datetime(raw_start)
     end_date, end_time = parse_datetime(raw_end)
     billing_date, billing_time = parse_datetime(c.get('claim_at'))
+
+    # 본사→김민규 이관 차량: 시작일(없으면 청구일) 이 이관일 이후면 kim 으로 태그
+    for sfx, transfer_date in KIM_TRANSFER_VEHICLES.items():
+        if rent_car.endswith(sfx):
+            basis = start_date or billing_date
+            if not basis or basis >= transfer_date:
+                row_owner = 'kim'
+            break
 
     # 지입차 cutoff: 청구일 < JIIP_BILLING_CUTOFF 이면 수집 안 함.
     # billing_date 가 비어있는 (=청구전) 건은 지입차도 일단 수집.
