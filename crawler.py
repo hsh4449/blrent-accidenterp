@@ -52,7 +52,7 @@ KIM_VEHICLES = [
 # - 검색 자체는 VEHICLE_NUMBERS 에 남겨 계속 수집 (SUFFIX_TO_OWNER 기본값 hq → convert_claim 에서 override)
 KIM_TRANSFER_VEHICLES = {
     '7950': '2026-07-01',  # 106호7950 E 클래스 → 김민규 담당
-    '9879': '2026-07-01',  # 106호9879 GLC 클래스 → 최제렬 담당
+    '9879': '2026-06-29',  # 106호9879 GLC 클래스 → 최제렬 담당 (6/29 시작 건부터 — 사용자 지정 2026-07-22, 5/27 건은 본사)
 }
 
 # 끝 4자리 → owner 매핑 (한 행 단위로 owner 태그 결정).
