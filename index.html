@@ -256,6 +256,11 @@ const USER_VIEW_CODES = {
 const USER_VIEW_OWNERS = new Set(["jiip", "kim"]);  // 사용자 모드 owner들 (hq 제외)
 const ALL_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner));
 
+// 본사(hq) 모드 전용 owner 전환 탭 — 본사에서 신동석(jiip)/김민규(kim) 데이터까지 열람.
+// 'all' = 전체(hq+jiip+kim 통합, 오버뷰용). 독촉 SMS 는 owner 혼재로 발신번호를 정할 수 없어 '전체'에선 발송 비활성.
+const HQ_OWNER_TABS = ["all", "hq", "jiip", "kim"];
+const OWNER_LABEL = { all: "전체", hq: "본사", jiip: "신동석", kim: "김민규" };
+
 // ── 김민규(kim) 페이지 차량별 담당자 매핑 ──
 // 출처: 사용자 직접 지정 2026-07-04 (BL매니저 vehicles.sales_status 보다 이 목록이 우선).
 // 아래에 없는 kim 차량은 전부 김민규로 분류 (사용자 확정).
@@ -537,10 +542,17 @@ function App() {
   const [showInactiveFleet, setShowInactiveFleet] = useState(false);
   const fileRef = useRef(null);
 
+  // 본사(hq) 모드에서 어떤 owner 를 볼지 ('all'|'hq'|'jiip'|'kim'). hq 외 모드에선 무시.
+  const [hqOwner, setHqOwner] = useState('all');
   // owner 필터링: hq 는 legacy null 도 포함. 그 외는 owner === userOwner.
   // (userOwner=null 인 경우 lock 화면이라 여기까지 안 옴)
+  // 본사 모드는 상단 owner 탭(hqOwner)으로 전체/본사/신동석/김민규 전환.
   const matchOwner = (rowOwner) => {
-    if (userOwner === 'hq') return rowOwner === 'hq' || !rowOwner;
+    if (userOwner === 'hq') {
+      if (hqOwner === 'all') return true;                          // 전체: hq+jiip+kim
+      if (hqOwner === 'hq') return rowOwner === 'hq' || !rowOwner; // 본사: legacy null 포함
+      return (rowOwner || 'hq') === hqOwner;                       // 신동석/김민규
+    }
     return rowOwner === userOwner;
   };
   // kim 페이지 담당자 탭: 'all' = 전체, 그 외 = KIM_MANAGER_TABS 의 담당자명.
@@ -550,15 +562,15 @@ function App() {
     if (userOwner !== 'kim' || kimMgr === 'all') return true;
     return kimManagerFor(vehicleNumber) === kimMgr;
   };
-  const contracts = useMemo(() => rawContracts.filter(c => matchOwner(c.owner) && matchKimMgr(c.vehicleNumber)), [rawContracts, userOwner, kimMgr]);
+  const contracts = useMemo(() => rawContracts.filter(c => matchOwner(c.owner) && matchKimMgr(c.vehicleNumber)), [rawContracts, userOwner, hqOwner, kimMgr]);
   const fleet = useMemo(() => {
     const out = {};
     for (const [num, info] of Object.entries(rawFleet)) {
       if (matchOwner(info.owner) && matchKimMgr(num)) out[num] = info;
     }
     return out;
-  }, [rawFleet, userOwner, kimMgr]);
-  const deletedContractsView = useMemo(() => deletedContracts.filter(c => matchOwner(c.owner) && matchKimMgr(c.vehicleNumber)), [deletedContracts, userOwner, kimMgr]);
+  }, [rawFleet, userOwner, hqOwner, kimMgr]);
+  const deletedContractsView = useMemo(() => deletedContracts.filter(c => matchOwner(c.owner) && matchKimMgr(c.vehicleNumber)), [deletedContracts, userOwner, hqOwner, kimMgr]);
   // 담당자별 차량 대수 (탭 배지용) — 필터 전 rawFleet 기준
   const kimMgrCounts = useMemo(() => {
     const counts = {};
@@ -571,6 +583,21 @@ function App() {
     }
     return counts;
   }, [rawFleet, userOwner]);
+  // 본사 owner 탭 배지용 차량 대수 (rawFleet 기준)
+  const hqOwnerCounts = useMemo(() => {
+    const counts = { hq:0, jiip:0, kim:0 };
+    if (userOwner !== 'hq') return counts;
+    for (const info of Object.values(rawFleet)) {
+      const o = info.owner || 'hq';
+      if (counts[o] != null) counts[o]++;
+    }
+    return counts;
+  }, [rawFleet, userOwner]);
+  // 독촉 탭용 실효 owner: 본사에서 특정 owner 선택 시 그 owner 로 발송(발신번호/설정/로그 일치).
+  // 'all'(전체) 에선 owner 혼재 → 발송 비활성(dokSendDisabled), 표시는 hq 설정 기준.
+  const dokOwner = userOwner === 'hq' ? (hqOwner === 'all' ? 'hq' : hqOwner) : userOwner;
+  const dokInfo = Object.values(USER_VIEW_CODES).find(v => v.owner === dokOwner);
+  const dokSendDisabled = userOwner === 'hq' && hqOwner === 'all';
 
   useEffect(() => {
     (async () => {
@@ -925,6 +952,30 @@ function App() {
           })}
         </div>
       )}
+      {/* 본사 페이지: owner 전환 탭 — 본사에서 신동석/김민규 데이터 열람 (전체 탭 공통 적용) */}
+      {userOwner === 'hq' && (
+        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap:6, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+          <span style={{ fontSize:11, color:"#64748b", fontWeight:700, flexShrink:0, marginRight:2 }}>담당</span>
+          {HQ_OWNER_TABS.map(o => {
+            const active = hqOwner === o;
+            const label = OWNER_LABEL[o];
+            const cnt = o === "all" ? null : (hqOwnerCounts[o] || 0);
+            return (
+              <button key={o} onClick={()=>setHqOwner(o)} style={{
+                padding: isMobile ? "5px 11px" : "5px 14px",
+                borderRadius:999,
+                border: active ? "1px solid #3b82f6" : "1px solid #e2e8f0",
+                background: active ? "#eff6ff" : "#fff",
+                color: active ? "#1d4ed8" : "#334155",
+                fontSize: isMobile ? 11.5 : 12.5,
+                fontWeight: active ? 700 : 600,
+                cursor:"pointer", whiteSpace:"nowrap", flexShrink:0,
+                transition:"all 0.15s",
+              }}>{label}{cnt !== null ? ` ${cnt}대` : ""}</button>
+            );
+          })}
+        </div>
+      )}
 
       <main style={{ padding: isMobile ? "12px 10px" : "20px 24px", maxWidth:1320, margin:"0 auto" }}>
 
@@ -947,7 +998,7 @@ function App() {
         {tab==="fleet" && <FleetTab isMobile={isMobile} fleet={fleet} addFleet={addFleet} saveFleet={saveFleet} deleteFleet={deleteFleet}/>}
 
         {/* ── DOKCHOK (미입금 자동 독촉 SMS) ── */}
-        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} isMobile={isMobile} userOwner={userOwner} userLabel={userInfo?.label} fromNumberOverride={userInfo?.fromNumber} />}
+        {tab==="dokchok" && <DokchokTab sb={supabaseClient} contracts={contracts} isMobile={isMobile} userOwner={dokOwner} userLabel={dokInfo?.label} fromNumberOverride={dokInfo?.fromNumber} sendDisabled={dokSendDisabled} />}
 
         {/* ── TRASH ── */}
         {tab==="trash" && <TrashTab isMobile={isMobile} deletedContractsView={deletedContractsView} doRestore={doRestore} doPurge={doPurge} doEmptyTrash={doEmptyTrash}/>}
@@ -991,7 +1042,7 @@ function App() {
 
       {/* Edit Modal */}
       <Modal open={editModal} onClose={()=>{setEditModal(false);setEditData(null);}} title={editData?"계약 수정":"신규 등록"} width={600}>
-        <EditForm init={editData} vehs={vehicles} defaultOwner={userOwner || "hq"} onSave={doSave} onCancel={()=>{setEditModal(false);setEditData(null);}}/>
+        <EditForm init={editData} vehs={vehicles} defaultOwner={dokOwner || "hq"} onSave={doSave} onCancel={()=>{setEditModal(false);setEditData(null);}}/>
       </Modal>
     </div>
   );
@@ -2054,7 +2105,7 @@ function EditForm({ init, vehs, onSave, onCancel, defaultOwner }) {
 //   2) accident_send_settings.send_armed (1회용 무장)
 //   3) Vultr crontab LOCKED-BY-USER 코멘트
 // ============================================================
-function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberOverride }) {
+function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberOverride, sendDisabled }) {
   const userMode = !!userOwner;
   // owner: 'hq' (본사모드) / 'jiip' (사용자모드, 신동석부장 지입)
   // 모든 settings/logs/excluded 쿼리·쓰기에 owner 필터를 적용해 본사/지입 발송 시스템이 독립적으로 작동.
@@ -2191,6 +2242,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
   // (target_phones=null → process_manual_queue.py 가 전체 발송)
   const [sendAllBusy, setSendAllBusy] = useState(false);
   const onSendAllNow = async () => {
+    if (sendDisabled) { alert("'전체' 보기에서는 발송할 수 없습니다.\n상단 담당 탭에서 본사·신동석·김민규 중 하나를 선택하세요."); return; }
     if (!groups.groups.length) {
       alert("발송 대상이 없습니다.");
       return;
@@ -2222,6 +2274,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
   // Vultr cron (*/2 * * * *) 의 process_manual_queue.py 가 처리 → send_engine → SMS 발송
   // 1시간 cooldown: 발송 후 1시간 동안 같은 phone 으로 재발송 차단
   const onManualSendForGroup = async (phone, managerName, count, total) => {
+    if (sendDisabled) { alert("'전체' 보기에서는 발송할 수 없습니다.\n상단 담당 탭에서 본사·신동석·김민규 중 하나를 선택하세요."); return; }
     const phoneFmt = (phone || '').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
     if (!confirm(
       `[문자발송] ${managerName || '담당자'} (${phoneFmt})\n\n` +
@@ -2345,6 +2398,12 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
       <span style={{fontWeight:500}}>설정/로그/제외목록 모두 이 도메인 한정</span>
     </div>
 
+    {sendDisabled && (
+      <div style={{padding:"10px 14px",background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:10,fontSize:12,color:"#92400e",fontWeight:600,alignSelf:"flex-start"}}>
+        ⚠ '전체' 보기 — 본사·신동석·김민규 미입금이 섞여 있어 발송은 비활성화됩니다. 발송하려면 상단 담당 탭에서 <b>본사·신동석·김민규</b> 중 하나를 선택하세요.
+      </div>
+    )}
+
     {/* 1행: 마지막 자동발송 + [전체발송] 버튼 */}
     <div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
       <div style={cardSt}>
@@ -2365,14 +2424,14 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
           </div>
           <button
             onClick={onSendAllNow}
-            disabled={sendAllBusy || !groups.groups.length}
-            title={sendAllBusy ? "방금 요청함 — 1분 후 다시 가능" : `발송 예정 ${groups.groups.length}명 담당자 전체에게 즉시 LMS`}
+            disabled={sendAllBusy || !groups.groups.length || sendDisabled}
+            title={sendDisabled ? "'전체' 보기에서는 발송 불가 — 담당 탭 선택" : (sendAllBusy ? "방금 요청함 — 1분 후 다시 가능" : `발송 예정 ${groups.groups.length}명 담당자 전체에게 즉시 LMS`)}
             style={{
               padding:"10px 22px",
-              background: (sendAllBusy || !groups.groups.length) ? "#cbd5e1" : "#dc2626",
+              background: (sendAllBusy || !groups.groups.length || sendDisabled) ? "#cbd5e1" : "#dc2626",
               color:"#fff", border:"none", borderRadius:8,
               fontSize:14, fontWeight:800,
-              cursor: (sendAllBusy || !groups.groups.length) ? "not-allowed" : "pointer",
+              cursor: (sendAllBusy || !groups.groups.length || sendDisabled) ? "not-allowed" : "pointer",
               whiteSpace:"nowrap",
             }}>
             {sendAllBusy ? "요청됨" : "전체발송"}
@@ -2488,16 +2547,17 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
                           ? Math.max(0, 60 - Math.floor((Date.now() - new Date(lastIso).getTime()) / 60000))
                           : 0;
                         const cooldown = remainMin > 0;
+                        const blocked = cooldown || sendDisabled;
                         return <button
                           onClick={()=>onManualSendForGroup(phone, items[0].insuranceManagerName, items.length, groupTotal)}
-                          disabled={cooldown}
-                          title={cooldown ? `1시간 cooldown — ${remainMin}분 후 재발송 가능` : "이 담당자에게 LMS 발송 (Vultr 큐 1~2분)"}
+                          disabled={blocked}
+                          title={sendDisabled ? "'전체' 보기에서는 발송 불가 — 담당 탭 선택" : (cooldown ? `1시간 cooldown — ${remainMin}분 후 재발송 가능` : "이 담당자에게 LMS 발송 (Vultr 큐 1~2분)")}
                           style={{
                             padding:"4px 12px",
-                            background: cooldown ? "#cbd5e1" : "#3b82f6",
+                            background: blocked ? "#cbd5e1" : "#3b82f6",
                             color:"#fff", border:"none", borderRadius:6,
                             fontSize:12, fontWeight:700,
-                            cursor: cooldown ? "not-allowed" : "pointer",
+                            cursor: blocked ? "not-allowed" : "pointer",
                           }}>
                           {cooldown ? `${remainMin}분 후` : "문자발송"}
                         </button>;
