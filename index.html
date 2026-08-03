@@ -251,15 +251,17 @@ const USER_VIEW_CODES = {
   "0000": { owner: "hq",   label: "본사 (hq)",         displayName: "본사",   fromNumber: "010-2418-8272" },
   "4417": { owner: "jiip", label: "신동석 지입 (jiip)", displayName: "신동석", fromNumber: "010-5602-4417" },
   "0001": { owner: "kim",  label: "김민규 (kim)",       displayName: "김민규", fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
+  "0002": { owner: "park", label: "박민 (park)",        displayName: "박민",   fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
+  "0003": { owner: "good", label: "굿초이스 (good)",    displayName: "굿초이스", fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
 };
-// 사용자 모드(jiip/kim) 와 본사 모드(hq) 구분. 기존 UI 분기 (인사 배너 등) 호환.
-const USER_VIEW_OWNERS = new Set(["jiip", "kim"]);  // 사용자 모드 owner들 (hq 제외)
+// 사용자 모드(jiip/kim/park/good) 와 본사 모드(hq) 구분. 기존 UI 분기 (인사 배너 등) 호환.
+const USER_VIEW_OWNERS = new Set(["jiip", "kim", "park", "good"]);  // 사용자 모드 owner들 (hq 제외)
 const ALL_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner));
 
-// 본사(hq) 모드 전용 owner 전환 탭 — 본사에서 신동석(jiip)/김민규(kim) 데이터까지 열람.
-// 'all' = 전체(hq+jiip+kim 통합, 오버뷰용). 독촉 SMS 는 owner 혼재로 발신번호를 정할 수 없어 '전체'에선 발송 비활성.
-const HQ_OWNER_TABS = ["all", "hq", "jiip", "kim"];
-const OWNER_LABEL = { all: "전체", hq: "본사", jiip: "신동석", kim: "김민규" };
+// 본사(hq) 모드 전용 owner 전환 탭 — 본사에서 신동석(jiip)/김민규(kim)/박민(park)/굿초이스(good) 데이터까지 열람.
+// 'all' = 전체(모든 owner 통합, 오버뷰용). 독촉 SMS 는 owner 혼재로 발신번호를 정할 수 없어 '전체'에선 발송 비활성.
+const HQ_OWNER_TABS = ["all", "hq", "jiip", "kim", "park", "good"];
+const OWNER_LABEL = { all: "전체", hq: "본사", jiip: "신동석", kim: "김민규", park: "박민", good: "굿초이스" };
 
 // ── 김민규(kim) 페이지 차량별 담당자 매핑 ──
 // 출처: 사용자 직접 지정 2026-07-04 (BL매니저 vehicles.sales_status 보다 이 목록이 우선).
@@ -585,7 +587,7 @@ function App() {
   }, [rawFleet, userOwner]);
   // 본사 owner 탭 배지용 차량 대수 (rawFleet 기준)
   const hqOwnerCounts = useMemo(() => {
-    const counts = { hq:0, jiip:0, kim:0 };
+    const counts = { hq:0, jiip:0, kim:0, park:0, good:0 };
     if (userOwner !== 'hq') return counts;
     for (const info of Object.values(rawFleet)) {
       const o = info.owner || 'hq';

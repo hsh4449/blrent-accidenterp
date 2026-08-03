@@ -46,6 +46,17 @@ KIM_VEHICLES = [
     '9315', '7891',
 ]
 
+# 박민 차량 1대 (owner='park' 로 태그) — 사용자 모드 코드 '0002' (추가 2026-08-03, 검사리스트 기준)
+PARKMIN_VEHICLES = [
+    '4072',  # 106호4072 S클래스 S580L 4MATIC (박민소장)
+]
+
+# 굿초이스 차량 7대 (owner='good' 로 태그) — 사용자 모드 코드 '0003' (추가 2026-08-03, 검사리스트 기준)
+GOODCHOICE_VEHICLES = [
+    '5152', '5154', '8264', '8679', '8214',
+    '3392', '6098',
+]
+
 # 본사 → 김민규 이관 차량 (2026-07-21 사용자 지시): 이관일 이후 시작 건만 'kim'.
 # - 시작일(없으면 청구일) >= 이관일 → owner='kim', 이전 건은 'hq' 유지 (과거 본사 매출 이력 보존)
 # - 둘 다 없는 건(막 배차된 신규)은 현재 진행 건이므로 'kim'
@@ -60,6 +71,8 @@ SUFFIX_TO_OWNER = (
     {s: 'hq'   for s in VEHICLE_NUMBERS}
     | {s: 'jiip' for s in JIIP_VEHICLES}
     | {s: 'kim' for s in KIM_VEHICLES}
+    | {s: 'park' for s in PARKMIN_VEHICLES}
+    | {s: 'good' for s in GOODCHOICE_VEHICLES}
 )
 ALL_SUFFIXES = list(SUFFIX_TO_OWNER.keys())
 
