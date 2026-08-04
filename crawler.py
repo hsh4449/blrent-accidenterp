@@ -76,6 +76,16 @@ KIM_TRANSFER_VEHICLES = {
     '9879': '2026-06-29',  # 106호9879 GLC 클래스 → 최제렬 담당 (6/29 시작 건부터 — 사용자 지정 2026-07-22, 5/27 건은 본사)
 }
 
+# 본사 → 신동석(지입) 이관 차량 (2026-08-04 사용자 지시): 이관일 이후 시작 건만 'jiip'.
+# - KIM_TRANSFER 와 동일 로직. 시작일(없으면 청구일) >= 이관일 → jiip, 이전 건은 hq 유지.
+# - fleet 행은 jiip 로 이동 완료. 검색은 VEHICLE_NUMBERS 에 남겨 계속 수집.
+JIIP_TRANSFER_VEHICLES = {
+    '7725': '2026-07-01',  # 106호7725 X6
+    '7940': '2026-07-01',  # 106호7940 GLE 쿠페
+    '9470': '2026-07-01',  # 106호9470 GLE450
+    '9894': '2026-07-01',  # 106호9894 E 클래스
+}
+
 # 끝 4자리 → owner 매핑 (한 행 단위로 owner 태그 결정).
 SUFFIX_TO_OWNER = (
     {s: 'hq'   for s in VEHICLE_NUMBERS}
@@ -257,6 +267,14 @@ def convert_claim(c, our_numbers):
             basis = start_date or billing_date
             if not basis or basis >= transfer_date:
                 row_owner = 'kim'
+            break
+
+    # 본사→신동석(지입) 이관 차량: 시작일(없으면 청구일) 이 이관일 이후면 jiip 으로 태그
+    for sfx, transfer_date in JIIP_TRANSFER_VEHICLES.items():
+        if rent_car.endswith(sfx):
+            basis = start_date or billing_date
+            if not basis or basis >= transfer_date:
+                row_owner = 'jiip'
             break
 
     # 지입차 cutoff: 청구일 < JIIP_BILLING_CUTOFF 이면 수집 안 함.
