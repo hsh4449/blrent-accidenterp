@@ -23,7 +23,7 @@ VEHICLE_NUMBERS = [
     '9579', '8089', '9470', '7725', '9879',
     '9894', '7950', '7940', '4926', '7034',
     '3910', '5080', '6078', '7986', '9578',
-    '9577',
+    '9577', '5125',  # 5125 카니발: BL매니저 담당자 미지정 → 본사 (2026-08-24 추가)
 ]
 
 # 신동석부장 지입차 18대 (owner='jiip' 로 태그)
@@ -34,6 +34,7 @@ JIIP_VEHICLES = [
     '9340', '9341', '9388', '9433', '9558',
     '8433', '9666', '9759', '9755', '9754',
     '9878', '9893', '9895',
+    '9586',  # 115하9586 520i: 신동석 신규 (2026-08-24 추가)
 ]
 JIIP_BILLING_CUTOFF = '2025-12-20'  # 이전 청구는 수집 안 함
 
@@ -44,6 +45,7 @@ KIM_VEHICLES = [
     '9757', '7893', '7897', '2841', '5438',
     '9116', '9283', '9756', '9774', '9137',
     '9315', '7891',
+    '9585',  # 115하9585 520i: 김민규 신규 (2026-08-24 추가)
 ]
 
 # 박민 차량 18대 (owner='park' 로 태그) — 사용자 모드 코드 '0002'
@@ -55,6 +57,7 @@ PARKMIN_VEHICLES = [
     '9454', '9455', '9497', '9521', '9544',
     '9660', '9758', '9791', '9836', '9880',
     '9891', '9892', '2727',
+    '1773',  # 106호1773 G80: 박민 신규 (2026-08-24 추가)
 ]
 
 # 굿초이스 차량 23대 (owner='good' 로 태그) — 사용자 모드 코드 '0003'
@@ -67,23 +70,47 @@ GOODCHOICE_VEHICLES = [
     '6448', '6641', '8679',
 ]
 
-# 본사 → 김민규 이관 차량 (2026-07-21 사용자 지시): 이관일 이후 시작 건만 'kim'.
-# - 시작일(없으면 청구일) >= 이관일 → owner='kim', 이전 건은 'hq' 유지 (과거 본사 매출 이력 보존)
-# - 둘 다 없는 건(막 배차된 신규)은 현재 진행 건이므로 'kim'
-# - 검색 자체는 VEHICLE_NUMBERS 에 남겨 계속 수집 (SUFFIX_TO_OWNER 기본값 hq → convert_claim 에서 override)
-KIM_TRANSFER_VEHICLES = {
-    '7950': '2026-07-01',  # 106호7950 E 클래스 → 김민규 담당
-    '9879': '2026-06-29',  # 106호9879 GLC 클래스 → 최제렬 담당 (6/29 시작 건부터 — 사용자 지정 2026-07-22, 5/27 건은 본사)
-}
+# 한정규 차량 (owner='han' 로 태그) — 2026-08-24 재분배로 신설, 사용자 모드 코드 '0009'
+HAN_VEHICLES = [
+    '7851',  # 106호7851 더 뉴쏘렌토
+]
 
-# 본사 → 신동석(지입) 이관 차량 (2026-08-04 사용자 지시): 이관일 이후 시작 건만 'jiip'.
-# - KIM_TRANSFER 와 동일 로직. 시작일(없으면 청구일) >= 이관일 → jiip, 이전 건은 hq 유지.
-# - fleet 행은 jiip 로 이동 완료. 검색은 VEHICLE_NUMBERS 에 남겨 계속 수집.
-JIIP_TRANSFER_VEHICLES = {
-    '7725': '2026-07-01',  # 106호7725 X6
-    '7940': '2026-07-01',  # 106호7940 GLE 쿠페
-    '9470': '2026-07-01',  # 106호9470 GLE450
-    '9894': '2026-07-01',  # 106호9894 E 클래스
+# owner 이관 이력 (끝 4자리 → [(이관일, 새 owner), ...] 시간순).
+# - 시작일(없으면 청구일) >= 이관일 인 건부터 새 owner 로 태그, 이전 건은 이전 owner 유지 (과거 매출 이력 보존)
+# - 둘 다 없는 건(막 배차된 신규)은 최신 owner
+# - 검색 자체는 기존 base 리스트에 남겨 계속 수집 (SUFFIX_TO_OWNER 기본값 → convert_claim 에서 override)
+# 2026-08-24 전면 재분배: /portal/jiip (BL매니저 vehicles.customer_name) 기준 — 본사·굿초이스·염규성·한종택 제외.
+#   신규 owner: jang=장명재, choi=최제렬, jeon=전상민, yu=유윤빈, kang=강연수, han=한정규
+OWNER_TRANSFERS = {
+    # 본사 → 김민규 (2026-07-21 지시) → 2026-08-24 재분배
+    '7950': [('2026-07-01', 'kim'), ('2026-08-24', 'choi')],   # 106호7950 E 클래스 → 최제렬
+    '9879': [('2026-06-29', 'kim'), ('2026-08-24', 'choi')],   # 106호9879 GLC → 최제렬 (6/29 시작 건부터 kim — 사용자 지정 2026-07-22, 5/27 건은 본사)
+    # 본사 → 신동석 (2026-08-04 지시) → 2026-08-24 재분배
+    '7725': [('2026-07-01', 'jiip')],                          # 106호7725 X6 (신동석 유지)
+    '9470': [('2026-07-01', 'jiip')],                          # 106호9470 GLE450 (신동석 유지)
+    '7940': [('2026-07-01', 'jiip'), ('2026-08-24', 'choi')],  # 106호7940 GLE 쿠페 → 최제렬
+    '9894': [('2026-07-01', 'jiip'), ('2026-08-24', 'kim')],   # 106호9894 E 클래스 → 김민규
+    # 신동석(jiip) → 장명재 (2026-08-24)
+    '4286': [('2026-08-24', 'jang')], '8433': [('2026-08-24', 'jang')],
+    '9194': [('2026-08-24', 'jang')], '9256': [('2026-08-24', 'jang')],
+    '9334': [('2026-08-24', 'jang')], '9340': [('2026-08-24', 'jang')],
+    '9341': [('2026-08-24', 'jang')], '9388': [('2026-08-24', 'jang')],
+    '9433': [('2026-08-24', 'jang')], '9558': [('2026-08-24', 'jang')],
+    '9666': [('2026-08-24', 'jang')], '9754': [('2026-08-24', 'jang')],
+    '9755': [('2026-08-24', 'jang')], '9759': [('2026-08-24', 'jang')],
+    '9878': [('2026-08-24', 'jang')], '9893': [('2026-08-24', 'jang')],
+    # 신동석(jiip) → 강연수 (2026-08-24)
+    '9895': [('2026-08-24', 'kang')],
+    # 김민규(kim) → 최제렬 (2026-08-24)
+    '7891': [('2026-08-24', 'choi')], '9116': [('2026-08-24', 'choi')],
+    '9137': [('2026-08-24', 'choi')], '9283': [('2026-08-24', 'choi')],
+    '9315': [('2026-08-24', 'choi')], '9756': [('2026-08-24', 'choi')],
+    '9774': [('2026-08-24', 'choi')],
+    # 김민규(kim) → 전상민 (2026-08-24)
+    '7898': [('2026-08-24', 'jeon')], '7899': [('2026-08-24', 'jeon')],
+    '7951': [('2026-08-24', 'jeon')],
+    # 김민규(kim) → 유윤빈 (2026-08-24)
+    '7892': [('2026-08-24', 'yu')], '9646': [('2026-08-24', 'yu')],
 }
 
 # 끝 4자리 → owner 매핑 (한 행 단위로 owner 태그 결정).
@@ -93,6 +120,7 @@ SUFFIX_TO_OWNER = (
     | {s: 'kim' for s in KIM_VEHICLES}
     | {s: 'park' for s in PARKMIN_VEHICLES}
     | {s: 'good' for s in GOODCHOICE_VEHICLES}
+    | {s: 'han'  for s in HAN_VEHICLES}
 )
 ALL_SUFFIXES = list(SUFFIX_TO_OWNER.keys())
 
@@ -216,8 +244,8 @@ def convert_claim(c, our_numbers):
     """IMS claim → DB row. 메인 차량이 우리 차량 아니면 None 반환 (스킵)
 
     owner 컬럼:
-      - rent_car_number 끝 4자리 → SUFFIX_TO_OWNER 매핑으로 'hq' / 'jiip' 결정
-      - KIM_TRANSFER_VEHICLES 해당 차량은 시작일 기준 이관일 이후 건만 'kim' override
+      - rent_car_number 끝 4자리 → SUFFIX_TO_OWNER 매핑으로 base owner 결정
+      - OWNER_TRANSFERS 해당 차량은 시작일 기준 이관일 이후 건만 새 owner 로 override
     JIIP cutoff:
       - owner='jiip' 이고 billing_date < JIIP_BILLING_CUTOFF 인 건은 None 반환
         (이전 청구 이력은 ERP에 가져오지 않음)
@@ -261,20 +289,13 @@ def convert_claim(c, our_numbers):
     end_date, end_time = parse_datetime(raw_end)
     billing_date, billing_time = parse_datetime(c.get('claim_at'))
 
-    # 본사→김민규 이관 차량: 시작일(없으면 청구일) 이 이관일 이후면 kim 으로 태그
-    for sfx, transfer_date in KIM_TRANSFER_VEHICLES.items():
+    # owner 이관 차량: 시작일(없으면 청구일) 기준으로 이관일이 지난 마지막 owner 로 태그 (다단계 이관 지원)
+    for sfx, hops in OWNER_TRANSFERS.items():
         if rent_car.endswith(sfx):
             basis = start_date or billing_date
-            if not basis or basis >= transfer_date:
-                row_owner = 'kim'
-            break
-
-    # 본사→신동석(지입) 이관 차량: 시작일(없으면 청구일) 이 이관일 이후면 jiip 으로 태그
-    for sfx, transfer_date in JIIP_TRANSFER_VEHICLES.items():
-        if rent_car.endswith(sfx):
-            basis = start_date or billing_date
-            if not basis or basis >= transfer_date:
-                row_owner = 'jiip'
+            for t_date, t_owner in hops:
+                if not basis or basis >= t_date:
+                    row_owner = t_owner
             break
 
     # 지입차 cutoff: 청구일 < JIIP_BILLING_CUTOFF 이면 수집 안 함.
