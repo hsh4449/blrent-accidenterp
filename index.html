@@ -934,10 +934,11 @@ function App() {
           )}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
-          <nav style={{ display:"flex", gap:1, marginLeft: isMobile ? 0 : 8, overflowX: isMobile ? "auto" : "visible", WebkitOverflowScrolling:"touch", flex: isMobile ? 1 : "0 1 auto", scrollbarWidth:"thin" }}>
+          {/* 모바일: 가로 스크롤 대신 2줄 wrap — 8개 탭 전부 한눈에 (2026-08-25 가독성 개선) */}
+          <nav style={{ display:"flex", gap:1, marginLeft: isMobile ? 0 : 8, flexWrap: isMobile ? "wrap" : "nowrap", overflowX: isMobile ? "visible" : "visible", WebkitOverflowScrolling:"touch", flex: isMobile ? 1 : "0 1 auto", scrollbarWidth:"thin" }}>
             {[["dashboard","대시보드"],["paid","입금완료"],["contracts","계약내역"],["settlement","정산"],["schedule","스케줄"],["fleet","차량"],["dokchok","독촉발송"],["trash",`🗑 휴지통${deletedContractsView.length>0?` (${deletedContractsView.length})`:""}`]].map(([k,l])=>(
               <button key={k} onClick={()=>setTab(k)} style={{
-                padding: isMobile ? "7px 12px" : "9px 18px",
+                padding: isMobile ? "6px 10px" : "9px 18px",
                 borderRadius:8,
                 border: tab===k ? "1px solid #cbd5e1" : "1px solid transparent",
                 cursor:"pointer",
@@ -972,7 +973,7 @@ function App() {
       )}
       {/* kim 페이지: 차량 담당자별 필터 탭 — 전체 탭(대시보드~휴지통)에 공통 적용 */}
       {userOwner === 'kim' && (
-        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap:6, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap: isMobile ? 5 : 6, flexWrap: isMobile ? "wrap" : "nowrap", overflowX: isMobile ? "visible" : "auto", WebkitOverflowScrolling:"touch" }}>
           <span style={{ fontSize:11, color:"#64748b", fontWeight:700, flexShrink:0, marginRight:2 }}>담당</span>
           {["all", ...KIM_MANAGER_TABS].map(m => {
             const active = kimMgr === m;
@@ -980,12 +981,12 @@ function App() {
             const cnt = m === "all" ? null : (kimMgrCounts[m] || 0);
             return (
               <button key={m} onClick={()=>setKimMgr(m)} style={{
-                padding: isMobile ? "5px 11px" : "5px 14px",
+                padding: isMobile ? "4px 9px" : "5px 14px",
                 borderRadius:999,
                 border: active ? "1px solid #3b82f6" : "1px solid #e2e8f0",
                 background: active ? "#eff6ff" : "#fff",
                 color: active ? "#1d4ed8" : "#334155",
-                fontSize: isMobile ? 11.5 : 12.5,
+                fontSize: isMobile ? 11 : 12.5,
                 fontWeight: active ? 700 : 600,
                 cursor:"pointer", whiteSpace:"nowrap", flexShrink:0,
                 transition:"all 0.15s",
@@ -996,7 +997,7 @@ function App() {
       )}
       {/* 신동석(jiip) 페이지: 신동석1/신동석2 필터 탭 — 전체 탭 공통 적용 */}
       {userOwner === 'jiip' && (
-        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap:6, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap: isMobile ? 5 : 6, flexWrap: isMobile ? "wrap" : "nowrap", overflowX: isMobile ? "visible" : "auto", WebkitOverflowScrolling:"touch" }}>
           <span style={{ fontSize:11, color:"#64748b", fontWeight:700, flexShrink:0, marginRight:2 }}>담당</span>
           {["all", ...JIIP_MANAGER_TABS].map(m => {
             const active = jiipMgr === m;
@@ -1004,12 +1005,12 @@ function App() {
             const cnt = m === "all" ? null : (jiipMgrCounts[m] || 0);
             return (
               <button key={m} onClick={()=>setJiipMgr(m)} style={{
-                padding: isMobile ? "5px 11px" : "5px 14px",
+                padding: isMobile ? "4px 9px" : "5px 14px",
                 borderRadius:999,
                 border: active ? "1px solid #3b82f6" : "1px solid #e2e8f0",
                 background: active ? "#eff6ff" : "#fff",
                 color: active ? "#1d4ed8" : "#334155",
-                fontSize: isMobile ? 11.5 : 12.5,
+                fontSize: isMobile ? 11 : 12.5,
                 fontWeight: active ? 700 : 600,
                 cursor:"pointer", whiteSpace:"nowrap", flexShrink:0,
                 transition:"all 0.15s",
@@ -1020,7 +1021,7 @@ function App() {
       )}
       {/* 본사 페이지: owner 전환 탭 — 본사에서 신동석/김민규 데이터 열람 (전체 탭 공통 적용) */}
       {userOwner === 'hq' && (
-        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap:6, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap: isMobile ? 5 : 6, flexWrap: isMobile ? "wrap" : "nowrap", overflowX: isMobile ? "visible" : "auto", WebkitOverflowScrolling:"touch" }}>
           <span style={{ fontSize:11, color:"#64748b", fontWeight:700, flexShrink:0, marginRight:2 }}>담당</span>
           {HQ_OWNER_TABS.map(o => {
             const active = hqOwner === o;
@@ -1028,12 +1029,12 @@ function App() {
             const cnt = o === "all" ? null : (hqOwnerCounts[o] || 0);
             return (
               <button key={o} onClick={()=>setHqOwner(o)} style={{
-                padding: isMobile ? "5px 11px" : "5px 14px",
+                padding: isMobile ? "4px 9px" : "5px 14px",
                 borderRadius:999,
                 border: active ? "1px solid #3b82f6" : "1px solid #e2e8f0",
                 background: active ? "#eff6ff" : "#fff",
                 color: active ? "#1d4ed8" : "#334155",
-                fontSize: isMobile ? 11.5 : 12.5,
+                fontSize: isMobile ? 11 : 12.5,
                 fontWeight: active ? 700 : 600,
                 cursor:"pointer", whiteSpace:"nowrap", flexShrink:0,
                 transition:"all 0.15s",
