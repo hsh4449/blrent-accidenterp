@@ -26,9 +26,11 @@ SEND_INTERVAL_DAYS = 1
 # 발송 제외 요일 (Python weekday: 월=0, ..., 일=6). 사용자 지시 2026-05-20: 일요일 제외.
 SKIP_WEEKDAYS = {6}
 
-# 자동발송 도메인 — 본사 hq 와 지입 jiip 둘 다 매일 cron 에서 순차 평가.
+# 자동발송 도메인 — 매일 cron 에서 순차 평가.
 # 각 owner 의 settings/last_auto_send_date/send_armed/발신번호가 독립적으로 작동.
-OWNERS = ('hq', 'jiip', 'kim')
+# jang(장명재) 추가 2026-08-31 사용자 지시 — 발신번호는 hq 공유(from_number_for fallback),
+# 본문 서명에 담당자 연락처 표기 (message_template).
+OWNERS = ('hq', 'jiip', 'kim', 'jang')
 
 
 def run_one(sb, owner: str, today) -> None:
