@@ -248,18 +248,18 @@ const VCOLORS = ["#3b82f6","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#0
 // 사원코드 4자리 → owner 매핑. 시작 화면에서 입력해야 진입 가능.
 // (2026-05-31: 본사도 코드 진입 — 시작 lock 화면 도입)
 const USER_VIEW_CODES = {
-  "0000": { owner: "hq",   label: "본사 (hq)",         displayName: "본사",   fromNumber: "010-2418-8272" },
+  "0000": { owner: "hq",   label: "본사 (hq)",         displayName: "본사",   fromNumber: "042-524-5757" },
   "4417": { owner: "jiip", label: "신동석 지입 (jiip)", displayName: "신동석", fromNumber: "010-5602-4417" },
-  "0001": { owner: "kim",  label: "김민규 (kim)",       displayName: "김민규", fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
-  "0002": { owner: "park", label: "박민 (park)",        displayName: "박민",   fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
-  "0003": { owner: "good", label: "굿초이스 (good)",    displayName: "굿초이스", fromNumber: "010-2418-8272" }, // 발신번호 별도 안내 전엔 hq 와 공유
+  "0001": { owner: "kim",  label: "김민규 (kim)",       displayName: "김민규", fromNumber: "042-524-5757" }, // 발신번호 별도 안내 전엔 hq 와 공유
+  "0002": { owner: "park", label: "박민 (park)",        displayName: "박민",   fromNumber: "042-524-5757" }, // 발신번호 별도 안내 전엔 hq 와 공유
+  "0003": { owner: "good", label: "굿초이스 (good)",    displayName: "굿초이스", fromNumber: "042-524-5757" }, // 발신번호 별도 안내 전엔 hq 와 공유
   // 2026-08-24 재분배 — /portal/jiip (BL매니저 vehicles.customer_name) 기준 owner 신설. 발신번호는 전부 hq 공유.
-  "0004": { owner: "jang", label: "장명재 (jang)",       displayName: "장명재", fromNumber: "010-2418-8272" },
-  "0005": { owner: "choi", label: "최제렬 (choi)",       displayName: "최제렬", fromNumber: "010-2418-8272" },
-  "0006": { owner: "jeon", label: "전상민 (jeon)",       displayName: "전상민", fromNumber: "010-2418-8272" },
-  "0007": { owner: "yu",   label: "유윤빈 (yu)",         displayName: "유윤빈", fromNumber: "010-2418-8272" },
-  "0008": { owner: "kang", label: "강연수 (kang)",       displayName: "강연수", fromNumber: "010-2418-8272" },
-  "0009": { owner: "han",  label: "한정규 (han)",        displayName: "한정규", fromNumber: "010-2418-8272" },
+  "0004": { owner: "jang", label: "장명재 (jang)",       displayName: "장명재", fromNumber: "042-524-5757" },
+  "0005": { owner: "choi", label: "최제렬 (choi)",       displayName: "최제렬", fromNumber: "042-524-5757" },
+  "0006": { owner: "jeon", label: "전상민 (jeon)",       displayName: "전상민", fromNumber: "042-524-5757" },
+  "0007": { owner: "yu",   label: "유윤빈 (yu)",         displayName: "유윤빈", fromNumber: "042-524-5757" },
+  "0008": { owner: "kang", label: "강연수 (kang)",       displayName: "강연수", fromNumber: "042-524-5757" },
+  "0009": { owner: "han",  label: "한정규 (han)",        displayName: "한정규", fromNumber: "042-524-5757" },
 };
 // 사용자 모드(jiip/kim/park/good) 와 본사 모드(hq) 구분. 기존 UI 분기 (인사 배너 등) 호환.
 const USER_VIEW_OWNERS = new Set(["jiip", "kim", "park", "good", "jang", "choi", "jeon", "yu", "kang", "han"]);  // 사용자 모드 owner들 (hq 제외)
@@ -2176,7 +2176,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
   // owner: 'hq' (본사모드) / 'jiip' (사용자모드, 신동석부장 지입)
   // 모든 settings/logs/excluded 쿼리·쓰기에 owner 필터를 적용해 본사/지입 발송 시스템이 독립적으로 작동.
   const owner = userOwner || 'hq';
-  const fromNumber = fromNumberOverride || '010-2418-8272';
+  const fromNumber = fromNumberOverride || '042-524-5757';   // 2026-08-31 솔라피 승인 회사번호 (구 010-2418-8272)
 
   const [settings, setSettings] = useState(null);
   const [logs, setLogs] = useState([]);
