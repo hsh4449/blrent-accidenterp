@@ -1,3 +1,4 @@
-# Railway 워커(send_module/worker.py) 빌드용 — 루트에 있어야 nixpacks 가 Python 프로젝트로 인식한다.
--r send_module/requirements.txt
+# Railway 워커(send_module/worker.py) 빌드용 — Railpack 은 pip 설치 전에 이 파일만 복사하므로 send_module/requirements.txt 내용을 여기 직접 적는다 (동기화 유지)
+supabase>=2.0.0
+requests>=2.31.0
 apscheduler>=3.10,<4
