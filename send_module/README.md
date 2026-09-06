@@ -1,3 +1,5 @@
+> **2026-09-06 배포 변경**: Vultr crontab 은 폐기. `send_module/worker.py` 가 Railway 서비스 `accident-worker`(프로젝트 inspiring-commitment)에서 08:30 자동발송·2분 큐 처리·9~17시 17분 크롤을 돌린다. 코드는 `main` 푸시 시 자동 배포, 환경변수는 Railway 변수(값은 C:\Projects\_vault). 아래 Vultr/cron 서술은 옛 기록.
+
 # send_module — 사고대차 미입금 자동 독촉 SMS
 
 매일 KST **08:30** Vultr cron 진입 → `contracts.status='청구완료' AND deposit_date IS NULL` 인 건들을
