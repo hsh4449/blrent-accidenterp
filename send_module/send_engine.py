@@ -164,6 +164,11 @@ def build_message_plan(sb, owner: str, contracts: list, excluded_ids: set,
             'recipient_name': items[0].get('insurance_manager_name'),
             'insurer': items[0].get('insurer'),
             'contract_ids': [it['id'] for it in items],
+            # 결과 보고용 최소 정보 (실제 발송 요청에 포함된 계약 그대로. 고객 이름/전화 미포함)
+            'items_brief': [{'id': it['id'], 'vehicle_number': it.get('vehicle_number'),
+                             'customer_number': it.get('customer_number'),
+                             'customer_vehicle': it.get('customer_vehicle'),
+                             'insurer': it.get('insurer')} for it in items],
             'total_amount': total,
             'text': text,
             'msg_type': 'LMS' if byte_len(text) > 90 else 'SMS',
@@ -254,7 +259,8 @@ def send_plan(plan: dict, *, owner: str, dry_run: bool, trigger_type: str, trigg
     else:
         failed = len(msgs)
 
-    group_id = body.get('groupId')
+    # 솔라피 send-many/detail 응답의 그룹 ID 는 groupInfo._id (기존 body['groupId'] 는 항상 None 이었음)
+    group_id = (body.get('groupInfo') or {}).get('_id') or body.get('groupId')
     log_rows = []
     for m in msgs:
         log_rows.append({
@@ -278,4 +284,6 @@ def send_plan(plan: dict, *, owner: str, dry_run: bool, trigger_type: str, trigg
     return {
         'sent': sent, 'failed': failed, 'owner': owner,
         'count': len(msgs), 'group_id': group_id, 'status_code': status_code,
+        # 결과 보고용: 솔라피 응답 원문 (failedMessageList / groupInfo.count 판정에 사용). 로그 테이블에는 저장하지 않음.
+        'body': body,
     }

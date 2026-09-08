@@ -19,6 +19,7 @@ from send_engine import (
     build_message_plan,
     send_plan,
 )
+import result_report  # 자동 독촉 결과 보고 (owner 별, 실패해도 독촉 처리에 영향 없음)
 
 # 같은 보험사 담당자 재발송 최소 간격 (일). 1 = 매일 가능 (단, SKIP_WEEKDAYS 제외).
 SEND_INTERVAL_DAYS = 1
@@ -60,6 +61,7 @@ def run_one(sb, owner: str, today) -> None:
 
     if not plan['messages']:
         print(f'[GATE owner={owner}] 발송 대상 0건 → 종료')
+        result_report.report_no_target(sb, owner, today)   # '오늘 자동발송 대상 0건' 보고
         return
 
     result = send_plan(plan, owner=owner, dry_run=False,
@@ -74,6 +76,9 @@ def run_one(sb, owner: str, today) -> None:
         }).eq('owner', owner).execute()
         next_day = (today + timedelta(days=SEND_INTERVAL_DAYS)).isoformat()
         print(f'[4 owner={owner}] last_auto_send_date = {today.isoformat()} (다음 가능일 {next_day})')
+
+    # 담당자별 처리가 끝난 뒤 결과 보고 (실제 발송 요청에 포함된 계약 기준, 접수 결과 판정)
+    print(f'[5 owner={owner}] 결과 보고: {result_report.report_auto_send(sb, owner, today, plan, result)}')
 
 
 def main():
@@ -96,6 +101,7 @@ def main():
         except Exception as e:
             # 한 owner 실패가 다른 owner 발송을 막지 않도록 격리.
             print(f'[ERROR owner={owner}] {type(e).__name__}: {e}')
+            result_report.report_error(sb, owner, today, e)   # 실행 오류 보고 (대상 0건과 구분)
 
     print(f'=== ACCIDENT AUTO_SEND 완료 {datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")} KST ===')
 
