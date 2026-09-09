@@ -109,7 +109,7 @@ supabase/migrations/            SQL 6개 (2026-05-19 ~ 08-03). 전체 스키마�
 | 기능 | 위치 |
 |---|---|
 | 코드 입력(락 화면) / 로그아웃 | `index.html:872-909`, `:930`, `:961` |
-| owner 필터·담당 탭 | `index.html:250-309`(상수), `:573-583`(matchOwner), `:975-1046`(탭 UI) |
+| owner 필터·담당 탭 | `index.html:250-309`(상수), `:575-582`(matchOwner), `:975-1046`(탭 UI) |
 | 데이터 로드 | `index.html:644-677` (4개 테이블 병렬 select, 실패 시 `INITIAL_DATA` 폴백 `:671`) |
 | 계약 저장·수정 | `doSave` `:793-803`, `EditForm` `:2110-2163`, DB 매핑 `toDbRow/fromDbRow` `:61-116` |
 | 엑셀 가져오기/내보내기 | `parseIMSExcel` `:315-356`, `onImport` `:778-790`, `exportToExcel` `:367-386` |
@@ -127,7 +127,7 @@ supabase/migrations/            SQL 6개 (2026-05-19 ~ 08-03). 전체 스키마�
 
 ### 3.3 로그인·권한·데이터 접근이 처리되는 곳 [사실]
 - **로그인**: `index.html:873-880` `tryEnter` 가 입력 4자리를 `USER_VIEW_CODES` 키와 비교. 서버 호출 없음.
-- **권한 검사**: 서버 측 없음. 프론트 `matchOwner`(`:573`)와 `dokSendDisabled`(`:642`)가 전부.
+- **권한 검사**: 서버 측 없음. 프론트 `matchOwner`(`:575`)와 `dokSendDisabled`(`:642`)가 전부.
 - **데이터 조회·수정**: 프론트가 supabase-js 로 테이블에 직접 select/upsert/update/delete (`index.html` 내 `.from('accident_…')` 호출 19곳). 백엔드는 service_role 키로 같은 테이블 접근.
 
 ---
