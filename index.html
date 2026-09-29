@@ -267,7 +267,7 @@ const ALL_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner));
 
 // 본사(hq) 모드 전용 owner 전환 탭 — 본사에서 다른 owner 데이터까지 열람.
 // 'all' = 전체(모든 owner 통합, 오버뷰용). 독촉 SMS 는 owner 혼재로 발신번호를 정할 수 없어 '전체'에선 발송 비활성.
-const HQ_OWNER_TABS = ["all", "hq", "jiip", "jang", "kim", "choi", "park", "jeon", "yu", "kang", "han", "good"];
+const HQ_OWNER_TABS = ["all", "hq", "jiip", "jang", "kim", "choi", "park", "jeon", "yu", "kang", "han"];  // 굿초이스(good) 탭 숨김 (2026-09-29 지시)
 const OWNER_LABEL = { all: "전체", hq: "본사", jiip: "신동석", jang: "장명재", kim: "김민규", choi: "최제렬", park: "박민", jeon: "전상민", yu: "유윤빈", kang: "강연수", han: "한정규", good: "굿초이스" };
 
 // ── 김민규(kim) 페이지 차량별 담당자 매핑 ──
