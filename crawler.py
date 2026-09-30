@@ -637,8 +637,18 @@ def main():
     #      → 실제 입금금액(IMS deposit_cost)으로 rental_fee 채워야 하므로 매 크롤 재시도.
     #   2) IMS deposit_cost > DB rental_fee = 입금완료 후 추가 입금(분할 입금)이 들어온 케이스
     #      → 스킵하면 2차 입금이 영영 반영 안 됨 (예: 2971483 김진우 5/27 입금 후 6/5 추가 입금 누락 사고)
-    settled = supabase_client.table('accident_rentals').select('id, rental_fee').eq('status', '입금완료').not_.is_('deposit_date', 'null').execute()
-    settled_fee = {r['id']: (r.get('rental_fee') or 0) for r in (settled.data or [])}
+    # 1,000행 상한 → 페이지로 끝까지 조회 (2026-09-30: 1,510건 중 510건이 빠져 매시간 덮어써지던 문제 수정)
+    settled_rows = []
+    for off in range(0, 100000, 1000):
+        page = (supabase_client.table('accident_rentals').select('id, rental_fee, deposit_date')
+                .eq('status', '입금완료')
+                .order('id').range(off, off + 999).execute().data or [])
+        settled_rows += page
+        if len(page) < 1000:
+            break
+    # 재크롤 스킵 판단은 기존대로 입금일 있는 건만. 입금완료 유지(KEEP-PAID)는 입금일 없어도 적용 (수정창에서 상태만 바꾼 경우).
+    settled_fee = {r['id']: (r.get('rental_fee') or 0) for r in settled_rows if r.get('deposit_date')}
+    settled_dep = {r['id']: r.get('deposit_date') for r in settled_rows}
     before = len(unique)
     for c in unique:
         db_fee = settled_fee.get(c['id'], 0)
@@ -652,6 +662,18 @@ def main():
     retry_zero = sum(1 for c in unique if settled_fee.get(c['id']) == 0)
     if retry_zero:
         print(f'[RETRY] rental_fee=0 인 입금완료 {retry_zero}건 — IMS 값으로 갱신 시도')
+
+    # DB 에서 입금완료(입금일 있음)인 건은 IMS 가 미입금으로 보내도 되돌리지 않음 (사용자 지시 2026-09-30).
+    #   화면에서 손으로 입금완료 처리한 건이 다음 크롤에 청구완료로 돌아가 독촉이 다시 나가던 문제.
+    #   IMS 도 입금완료면 IMS 값(입금일 포함)을 그대로 씀. 대여료 등 다른 칸은 기존대로 IMS 값으로 갱신.
+    kept_paid = 0
+    for c in unique:
+        if c['id'] in settled_dep and c.get('status') != '입금완료':
+            c['status'] = '입금완료'
+            c['deposit_date'] = settled_dep[c['id']]
+            kept_paid += 1
+    if kept_paid:
+        print(f'[KEEP-PAID] DB 입금완료 {kept_paid}건 — IMS 미입금이지만 입금완료 유지')
 
     # 같은 차량 배차중 중복 정리 — start_date 가장 최근만 유지, 나머지 청구전으로
     # (한 차에 두 명 동시 대여 불가 → IMS의 cleanup 누락 데이터 보정)

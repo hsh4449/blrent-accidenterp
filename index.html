@@ -51,7 +51,7 @@
     <script type="text/babel" data-type="module">
         const React = window.React;
         const ReactDOM = window.ReactDOM;
-        const { useState, useEffect, useCallback, useMemo, useRef } = React;
+        const { useState, useEffect, useCallback, useMemo } = React;
 
         const SUPABASE_URL = 'https://jjwsnwnfhqcszwmjdcac.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impqd3Nud25maHFjc3p3bWpkY2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NTk3NjgsImV4cCI6MjA4NTMzNTc2OH0.8sH1l1fVKEc48qzT6u4qFyUDPZGaLndcYi8si21dtoc';
@@ -311,58 +311,6 @@ function daysBetween(a, b) {
   return Math.ceil((new Date(b) - new Date(a)) / 86400000);
 }
 
-// ── Parse IMS Excel (2-row pairs) ──
-function parseIMSExcel(wb) {
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:null });
-  const out = [];
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    if (r[0] === "연번" || !r[1]) continue;
-    const ims = String(r[1]).trim();
-    if (!ims || ims === "null" || ims === "undefined") continue;
-    const dr = (i+1 < rows.length) ? rows[i+1] : [];
-    const pv = v => { if (v == null || v === "-" || v === "") return null; return String(v).trim(); };
-    const pd = v => {
-      if (!v || v === "-") return null;
-      const s = String(v).trim();
-      let m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
-      if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-      m = s.match(/^(\d{2})\.(\d{2})\.(\d{2})$/);
-      if (m) return `${parseInt(m[1])<50?"20":"19"}${m[1]}-${m[2]}-${m[3]}`;
-      return null;
-    };
-    const pt = v => {
-      if (!v) return null;
-      if (typeof v === "object" && v.getHours) return `${String(v.getHours()).padStart(2,"0")}:${String(v.getMinutes()).padStart(2,"0")}`;
-      if (typeof v === "number") { const t=Math.round(v*1440); return `${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; }
-      return String(v);
-    };
-    const pm = v => { if (!v || v === "-") return 0; const n=parseInt(String(v).replace(/\D/g,"")); return isNaN(n)?0:n; };
-    out.push({
-      id:ims, status:pv(r[2])||"배차중", dispatcher:pv(r[3])||"-",
-      startDate:pd(r[4]), startTime:pt(dr[4]), endDate:pd(r[5]), endTime:pt(dr[5]),
-      billingDate:pd(r[6]), billingTime:pt(dr[6]), depositDate:pd(r[7]),
-      vehicleModel:pv(r[8])||"", vehicleNumber:pv(dr[8])||"",
-      customerName:pv(r[9])||"", customerVehicle:pv(r[10])||"", customerNumber:pv(dr[10])||"",
-      customerPhone:pv(r[11])||"", fault:pv(r[12])||"-",
-      insurer:pv(r[13])||"-", billingTo:pv(r[14])||"-", receiptNo:pv(r[15])||"",
-      salesRep:pv(r[16])||"-", retriever:pv(r[17])||"-", referrer:pv(r[18])||"-",
-      repairShop:pv(r[19])||"-", billingAmount:pm(r[20]), rentalFee:pm(r[21]),
-    });
-    i++;
-  }
-  return out;
-}
-
-function mergeContracts(existing, incoming) {
-  const map = new Map();
-  existing.forEach(c => map.set(c.id, c));
-  let added=0, updated=0;
-  incoming.forEach(c => { if(map.has(c.id)) updated++; else added++; map.set(c.id, c); });
-  return { merged: Array.from(map.values()), added, updated };
-}
-
 // ── Export to Excel ──
 function exportToExcel(contracts) {
   const headers = ["IMS번호","상태","배차자","배차일","배차시간","반납일","반납시간","청구일","입금일","대여차종","차량번호","고객명","고객차종","고객번호판","연락처","과실","보험사","청구처","접수번호","청구금","대여료","대여일수"];
@@ -565,7 +513,6 @@ function App() {
   // status: 'active' | 'sold' | 'paused' | 'other_use'
   const [rawFleet, setRawFleet] = useState({});
   const [showInactiveFleet, setShowInactiveFleet] = useState(false);
-  const fileRef = useRef(null);
 
   // 본사(hq) 모드에서 어떤 owner 를 볼지 ('all'|'hq'|'jiip'|'kim'). hq 외 모드에선 무시.
   const [hqOwner, setHqOwner] = useState('all');
@@ -788,22 +735,6 @@ function App() {
     return Array.from(m.entries()).map(([num,model],i) => ({ model, number:num, color:VCOLORS[i%VCOLORS.length] }));
   }, [contracts]);
 
-  // File import
-  const onImport = useCallback(async e => {
-    const f = e.target.files?.[0]; if(!f) return; e.target.value="";
-    try {
-      const buf = await f.arrayBuffer();
-      const wb = XLSX.read(buf, { type:"array", cellDates:true });
-      const inc = parseIMSExcel(wb);
-      if (!inc.length) { setToast({msg:"파싱할 수 있는 데이터가 없습니다. IMS 엑셀 형식을 확인해주세요.",type:"error"}); return; }
-      const {merged,added,updated} = mergeContracts(rawContracts, inc);
-      const { error } = await supabaseClient.from('accident_rentals').upsert(merged.map(toDbRow));
-      if (error) throw error;
-      setRawContracts(merged);
-      setToast({msg:`완료: 신규 ${added}건, 업데이트 ${updated}건 (총 ${merged.length}건)`, type:"success"});
-    } catch(err) { setToast({msg:"파일 오류: "+err.message, type:"error"}); }
-  }, [rawContracts]);
-
   const doSave = useCallback(async d => {
     try {
       const { error } = await supabaseClient.from('accident_rentals').upsert(toDbRow(d));
@@ -927,7 +858,6 @@ function App() {
     <div style={{ minHeight:"100vh", background:"#f8fafc", color:"#18181b", fontFamily:"'Pretendard',-apple-system,sans-serif" }}>
       <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
       {toast && <Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
-      <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={onImport}/>
 
       <header style={{ borderBottom:"1px solid #e2e8f0", padding: isMobile ? "8px 12px" : "10px 20px", display:"flex", alignItems: isMobile ? "stretch" : "center", justifyContent:"space-between", background:"#f1f5f9", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 8 : 0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"space-between" }}>
@@ -1067,7 +997,7 @@ function App() {
         {tab==="paid" && <PaidTab isMobile={isMobile} contracts={contracts} vehicles={vehicles} vehicleViewYm={vehicleViewYm} setVehicleViewYm={setVehicleViewYm}/>}
 
         {/* ── CONTRACTS ── */}
-        {tab==="contracts" && <ContractsTab isMobile={isMobile} contracts={contracts} vehicles={vehicles} fleet={fleet} filter={filter} setFilter={setFilter} setSelected={setSelected} setEditData={setEditData} setEditModal={setEditModal} fileRef={fileRef} onChangeExclusionStatus={onChangeExclusionStatus}/>}
+        {tab==="contracts" && <ContractsTab isMobile={isMobile} contracts={contracts} vehicles={vehicles} fleet={fleet} filter={filter} setFilter={setFilter} setSelected={setSelected} setEditData={setEditData} setEditModal={setEditModal} onChangeExclusionStatus={onChangeExclusionStatus}/>}
 
         {/* ── SETTLEMENT ── */}
         {tab==="settlement" && <SettlementTab isMobile={isMobile} contracts={contracts} vehicles={vehicles} fleet={fleet} monthlyFixed={monthlyFixed} saveMonthlyFixed={saveMonthlyFixed} settlMonth={settlMonth} setSettlMonth={setSettlMonth} settlMonthTo={settlMonthTo} setSettlMonthTo={setSettlMonthTo} settlVehicles={settlVehicles} setSettlVehicles={setSettlVehicles}/>}
@@ -1538,7 +1468,7 @@ function PaidTab({ isMobile, contracts, vehicles, vehicleViewYm, setVehicleViewY
           </div>;
 }
 
-function ContractsTab({ isMobile, contracts, vehicles, fleet, filter, setFilter, setSelected, setEditData, setEditModal, fileRef, onChangeExclusionStatus }) {
+function ContractsTab({ isMobile, contracts, vehicles, fleet, filter, setFilter, setSelected, setEditData, setEditModal, onChangeExclusionStatus }) {
   // 계약내역 탭의 "전체 차량" 드롭다운 옵션 — 비활성 fleet 차량 제외 + 현재 다른 필터(status/depositMonth)에 매칭되는 차량만
   const vehicleOptions = useMemo(() => {
     let l = contracts;
@@ -1639,7 +1569,6 @@ function ContractsTab({ isMobile, contracts, vehicles, fleet, filter, setFilter,
             </div>
             <div style={{ display:"flex", gap:6, width: isMobile ? "100%" : "auto" }}>
               <button onClick={()=>{setEditData(null);setEditModal(true);}} style={{padding:"7px 14px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer", flex: isMobile ? 1 : "none"}}>+ 신규</button>
-              <button onClick={()=>fileRef.current?.click()} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer", flex: isMobile ? 1 : "none"}}>엑셀</button>
               <button onClick={()=>exportToExcel(filtered)} style={{padding:"7px 14px",background:"#e2e8f0",color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:8,fontSize:11,cursor:"pointer", flex: isMobile ? 1 : "none"}}>내보내기</button>
             </div>
           </div>
