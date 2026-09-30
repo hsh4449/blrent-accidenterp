@@ -2022,7 +2022,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
     const [{ data: s }, { data: l }, { data: ex }, { data: q }] = await Promise.all([
       sb.from("accident_send_settings").select("*").eq("owner", owner).single(),
       sb.from("accident_sms_logs").select("*").eq("owner", owner).order("sent_at", { ascending: false }).limit(30),
-      sb.from("accident_excluded_contracts").select("*").eq("owner", owner),
+      sb.from("accident_excluded_contracts").select("*"),   // 전체 owner — '전체' 화면에서 다른 소장 보류도 보이게 (2026-09-30)
       sb.from("accident_manual_send_queue").select("target_phones,requested_at")
         .eq("owner", owner).gte("requested_at", oneHourAgoIso),
     ]);
@@ -2068,8 +2068,10 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
       && (!settings?.cutoff_start_date || (c.startDate && c.startDate >= settings.cutoff_start_date))  // 계약 시작일 기준 (백엔드 load_unpaid_contracts 와 동일)
     );
   }, [contracts, settings, locallyPaid]);
-  const unpaid = useMemo(() => unpaidRaw.filter(c => !excluded[c.id]), [unpaidRaw, excluded]);
-  const excludedRows = useMemo(() => unpaidRaw.filter(c => excluded[c.id]), [unpaidRaw, excluded]);
+  // 보류 여부 = 보류 기록의 owner 가 계약 owner 와 같을 때만 (백엔드 load_excluded_ids 가 계약 owner 로 조회하는 것과 동일)
+  const isExcluded = (c) => !!excluded[c.id] && excluded[c.id].owner === (c.owner || 'hq');
+  const unpaid = useMemo(() => unpaidRaw.filter(c => !isExcluded(c)), [unpaidRaw, excluded]);
+  const excludedRows = useMemo(() => unpaidRaw.filter(c => isExcluded(c)), [unpaidRaw, excluded]);
 
   // 3) 담당자별 그룹핑 — 그룹 안 청구건은 청구일 오름차순(오래된 게 위),
   //    그룹 자체는 그룹 내 가장 오래된 청구일 기준 오름차순(연체일 많은 그룹이 위).
@@ -2226,12 +2228,13 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
     if (newValue === "요청중") {
       // excluded 제거 → 발송 대상 복귀
       const { error } = await sb.from("accident_excluded_contracts")
-        .delete().eq("contract_id", c.id).eq("owner", owner);
+        .delete().eq("contract_id", c.id);
       if (error) { alert("변경 실패: " + error.message); return; }
     } else {
       // 분심진행중 / 보류 → excluded 마커 upsert (accident_rentals 는 손 안 댐)
+      // owner = 계약 owner (본사 '전체' 화면에서 소장 건을 보류해도 소장 자동발송에서 제외되게. 2026-09-30)
       const { error } = await sb.from("accident_excluded_contracts").upsert({
-        contract_id: c.id, owner, reason: newValue, excluded_by: `ui:erp:${owner}`,
+        contract_id: c.id, owner: c.owner || 'hq', reason: newValue, excluded_by: `ui:erp:${owner}`,
         excluded_at: new Date().toISOString(),
       }, { onConflict: "contract_id" });
       if (error) { alert("변경 실패: " + error.message); return; }
