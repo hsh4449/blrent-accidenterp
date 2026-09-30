@@ -1,7 +1,7 @@
 """
 자동발송 cron 진입점. 매일 KST 08:30 호출.
 
-owner 별 (본사 'hq', 지입 'jiip') 독립 실행 — 게이트/마지막발송일/발신번호 분리.
+owner 별 (OWNERS 튜플, 본사·담당소장) 독립 실행 — 게이트/마지막발송일/발신번호 분리.
 
 게이트 순서 (각 owner 마다 동일 적용):
   0. 오늘이 일요일 (KST weekday=6) → 전체 종료 (모든 owner)
@@ -31,7 +31,10 @@ SKIP_WEEKDAYS = {6}
 # 각 owner 의 settings/last_auto_send_date/send_armed/발신번호가 독립적으로 작동.
 # jang(장명재) 추가 2026-08-31 사용자 지시 — 발신번호는 hq 공유(from_number_for fallback),
 # 본문 서명에 담당자 연락처 표기 (message_template).
-OWNERS = ('hq', 'jiip', 'kim', 'jang')
+# 2026-09-30 사용자 지시: 담당소장 전원으로 확대 (박민 park·굿초이스 good 은 제외. 한종택·염규성은 8/24 재분배 때 이미 owner 아님).
+#   실제 발송 여부는 owner 별 accident_send_settings.auto_send_enabled / report_enabled / report_phone 로 켬.
+#   발신번호는 SOLAPI_FROM_* 미설정 owner 전부 hq 번호 fallback (solapi_sender.from_number_for).
+OWNERS = ('hq', 'jiip', 'jang', 'kim', 'choi', 'jeon', 'yu', 'kang', 'han')
 
 
 def run_one(sb, owner: str, today) -> None:
