@@ -641,11 +641,25 @@ function App() {
   const dokInfo = Object.values(USER_VIEW_CODES).find(v => v.owner === dokOwner);
   const dokSendDisabled = userOwner === 'hq' && hqOwner === 'all';
 
+  // Supabase 는 한 번에 최대 1,000행만 돌려줌 → 1,000행씩 끝까지 이어 받기 (2026-09-30: 1,830건 중 830건 누락 수정)
+  // 보조 정렬 id: 같은 배차일 계약이 페이지 경계에서 중복·누락되지 않게.
+  async function fetchAllRentals() {
+    const PAGE = 1000;
+    const all = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabaseClient.from('accident_rentals').select('*')
+        .order('start_date', { ascending: false }).order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) return { data: null, error };
+      all.push(...(data || []));
+      if (!data || data.length < PAGE) return { data: all, error: null };
+    }
+  }
   useEffect(() => {
     (async () => {
       try {
         const [{ data: rentals, error: e1 }, { data: fixed, error: e2 }, { data: fleetData, error: e3 }, { data: excludedRows }] = await Promise.all([
-          supabaseClient.from('accident_rentals').select('*').order('start_date', { ascending: false }),
+          fetchAllRentals(),
           supabaseClient.from('vehicle_monthly_fixed').select('*'),
           supabaseClient.from('accident_fleet').select('*'),
           supabaseClient.from('accident_excluded_contracts').select('contract_id,reason'),
