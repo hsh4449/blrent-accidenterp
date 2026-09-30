@@ -60,11 +60,14 @@ def load_unpaid_contracts(sb, owner: str):
       - is_deleted != true  (휴지통 제외)
       - billing_date <= today - MIN_OVERDUE_DAYS  (청구 후 N일 이상 경과)
       - billing_date >= cutoff (해당 owner settings 의 cutoff_billing_date)
+      - start_date >= cutoff_start (해당 owner settings 의 cutoff_start_date, 계약 시작일 기준)
+        2026-09-30 사용자 지시: 본사·신동석 제외 발송 담당자 전원 2026-08-01 이후 시작 계약만 독촉.
     """
     settings = sb.table('accident_send_settings').select(
-        'cutoff_billing_date'
+        'cutoff_billing_date, cutoff_start_date'
     ).eq('owner', owner).single().execute().data
     cutoff = settings.get('cutoff_billing_date') if settings else None
+    cutoff_start = settings.get('cutoff_start_date') if settings else None
 
     today = datetime.now(KST).date()
     overdue_threshold = (today - timedelta(days=MIN_OVERDUE_DAYS)).isoformat()
@@ -77,6 +80,8 @@ def load_unpaid_contracts(sb, owner: str):
          .lte('billing_date', overdue_threshold))
     if cutoff:
         q = q.gte('billing_date', cutoff)
+    if cutoff_start:
+        q = q.gte('start_date', cutoff_start)   # start_date NULL 인 건도 제외됨 (2026-09-30 기준 해당 0건)
     return q.execute().data or []
 
 

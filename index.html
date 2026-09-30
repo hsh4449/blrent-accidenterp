@@ -2238,6 +2238,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
       && !locallyPaid.has(c.id)
       && c.billingDate && c.billingDate <= thrIso
       && (!settings?.cutoff_billing_date || c.billingDate >= settings.cutoff_billing_date)
+      && (!settings?.cutoff_start_date || (c.startDate && c.startDate >= settings.cutoff_start_date))  // 계약 시작일 기준 (백엔드 load_unpaid_contracts 와 동일)
     );
   }, [contracts, settings, locallyPaid]);
   const unpaid = useMemo(() => unpaidRaw.filter(c => !excluded[c.id]), [unpaidRaw, excluded]);
@@ -2517,6 +2518,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
           <button onClick={onSaveCutoff} disabled={saving} style={btnPrimary}>저장</button>
           {cutoffDraft && <button onClick={()=>{setCutoffDraft("");saveField({cutoff_billing_date:null});}} style={btnGray}>비우기</button>}
         </div>
+        {settings?.cutoff_start_date && <div style={{marginTop:8,fontSize:12,color:"#475569"}}>계약 시작일 {settings.cutoff_start_date} 이전 건은 독촉 제외</div>}
       </div>
 
       <div style={cardSt}>
