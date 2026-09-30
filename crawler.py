@@ -7,6 +7,7 @@ IMS Form 사고대차 크롤러
 
 import os
 import re
+import sys
 import json
 import hashlib
 import requests
@@ -185,7 +186,8 @@ def login():
     resp = session.post(
         'https://api.rencar.co.kr/auth',
         json={'username': IMS_ID, 'password': pw_hash},
-        headers={'Content-Type': 'application/json', 'Origin': 'https://imsform.com'}
+        headers={'Content-Type': 'application/json', 'Origin': 'https://imsform.com'},
+        timeout=30,
     )
 
     if resp.status_code != 200:
@@ -558,6 +560,10 @@ def fetch_deposits(session, claim_id):
         return None
 
 
+# 검색 실패 기록 (차량 끝4자리, 사유). main() 끝에서 있으면 종료코드 2 → worker 가 디스코드로 보고.
+SEARCH_ERRORS = []
+
+
 def search_vehicle(session, car_number):
     """차량번호 검색 → __NEXT_DATA__에서 JSON 추출"""
     contracts = []
@@ -565,15 +571,22 @@ def search_vehicle(session, car_number):
 
     while True:
         url = f'https://imsform.com/contract/list/all?page={page}&option=rent_car_number&value={car_number}&is_corporation=all'
-        resp = session.get(url)
+        try:
+            resp = session.get(url, timeout=30)
+        except requests.RequestException as e:   # 타임아웃·연결 오류: 이 차량만 건너뛰고 기록
+            print(f'  [ERROR] page {page}: {type(e).__name__}')
+            SEARCH_ERRORS.append((car_number, f'{type(e).__name__}'))
+            break
 
         if resp.status_code != 200:
             print(f'  [ERROR] page {page}: {resp.status_code}')
+            SEARCH_ERRORS.append((car_number, f'HTTP {resp.status_code}'))
             break
 
         m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', resp.text)
         if not m:
             print(f'  [ERROR] __NEXT_DATA__ 없음')
+            SEARCH_ERRORS.append((car_number, '응답 형식 변경(__NEXT_DATA__ 없음)'))
             break
 
         data = json.loads(m.group(1))
@@ -610,7 +623,7 @@ def main():
     session = login()
     if not session:
         print('[FATAL] 로그인 실패')
-        return
+        sys.exit(1)   # 종료코드 1 → worker 가 디스코드로 보고 (이전엔 return 이라 성공으로 기록됨)
 
     supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -623,6 +636,10 @@ def main():
         results = search_vehicle(session, car_num)
         print(f'  → {len(results)}건')
         all_contracts.extend(results)
+
+    if SEARCH_ERRORS and len({c for c, _ in SEARCH_ERRORS}) == len(ALL_SUFFIXES):
+        print(f'[FATAL] 전 차량 검색 실패 ({len(ALL_SUFFIXES)}대) — 저장하지 않고 종료. 예: {SEARCH_ERRORS[0][1]}')
+        sys.exit(1)
 
     # 중복 제거 (같은 ID면 최신 것으로 덮어쓰기)
     seen = {}
@@ -793,6 +810,10 @@ def main():
         print(f'[WARN] 배차중 중복 DB 정리 실패: {e}')
 
     print(f'=== 완료: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} ===')
+    if SEARCH_ERRORS:
+        failed = sorted({c for c, _ in SEARCH_ERRORS})
+        print(f'[PARTIAL] 검색 실패 {len(failed)}대: {", ".join(failed)} (사유 예: {SEARCH_ERRORS[0][1]}) — 나머지는 저장 완료')
+        sys.exit(2)
 
 
 if __name__ == '__main__':

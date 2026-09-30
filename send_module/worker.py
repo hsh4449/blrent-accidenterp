@@ -11,6 +11,8 @@
 import os
 import sys
 import subprocess
+
+import requests
 from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -38,8 +40,59 @@ def manual_queue():
     return run("manual_queue", os.path.join(HERE, "process_manual_queue.py"), HERE)
 
 
+# ── 크롤 실패 디스코드 보고 (사용자 지시 2026-09-30) ──
+# 채널: #비엘매니저관리 (BL매니저 자동 보고와 같은 웹훅). Railway 변수 DISCORD_ALERT_WEBHOOK_URL.
+# 같은 장애가 이어지는 동안은 첫 실패 1번만 보고하고, 정상으로 돌아오면 '복구' 1번 보고 (매시간 도배 방지).
+# 상태는 프로세스 메모리 → 워커 재시작 후 첫 실패는 다시 보고됨.
+CRAWL_TIMEOUT_SEC = 40 * 60   # 매시 17분 실행, 정상은 수 분. 40분 넘으면 강제 종료 후 보고
+_crawl_failing = False
+
+
+def notify_discord(text):
+    url = os.environ.get("DISCORD_ALERT_WEBHOOK_URL", "")
+    if not url:
+        print("[worker] DISCORD_ALERT_WEBHOOK_URL 미설정 — 보고 생략", flush=True)
+        return
+    try:
+        r = requests.post(url, json={"content": text[:1900]}, timeout=15)
+        print(f"[worker] 디스코드 보고 HTTP {r.status_code}", flush=True)
+    except Exception as e:
+        print(f"[worker] 디스코드 보고 실패: {type(e).__name__}: {e}", flush=True)
+
+
 def crawler():
-    return run("crawler", os.path.join(ROOT, "crawler.py"), ROOT)
+    global _crawl_failing
+    name, started = "crawler", datetime.now(KST)
+    print(f"[worker] ▶ {name} 시작 {started:%Y-%m-%d %H:%M:%S} KST", flush=True)
+    try:
+        r = subprocess.run([PY, os.path.join(ROOT, "crawler.py")], cwd=ROOT, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", timeout=CRAWL_TIMEOUT_SEC)
+        out, rc = (r.stdout or "") + (r.stderr or ""), r.returncode
+    except subprocess.TimeoutExpired as e:   # 부분 출력은 bytes 로 올 수 있음
+        out = "".join(x.decode("utf-8", "replace") if isinstance(x, bytes) else (x or "") for x in (e.stdout, e.stderr))
+        rc = "timeout"
+    print(out, end="", flush=True)                      # 출력은 그대로 Railway 로그로
+    print(f"[worker] ■ {name} 종료 exit={rc}", flush=True)
+
+    when = f"{started:%m-%d %H:%M}"
+    if rc == 0:
+        if _crawl_failing:
+            notify_discord(f"✅ [사고대차 ERP] IMS 크롤 복구 ({when})\n정상 수집을 다시 시작했습니다.")
+        _crawl_failing = False
+        return rc
+
+    if rc == "timeout":
+        reason = f"{CRAWL_TIMEOUT_SEC // 60}분 넘게 끝나지 않아 강제 종료 (IMS 응답 없음 추정)"
+    elif rc == 2:
+        reason = "일부 차량 검색 실패 (나머지는 저장됨)"
+    else:
+        reason = f"크롤 실패 (종료코드 {rc}) — 이번 회차 데이터 저장 안 됨"
+    if not _crawl_failing:
+        tail = "\n".join([l for l in out.strip().splitlines() if l.strip()][-8:])
+        notify_discord(f"⚠️ [사고대차 ERP] IMS 크롤 이상 ({when})\n{reason}\n"
+                       f"같은 장애가 이어지면 추가 보고 없이 복구 시 알립니다.\n```\n{tail[-1200:]}\n```")
+    _crawl_failing = True
+    return rc
 
 
 if __name__ == "__main__":
