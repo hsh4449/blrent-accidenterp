@@ -175,6 +175,20 @@ STATUS_MAP = {
 }
 
 
+
+def resolve_owner(rent_car, start_date, billing_date):
+    """차량번호 + 시작일(없으면 청구일) → owner. 기본 매핑 후 OWNER_TRANSFERS 다단계 이관 적용.
+    메인 행(convert_claim)과 교체건 부 차량 행(build_extra_rows)이 같이 씀 (2026-09-30: 부 행이 메인 owner 를 복사하던 문제)."""
+    owner = owner_for_vehicle_number(rent_car) or 'hq'
+    for sfx, hops in OWNER_TRANSFERS.items():
+        if rent_car.endswith(sfx):
+            basis = start_date or billing_date
+            for t_date, t_owner in hops:
+                if not basis or basis >= t_date:
+                    owner = t_owner
+            break
+    return owner
+
 def login():
     """IMS 로그인 → JWT 토큰이 설정된 session 반환"""
     pw_hash = hashlib.sha256(IMS_PW.encode('utf-8')).hexdigest()
@@ -280,7 +294,6 @@ def convert_claim(c, our_numbers):
     rent_car = c.get('rent_car_number') or ''
     if not any(rent_car.endswith(n) for n in our_numbers):
         return None
-    row_owner = owner_for_vehicle_number(rent_car) or 'hq'
 
     car_model = c.get('car_model') or ''
     for suffix, override in MODEL_OVERRIDE.items():
@@ -316,14 +329,8 @@ def convert_claim(c, our_numbers):
     end_date, end_time = parse_datetime(raw_end)
     billing_date, billing_time = parse_datetime(c.get('claim_at'))
 
-    # owner 이관 차량: 시작일(없으면 청구일) 기준으로 이관일이 지난 마지막 owner 로 태그 (다단계 이관 지원)
-    for sfx, hops in OWNER_TRANSFERS.items():
-        if rent_car.endswith(sfx):
-            basis = start_date or billing_date
-            for t_date, t_owner in hops:
-                if not basis or basis >= t_date:
-                    row_owner = t_owner
-            break
+    # owner: 차량 기본 매핑 + 이관 이력(시작일, 없으면 청구일 기준, 다단계)
+    row_owner = resolve_owner(rent_car, start_date, billing_date)
 
     # 지입차 cutoff: 청구일 < JIIP_BILLING_CUTOFF 이면 수집 안 함.
     # billing_date 가 비어있는 (=청구전) 건은 지입차도 일단 수집.
@@ -479,8 +486,14 @@ def build_extra_rows(c, our_numbers, main_row):
         detail_id = d.get('id')
         d_id = str(detail_id) if detail_id else f"{c.get('id')}-{num}"
 
+        # owner 는 부 차량 자기 번호·사용 시작일로 다시 계산 (메인 행 owner 복사 X). 지입 cutoff 도 메인과 같은 규칙.
+        d_owner = resolve_owner(num, d_start, main_row.get('billing_date'))
+        if d_owner == 'jiip' and main_row.get('billing_date') and main_row['billing_date'] < JIIP_BILLING_CUTOFF:
+            continue
+
         new_row = {**main_row}
         new_row['id'] = d_id
+        new_row['owner'] = d_owner
         new_row['vehicle_number'] = num
         new_row['vehicle_model'] = d_model
         new_row['start_date'] = d_start
