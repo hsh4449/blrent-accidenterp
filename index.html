@@ -270,24 +270,9 @@ const ALL_OWNERS = new Set(Object.values(USER_VIEW_CODES).map(v=>v.owner));
 const HQ_OWNER_TABS = ["all", "hq", "jiip", "jang", "kim", "choi", "park", "jeon", "yu", "kang", "han"];  // 굿초이스(good) 탭 숨김 (2026-09-29 지시)
 const OWNER_LABEL = { all: "전체", hq: "본사", jiip: "신동석", jang: "장명재", kim: "김민규", choi: "최제렬", park: "박민", jeon: "전상민", yu: "유윤빈", kang: "강연수", han: "한정규", good: "굿초이스" };
 
-// 김민규(kim) 하위 탭(최제렬·유윤빈·전상민)은 2026-09-30 제거 — 세 사람 차량이 각자 owner(choi·yu·jeon)로 이관돼
-// 김민규 화면엔 본인 데이터만 남음 (사용자 지시).
-
-// ── 신동석(jiip) 하위 그룹 (신동석1 / 신동석2) — 2026-08-04 ──
-// 신동석1 = 아래 목록(끝 4자리), 나머지 원래 jiip 차량 = 신동석2(기본값).
-// owner 는 'jiip' 그대로. 신동석 로그인(코드 4417) 안에서 서브탭으로만 분리.
-const JIIP_MANAGER_VEHICLES = {
-  "신동석1": ["7940", "9470", "7725", "9894", "8993", "9341"],
-};
-const JIIP_MANAGER_DEFAULT = "신동석2";
-const JIIP_MANAGER_TABS = ["신동석1", JIIP_MANAGER_DEFAULT];
-function jiipManagerFor(vehicleNumber) {
-  const num = vehicleNumber || "";
-  for (const [mgr, suffixes] of Object.entries(JIIP_MANAGER_VEHICLES)) {
-    if (suffixes.some(s => num.endsWith(s))) return mgr;
-  }
-  return JIIP_MANAGER_DEFAULT;
-}
+// 담당 하위 탭 제거 (2026-09-30 사용자 지시): 재분배로 차량이 각자 owner 로그인으로 이관돼 의미가 없어짐.
+//   김민규 하위 탭(최제렬·유윤빈·전상민) → choi·yu·jeon, 신동석1/2 하위 탭(7940→최제렬, 9894→김민규, 9341→장명재).
+//   이제 담당자 화면 = 해당 owner 데이터 전체.
 const fmt = (n) => n ? n.toLocaleString("ko-KR") : "0";
 function daysBetween(a, b) {
   if (!a || !b) return 0;
@@ -510,33 +495,15 @@ function App() {
     }
     return rowOwner === userOwner;
   };
-  // jiip(신동석) 하위 탭: '신동석1' / '신동석2'. 신동석 로그인에서만 적용.
-  const [jiipMgr, setJiipMgr] = useState('all');
-  const matchJiipMgr = (vehicleNumber) => {
-    if (userOwner !== 'jiip' || jiipMgr === 'all') return true;
-    return jiipManagerFor(vehicleNumber) === jiipMgr;
-  };
-  const contracts = useMemo(() => rawContracts.filter(c => matchOwner(c.owner) && matchJiipMgr(c.vehicleNumber)), [rawContracts, userOwner, hqOwner, jiipMgr]);
+  const contracts = useMemo(() => rawContracts.filter(c => matchOwner(c.owner)), [rawContracts, userOwner, hqOwner]);
   const fleet = useMemo(() => {
     const out = {};
     for (const [num, info] of Object.entries(rawFleet)) {
-      if (matchOwner(info.owner) && matchJiipMgr(num)) out[num] = info;
+      if (matchOwner(info.owner)) out[num] = info;
     }
     return out;
-  }, [rawFleet, userOwner, hqOwner, jiipMgr]);
-  const deletedContractsView = useMemo(() => deletedContracts.filter(c => matchOwner(c.owner) && matchJiipMgr(c.vehicleNumber)), [deletedContracts, userOwner, hqOwner, jiipMgr]);
-  // 담당자별 차량 대수 (탭 배지용) — 필터 전 rawFleet 기준
-  const jiipMgrCounts = useMemo(() => {
-    const counts = {};
-    if (userOwner !== 'jiip') return counts;
-    for (const [num, info] of Object.entries(rawFleet)) {
-      if (info.owner === 'jiip') {
-        const m = jiipManagerFor(num);
-        counts[m] = (counts[m] || 0) + 1;
-      }
-    }
-    return counts;
-  }, [rawFleet, userOwner]);
+  }, [rawFleet, userOwner, hqOwner]);
+  const deletedContractsView = useMemo(() => deletedContracts.filter(c => matchOwner(c.owner)), [deletedContracts, userOwner, hqOwner]);
   // 본사 owner 탭 배지용 차량 대수 (rawFleet 기준)
   const hqOwnerCounts = useMemo(() => {
     const counts = { hq:0, jiip:0, jang:0, kim:0, choi:0, park:0, jeon:0, yu:0, kang:0, han:0, good:0 };
@@ -878,30 +845,6 @@ function App() {
       {userMode && (
         <div style={{ background:"#ecfdf5", borderBottom:"1px solid #a7f3d0", padding: isMobile ? "5px 12px" : "6px 20px", fontSize:12, color:"#065f46", display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontWeight:700 }}>{userInfo?.displayName || "사용자"}님 안녕하세요</span>
-        </div>
-      )}
-      {/* 신동석(jiip) 페이지: 신동석1/신동석2 필터 탭 — 전체 탭 공통 적용 */}
-      {userOwner === 'jiip' && (
-        <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding: isMobile ? "7px 10px" : "8px 20px", display:"flex", alignItems:"center", gap: isMobile ? 5 : 6, flexWrap: isMobile ? "wrap" : "nowrap", overflowX: isMobile ? "visible" : "auto", WebkitOverflowScrolling:"touch" }}>
-          <span style={{ fontSize:11, color:"#64748b", fontWeight:700, flexShrink:0, marginRight:2 }}>담당</span>
-          {["all", ...JIIP_MANAGER_TABS].map(m => {
-            const active = jiipMgr === m;
-            const label = m === "all" ? "전체" : m;
-            const cnt = m === "all" ? null : (jiipMgrCounts[m] || 0);
-            return (
-              <button key={m} onClick={()=>setJiipMgr(m)} style={{
-                padding: isMobile ? "4px 9px" : "5px 14px",
-                borderRadius:999,
-                border: active ? "1px solid #3b82f6" : "1px solid #e2e8f0",
-                background: active ? "#eff6ff" : "#fff",
-                color: active ? "#1d4ed8" : "#334155",
-                fontSize: isMobile ? 11 : 12.5,
-                fontWeight: active ? 700 : 600,
-                cursor:"pointer", whiteSpace:"nowrap", flexShrink:0,
-                transition:"all 0.15s",
-              }}>{label}{cnt !== null ? ` ${cnt}대` : ""}</button>
-            );
-          })}
         </div>
       )}
       {/* 본사 페이지: owner 전환 탭 — 본사에서 신동석/김민규 데이터 열람 (전체 탭 공통 적용) */}
