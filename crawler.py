@@ -705,19 +705,9 @@ def main():
                 r['status'] = '청구전'
             print(f'[FIX] {vn}: 배차중 {len(items)}건 → 최근 1건만 유지, {len(items)-1}건 청구전으로')
 
-    # rental_fee 이상치 보호 — IMS deposit_cost는 취소된 입금 항목까지 raw 합산해서 보내는 케이스가 있음
-    # (예: 대여료 776,620 입력 후 취소 → IMS UI는 776,620이지만 API deposit_cost는 1,553,240)
-    # 청구금 > 0 인데 대여료 > 청구금이면 비정상 — upsert에서 rental_fee 컬럼 제외해 DB 기존 값 보존
-    fee_protected = 0
-    for row in unique:
-        bil = row.get('billing_amount') or 0
-        ren = row.get('rental_fee') or 0
-        if bil > 0 and ren > bil:
-            print(f'[WARN] {row["id"]} {row.get("customer_name","")}: rental_fee {ren:,} > billing_amount {bil:,} — rental_fee 보호(upsert 제외, ERP 수정값 유지)')
-            row.pop('rental_fee', None)
-            fee_protected += 1
-    if fee_protected:
-        print(f'[PROTECT] rental_fee 이상치 {fee_protected}건 — 청구금 < 대여료 케이스 보호됨')
+    # (2026-09-30 제거) rental_fee 이상치 보호 — '대여료 > 청구금이면 rental_fee 키를 빼서 DB 값 보존' 방식이었으나
+    # 여러 행 upsert 에서 빠진 키가 NULL 로 채워져 실제 입금액이 지워졌음(입금완료 16건, 약 2,260만 원).
+    # 16건 전부 IMS 건별 입금 목록 합 = IMS 합계인 정상 분할/초과 입금이었음 → 아래에서 입금 목록 합으로 대여료 계산.
 
     # 건별 입금 내역(deposits JSONB) 수집 — 분할 입금 월매출 분리용
     # 대상: (1) 이번 upsert 행 중 입금 있는 건 (2) DB에 입금 있는데 deposits 미수집인 건 (백필)
@@ -733,10 +723,38 @@ def main():
     if deposit_target_ids or backfill_ids:
         print(f'[DEPOSITS] 입금내역 수집: 갱신 {len(deposit_target_ids)}건 + 백필 {len(backfill_ids)}건')
     unique_by_id = {c['id']: c for c in unique}
+    deposit_failed = []
+    fee_fixed = 0
     for cid in sorted(deposit_target_ids):
         deps = fetch_deposits(session, cid)
-        if deps is not None:
-            unique_by_id[cid]['deposits'] = deps
+        if deps is None:
+            deposit_failed.append(cid)
+            continue
+        unique_by_id[cid]['deposits'] = deps
+        # 대여료 = 차액서비스 제외 입금 항목 합 (사용자 확인 2026-09-30).
+        #   취소 후 재입력: 취소 항목이 0원으로 남아 합이 정확 (예: 2988507 776,620 + 0 → 776,620, 목록 합계 API 는 1,553,240).
+        #   이전+이후 분할 입금: 항목 여러 줄 합 = 실제 총 입금.
+        fee = sum((d.get('amount') or 0) for d in deps if not d.get('service'))
+        if fee != (unique_by_id[cid].get('rental_fee') or 0):
+            print(f'[FEE] {cid}: 목록 합계 {unique_by_id[cid].get("rental_fee") or 0:,} → 입금 항목 합 {fee:,}')
+            fee_fixed += 1
+        unique_by_id[cid]['rental_fee'] = fee
+    if fee_fixed:
+        print(f'[FEE] 대여료를 입금 항목 합으로 보정 {fee_fixed}건')
+    # 입금 목록 조회 실패 건: DB 기존 대여료·입금 목록을 명시적으로 다시 넣음.
+    #   (키를 빼면 여러 행 upsert 에서 NULL 로 덮어써짐. DB 에 없던 신규 건은 목록 합계 값 그대로)
+    if deposit_failed:
+        try:
+            prev = {r['id']: r for r in (supabase_client.table('accident_rentals').select('id, rental_fee, deposits')
+                                         .in_('id', deposit_failed).execute().data or [])}
+        except Exception as e:
+            prev = {}
+            print(f'[WARN] 입금 목록 실패 건 DB 조회 실패: {e}')
+        for cid in deposit_failed:
+            if cid in prev:
+                unique_by_id[cid]['rental_fee'] = prev[cid].get('rental_fee')
+                unique_by_id[cid]['deposits'] = prev[cid].get('deposits')
+        print(f'[WARN] 입금 목록 조회 실패 {len(deposit_failed)}건 — DB 기존 대여료·입금 목록 유지')
     backfill_rows = []
     for cid in sorted(backfill_ids):
         deps = fetch_deposits(session, cid)
