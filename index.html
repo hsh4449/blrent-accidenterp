@@ -277,11 +277,11 @@ const OWNER_LABEL = { all: "전체", hq: "본사", jiip: "신동석", jang: "장
 // 2026-07-21: 본사 이관 — 9879(GLC) → 최제렬, 7950(E클래스) → 김민규(기본값이라 목록 불필요)
 const KIM_MANAGER_VEHICLES = {
   "최제렬": ["9116", "9283", "9756", "9774", "9137", "9315", "7891", "9879"],
-  "윤유빈": ["9646", "7892"],
+  "유윤빈": ["9646", "7892"],
   "전상민": ["7898", "7899", "7951"],
 };
 const KIM_MANAGER_DEFAULT = "김민규";
-const KIM_MANAGER_TABS = ["최제렬", "윤유빈", "전상민", KIM_MANAGER_DEFAULT];
+const KIM_MANAGER_TABS = ["최제렬", "유윤빈", "전상민", KIM_MANAGER_DEFAULT];
 function kimManagerFor(vehicleNumber) {
   const num = vehicleNumber || "";
   for (const [mgr, suffixes] of Object.entries(KIM_MANAGER_VEHICLES)) {
