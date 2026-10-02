@@ -74,3 +74,13 @@ def post_daily(sb, today, results: dict, errors: dict, holiday: bool = False) ->
         print(f'[DISCORD] 보고 HTTP {r.status_code}')
     except Exception as e:
         print(f'[DISCORD] 보고 실패: {type(e).__name__}: {e}')
+
+
+if __name__ == '__main__':
+    # 연결 확인용: 문자 발송 없이 테스트 메시지 1통 (웹훅·솔라피 잔액 조회 확인). Railway Console: python send_module/discord_report.py
+    if not DISCORD_WEBHOOK_URL:
+        print('DISCORD_WEBHOOK_URL 미설정')
+    else:
+        r = requests.post(DISCORD_WEBHOOK_URL, timeout=15, json={
+            'content': f'**[사고대차 자동 독촉] 연결 테스트**\n문자 발송 없음 — 매일 08:30 자동 독촉 후 이 채널로 요약이 옵니다.\n솔라피 잔액 {solapi_balance()}'})
+        print(f'디스코드 HTTP {r.status_code}')
