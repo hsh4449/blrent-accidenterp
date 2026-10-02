@@ -20,6 +20,7 @@ from send_engine import (
     send_plan,
 )
 import result_report  # 자동 독촉 결과 보고 (owner 별, 실패해도 독촉 처리에 영향 없음)
+import discord_report  # 하루 요약을 디스코드 '비엘매니저 관리' 채널로 (실패해도 독촉 처리에 영향 없음)
 
 # 같은 보험사 담당자 재발송 최소 간격 (일). 1 = 매일 가능 (단, SKIP_WEEKDAYS 제외).
 SEND_INTERVAL_DAYS = 1
@@ -37,7 +38,8 @@ SKIP_WEEKDAYS = {6}
 OWNERS = ('hq', 'jiip', 'jang', 'kim', 'choi', 'jeon', 'yu', 'kang', 'han')
 
 
-def run_one(sb, owner: str, today) -> None:
+def run_one(sb, owner: str, today):
+    """실제 발송했으면 send_plan 결과 dict, 아니면 None (디스코드 요약용)."""
     print(f'\n--- [owner={owner}] 평가 시작 ---')
     settings = (sb.table('accident_send_settings').select('*')
                   .eq('owner', owner).single().execute().data)
@@ -82,6 +84,7 @@ def run_one(sb, owner: str, today) -> None:
 
     # 담당자별 처리가 끝난 뒤 결과 보고 (실제 발송 요청에 포함된 계약 기준, 접수 결과 판정)
     print(f'[5 owner={owner}] 결과 보고: {result_report.report_auto_send(sb, owner, today, plan, result)}')
+    return result
 
 
 def main():
@@ -94,17 +97,24 @@ def main():
     if today.weekday() in SKIP_WEEKDAYS:
         names = {0:"월",1:"화",2:"수",3:"목",4:"금",5:"토",6:"일"}
         print(f'[GATE all] 오늘은 {names[today.weekday()]}요일 — 발송 제외요일, 종료')
+        discord_report.post_daily(None, today, {}, {}, holiday=True)
         return
 
     sb = get_client()
 
+    results, errors = {}, {}
     for owner in OWNERS:
         try:
-            run_one(sb, owner, today)
+            result = run_one(sb, owner, today)
+            if result:
+                results[owner] = result
         except Exception as e:
             # 한 owner 실패가 다른 owner 발송을 막지 않도록 격리.
             print(f'[ERROR owner={owner}] {type(e).__name__}: {e}')
             result_report.report_error(sb, owner, today, e)   # 실행 오류 보고 (대상 0건과 구분)
+            errors[owner] = f'{type(e).__name__}: {e}'
+
+    discord_report.post_daily(sb, today, results, errors)
 
     print(f'=== ACCIDENT AUTO_SEND 완료 {datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")} KST ===')
 
