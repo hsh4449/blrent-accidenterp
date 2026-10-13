@@ -35,7 +35,8 @@ SKIP_WEEKDAYS = {6}
 # 2026-09-30 사용자 지시: 담당소장 전원으로 확대 (박민 park·굿초이스 good 은 제외. 한종택·염규성은 8/24 재분배 때 이미 owner 아님).
 #   실제 발송 여부는 owner 별 accident_send_settings.auto_send_enabled / report_enabled / report_phone 로 켬.
 #   발신번호는 SOLAPI_FROM_* 미설정 owner 전부 hq 번호 fallback (solapi_sender.from_number_for).
-OWNERS = ('hq', 'jiip', 'jang', 'kim', 'choi', 'jeon', 'yu', 'kang', 'han')
+# 2026-10-13 사용자 지시: 한정규(han) 제외 — 독촉 대상 없이 매일 '대상 0건' 보고 문자만 가던 상태.
+OWNERS = ('hq', 'jiip', 'jang', 'kim', 'choi', 'jeon', 'yu', 'kang')
 
 
 def run_one(sb, owner: str, today):
