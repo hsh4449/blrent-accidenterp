@@ -49,6 +49,11 @@ _crawl_failing = False
 
 
 def notify_discord(text):
+    try:
+        import kakao_report   # 카톡 비엘관리방에도 (2026-10-14)
+        kakao_report.push(text)
+    except Exception as e:
+        print(f"[worker] 카톡 보고 실패: {type(e).__name__}: {e}", flush=True)
     url = os.environ.get("DISCORD_ALERT_WEBHOOK_URL", "")
     if not url:
         print("[worker] DISCORD_ALERT_WEBHOOK_URL 미설정 — 보고 생략", flush=True)

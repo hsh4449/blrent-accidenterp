@@ -10,6 +10,7 @@ import os
 import requests
 
 from solapi_sender import _auth_header
+import kakao_report
 
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
 BALANCE_URL = 'https://api.solapi.com/cash/v1/balance'
@@ -63,13 +64,18 @@ def build_text(run_date: str, results: dict, errors: dict, report_ok: int, repor
 
 
 def post_daily(sb, today, results: dict, errors: dict, holiday: bool = False) -> None:
-    if not DISCORD_WEBHOOK_URL:
-        print('[DISCORD] DISCORD_WEBHOOK_URL 미설정 → 보고 건너뜀')
-        return
     try:
         run_date = today.isoformat()
         report_ok, report_bad = (0, 0) if holiday else report_counts(sb, run_date)
         text = build_text(run_date, results, errors, report_ok, report_bad, solapi_balance(), holiday)
+    except Exception as e:
+        print(f'[DISCORD] 보고문 생성 실패: {type(e).__name__}: {e}')
+        return
+    kakao_report.push(text)   # 카톡 비엘관리방 (2026-10-14)
+    if not DISCORD_WEBHOOK_URL:
+        print('[DISCORD] DISCORD_WEBHOOK_URL 미설정 → 보고 건너뜀')
+        return
+    try:
         r = requests.post(DISCORD_WEBHOOK_URL, json={'content': text}, timeout=15)
         print(f'[DISCORD] 보고 HTTP {r.status_code}')
     except Exception as e:
