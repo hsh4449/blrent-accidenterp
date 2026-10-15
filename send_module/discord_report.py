@@ -1,18 +1,16 @@
 """
-매일 자동 독촉이 끝난 뒤 디스코드 '비엘매니저 관리' 채널로 요약 보고 (사용자 지시 2026-10-02).
+매일 자동 독촉이 끝난 뒤 요약 보고 (사용자 지시 2026-10-02).
 
 내용: 독촉 문자 발송/실패 통수(솔라피 접수 기준), 결과 보고 문자 통수, 솔라피 잔액.
-  - 채널 웹훅 URL 은 Railway 변수 DISCORD_WEBHOOK_URL. 없으면 보고만 건너뜀.
+  - 카톡 비엘관리방으로 (kakao_report → BL매니저 카톡 발송함). 2026-10-15 디스코드 전송은 뺐다(카톡과 중복).
+    모듈 이름은 auto_send 가 import 하므로 그대로 둔다.
   - 이 모듈의 어떤 실패도 독촉 발송에 영향 주지 않음 (예외는 전부 print 후 무시).
 """
-import os
-
 import requests
 
 from solapi_sender import _auth_header
 import kakao_report
 
-DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
 BALANCE_URL = 'https://api.solapi.com/cash/v1/balance'
 
 OWNER_NAME = {'hq': '본사', 'jiip': '신동석', 'jang': '장명재', 'kim': '김민규', 'choi': '최제렬',
@@ -69,24 +67,11 @@ def post_daily(sb, today, results: dict, errors: dict, holiday: bool = False) ->
         report_ok, report_bad = (0, 0) if holiday else report_counts(sb, run_date)
         text = build_text(run_date, results, errors, report_ok, report_bad, solapi_balance(), holiday)
     except Exception as e:
-        print(f'[DISCORD] 보고문 생성 실패: {type(e).__name__}: {e}')
+        print(f'[REPORT] 보고문 생성 실패: {type(e).__name__}: {e}')
         return
-    kakao_report.push(text)   # 카톡 비엘관리방 (2026-10-14)
-    if not DISCORD_WEBHOOK_URL:
-        print('[DISCORD] DISCORD_WEBHOOK_URL 미설정 → 보고 건너뜀')
-        return
-    try:
-        r = requests.post(DISCORD_WEBHOOK_URL, json={'content': text}, timeout=15)
-        print(f'[DISCORD] 보고 HTTP {r.status_code}')
-    except Exception as e:
-        print(f'[DISCORD] 보고 실패: {type(e).__name__}: {e}')
+    kakao_report.push(text)
 
 
 if __name__ == '__main__':
-    # 연결 확인용: 문자 발송 없이 테스트 메시지 1통 (웹훅·솔라피 잔액 조회 확인). Railway Console: python send_module/discord_report.py
-    if not DISCORD_WEBHOOK_URL:
-        print('DISCORD_WEBHOOK_URL 미설정')
-    else:
-        r = requests.post(DISCORD_WEBHOOK_URL, timeout=15, json={
-            'content': f'**[사고대차 자동 독촉] 연결 테스트**\n문자 발송 없음 — 매일 08:30 자동 독촉 후 이 채널로 요약이 옵니다.\n솔라피 잔액 {solapi_balance()}'})
-        print(f'디스코드 HTTP {r.status_code}')
+    # 연결 확인용: 문자 발송 없이 테스트 메시지 1통 (카톡 발송함·솔라피 잔액 조회 확인). Railway Console: python send_module/discord_report.py
+    kakao_report.push(f'[사고대차 자동 독촉] 연결 테스트\n문자 발송 없음 — 매일 08:30 자동 독촉 후 이 방으로 요약이 옵니다.\n솔라피 잔액 {solapi_balance()}')

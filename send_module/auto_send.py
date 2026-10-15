@@ -20,7 +20,7 @@ from send_engine import (
     send_plan,
 )
 import result_report  # 자동 독촉 결과 보고 (owner 별, 실패해도 독촉 처리에 영향 없음)
-import discord_report  # 하루 요약을 디스코드 '비엘매니저 관리' 채널로 (실패해도 독촉 처리에 영향 없음)
+import discord_report  # 하루 요약을 카톡 비엘관리방으로 (실패해도 독촉 처리에 영향 없음)
 
 # 같은 보험사 담당자 재발송 최소 간격 (일). 1 = 매일 가능 (단, SKIP_WEEKDAYS 제외).
 SEND_INTERVAL_DAYS = 1
