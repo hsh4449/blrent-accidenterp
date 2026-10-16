@@ -12,24 +12,39 @@ from solapi_sender import _auth_header
 import kakao_report
 
 BALANCE_URL = 'https://api.solapi.com/cash/v1/balance'
+LOW_BALANCE = 20_000   # 이 아래면 충전 알림 따로 (사용자 지시 2026-10-16). BL매니저 문자도 같은 솔라피 계정
 
 OWNER_NAME = {'hq': '본사', 'jiip': '신동석', 'jang': '장명재', 'kim': '김민규', 'choi': '최제렬',
               'jeon': '전상민', 'yu': '유윤빈', 'kang': '강연수', 'han': '한정규'}
 
 
-def solapi_balance() -> str:
-    """솔라피 잔액 문자열. 조회 실패 시 '조회 실패 (사유)'."""
+def solapi_balance_raw():
+    """(잔액 원, 포인트 원) 또는 조회 실패 사유 문자열."""
     try:
         r = requests.get(BALANCE_URL, headers={'Authorization': _auth_header()}, timeout=15)
         if r.status_code != 200:
-            return f'조회 실패 (HTTP {r.status_code})'
+            return f'HTTP {r.status_code}'
         b = r.json()
-        text = f'{round(b.get("balance") or 0):,}원'
-        if b.get('point'):
-            text += f' (포인트 {round(b["point"]):,}원 별도)'
-        return text
+        return round(b.get('balance') or 0), round(b.get('point') or 0)
     except Exception as e:
-        return f'조회 실패 ({type(e).__name__})'
+        return type(e).__name__
+
+
+def solapi_balance(raw=None) -> str:
+    """솔라피 잔액 문자열. 조회 실패 시 '조회 실패 (사유)'."""
+    raw = solapi_balance_raw() if raw is None else raw
+    if isinstance(raw, str):
+        return f'조회 실패 ({raw})'
+    balance, point = raw
+    return f'{balance:,}원' + (f' (포인트 {point:,}원 별도)' if point else '')
+
+
+def low_balance_text(raw):
+    """잔액이 LOW_BALANCE 아래면 충전 알림 문구, 아니면 None (조회 실패도 None — 실패는 본 보고에 찍힘)."""
+    if isinstance(raw, str) or raw[0] >= LOW_BALANCE:
+        return None
+    return (f'⚠️ 솔라피 충전 필요 — 잔액 {solapi_balance(raw)}\n'
+            f'{LOW_BALANCE:,}원 아래로 내려갔습니다. 사고대차 독촉·BL매니저 문자가 같은 계정이라 바닥나면 둘 다 멈춥니다')
 
 
 def report_counts(sb, run_date: str) -> tuple:
@@ -65,11 +80,15 @@ def post_daily(sb, today, results: dict, errors: dict, holiday: bool = False) ->
     try:
         run_date = today.isoformat()
         report_ok, report_bad = (0, 0) if holiday else report_counts(sb, run_date)
-        text = build_text(run_date, results, errors, report_ok, report_bad, solapi_balance(), holiday)
+        raw = solapi_balance_raw()
+        text = build_text(run_date, results, errors, report_ok, report_bad, solapi_balance(raw), holiday)
     except Exception as e:
         print(f'[REPORT] 보고문 생성 실패: {type(e).__name__}: {e}')
         return
     kakao_report.push(text)
+    low = low_balance_text(raw)
+    if low:
+        kakao_report.push(low)   # 잔액이 회복될 때까지 매일 아침 한 번씩
 
 
 if __name__ == '__main__':
