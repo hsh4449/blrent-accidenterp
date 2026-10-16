@@ -4,7 +4,7 @@
 owner 별 (OWNERS 튜플, 본사·담당소장) 독립 실행 — 게이트/마지막발송일/발신번호 분리.
 
 게이트 순서 (각 owner 마다 동일 적용):
-  0. 오늘이 일요일 (KST weekday=6) → 전체 종료 (모든 owner)
+  0. 오늘이 토·일요일 (KST weekday=5,6) → 전체 종료 (모든 owner)
   1. accident_send_settings(owner).auto_send_enabled = false → 해당 owner 종료
   2. last_auto_send_date 기준 SEND_INTERVAL_DAYS 미경과 → 종료
   3. 미입금 0건 → 종료
@@ -25,8 +25,8 @@ import discord_report  # 하루 요약을 카톡 비엘관리방으로 (실패�
 # 같은 보험사 담당자 재발송 최소 간격 (일). 1 = 매일 가능 (단, SKIP_WEEKDAYS 제외).
 SEND_INTERVAL_DAYS = 1
 
-# 발송 제외 요일 (Python weekday: 월=0, ..., 일=6). 사용자 지시 2026-05-20: 일요일 제외.
-SKIP_WEEKDAYS = {6}
+# 발송 제외 요일 (Python weekday: 월=0, ..., 일=6). 사용자 지시 2026-05-20: 일요일 제외 → 2026-10-16: 토·일 제외.
+SKIP_WEEKDAYS = {5, 6}
 
 # 자동발송 도메인 — 매일 cron 에서 순차 평가.
 # 각 owner 의 settings/last_auto_send_date/send_armed/발신번호가 독립적으로 작동.
@@ -94,7 +94,7 @@ def main():
 
     today = kst_today()
 
-    # 0차 게이트: 요일 — 일요일은 본사/지입 모두 종료. (사용자 지시 2026-05-20)
+    # 0차 게이트: 요일 — 토·일요일은 본사/지입 모두 종료. (사용자 지시 2026-05-20 일요일, 2026-10-16 토요일 추가)
     if today.weekday() in SKIP_WEEKDAYS:
         names = {0:"월",1:"화",2:"수",3:"목",4:"금",5:"토",6:"일"}
         print(f'[GATE all] 오늘은 {names[today.weekday()]}요일 — 발송 제외요일, 종료')

@@ -2277,7 +2277,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
     {/* 헤더 */}
     <div style={{display:"flex",alignItems:"baseline",gap:14,flexWrap:"wrap"}}>
       <h3 style={{margin:0,fontSize:18,color:"#18181b"}}>📨 미입금 자동 독촉 SMS</h3>
-      <span style={{fontSize:13,color:"#0f172a"}}>매일 08:30 KST (일요일 제외) · 청구 다음날부터 발송 · 본사·지입 모두 매일 1회 · 솔라피 LMS</span>
+      <span style={{fontSize:13,color:"#0f172a"}}>매일 08:30 KST (토·일 제외) · 청구 다음날부터 발송 · 본사·지입 모두 매일 1회 · 솔라피 LMS</span>
     </div>
 
     {/* owner 배지 — 현재 보고 있는 발송 시스템 (본사 hq / 신동석 jiip) */}
@@ -2313,7 +2313,7 @@ function DokchokTab({ sb, contracts, isMobile, userOwner, userLabel, fromNumberO
               if (!ss.last_auto_send_date) return "(즉시 가능)";
               let d = new Date(ss.last_auto_send_date + "T00:00:00");
               d.setDate(d.getDate() + 1);
-              while (d.getDay() === 0) d.setDate(d.getDate() + 1);
+              while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);   // 토·일 제외 (2026-10-16)
               const y = d.getFullYear();
               const m = String(d.getMonth()+1).padStart(2,'0');
               const day = String(d.getDate()).padStart(2,'0');

@@ -60,7 +60,7 @@ def build_text(run_date: str, results: dict, errors: dict, report_ok: int, repor
     """results: owner → send_plan 결과, errors: owner → 오류 문자열."""
     lines = [f'**[사고대차 자동 독촉] {run_date}**']
     if holiday:
-        lines.append('일요일이라 발송 없음')
+        lines.append('주말(토·일)이라 발송 없음')
     else:
         sent = sum(r.get('sent', 0) for r in results.values())
         failed = sum(r.get('failed', 0) for r in results.values())

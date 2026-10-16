@@ -1,7 +1,7 @@
 """Railway 워커 — Vultr crontab 에 있던 사고대차 작업 3개를 프로세스 하나로 (2026-09-06 이전).
 
 기존 스크립트를 그대로 서브프로세스로 실행하므로 동작은 cron 과 동일하다.
-  - 매일 08:30 KST  send_module/auto_send.py            (자동 독촉, 일요일 제외 게이트는 스크립트 안에 있음)
+  - 매일 08:30 KST  send_module/auto_send.py            (자동 독촉, 토·일 제외 게이트는 스크립트 안에 있음)
   - 2분마다        send_module/process_manual_queue.py  (ERP 화면 [문자발송]/[전체발송] 큐 처리)
   - 09~17시 17분   crawler.py                           (IMS 크롤 → accident_rentals upsert)
 시작 시 큐 처리를 한 번 돌려 env·Supabase 연결을 확인한다 (`--once` 면 크롤까지 1회 실행 후 종료).

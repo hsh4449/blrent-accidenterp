@@ -12,7 +12,7 @@
 
 게이트:
   - SEND_INTERVAL_DAYS (auto 전용) 무시 — 수동은 사용자 의도로 매번 가능
-  - 일요일 제한 무시 — 수동은 사용자가 직접 누른 거라 의도된 발송
+  - 주말(토·일) 제한 무시 — 수동은 사용자가 직접 누른 거라 의도된 발송
   - MASTER_KILL_SWITCH 는 send_plan 내부에서 여전히 작동
 """
 from datetime import datetime
